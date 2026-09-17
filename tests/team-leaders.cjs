@@ -16,13 +16,14 @@ insert into profiles(id,role,division,is_super_admin,full_name) values
 ('00000000-0000-0000-0000-000000000004','agent','legacy_life',false,'Other leader'),
 ('00000000-0000-0000-0000-000000000005','admin','legacy_life',false,'Legacy admin');`);
 await db.exec(fs.readFileSync('db/team-leaders.sql','utf8'));
+await db.exec(fs.readFileSync('db/division-team-settings.sql','utf8'));
 const id=n=>'00000000-0000-0000-0000-'+String(n).padStart(12,'0');
 async function as(n,aal='aal2'){await db.exec(`reset role;select set_config('request.jwt.claim.sub','${id(n)}',false);select set_config('test.aal','${aal}',false);set role authenticated;`)}
 async function reject(sql,match){await assert.rejects(db.exec(sql),match)}
 await as(1);await db.exec(`select public.set_agent_team('${id(2)}',true,null);select public.set_agent_team('${id(4)}',true,null);select public.set_agent_team('${id(3)}',false,'${id(2)}');`);
 await reject(`select public.set_agent_team('${id(3)}',false,'${id(4)}')`,/same division/);
 await reject(`select public.set_agent_team('${id(2)}',false,null)`,/Reassign/);
-await as(2);await reject(`select public.set_agent_team('${id(3)}',true,null)`,/Master Admin/);
+await as(2);await reject(`select public.set_agent_team('${id(3)}',true,null)`,/Active admin/);
 await db.exec(`insert into leads(id,division,lead_type,uploaded_by) values('${id(10)}','vivid_life','A','${id(4)}');`);
 let row=(await db.query(`select * from leads where id='${id(10)}'`)).rows[0];assert.equal(row.uploaded_by,id(2));assert.equal(row.status,'unassigned');
 await reject(`insert into leads(division) values('legacy_life')`,/only to your division|row-level/);
@@ -38,4 +39,13 @@ await as(5);await reject(`select public.reclaim_agent_leads_filtered('${id(3)}',
 await as(1);await db.exec(`select public.reclaim_agent_leads_filtered('${id(3)}','A',1)`);
 await reject(`select public.reclaim_agent_leads_filtered('${id(3)}','A',5)`,/Only 1/);
 await db.exec('reset role');const rows=(await db.query(`select * from leads where id in ('${id(20)}','${id(21)}','${id(22)}','${id(23)}')`)).rows;assert.equal(rows.filter(x=>x.status==='unassigned').length,1);assert.equal(rows.find(x=>x.id===id(22)).status,'assigned');assert.equal(rows.find(x=>x.id===id(23)).status,'closed');
+await as(5);await db.exec(`select public.set_agent_team('${id(4)}',false,null);select public.set_agent_team('${id(4)}',true,null)`);
+await reject(`select public.set_agent_team('${id(3)}',true,null)`,/own division/);
+await reject(`select public.set_agent_team('${id(4)}',false,'${id(2)}')`,/same division/);
+await db.exec(`reset role;insert into profiles(id,role,division,full_name) values('${id(6)}','admin','vivid_life','Vivid admin')`);
+await as(6);await db.exec(`select public.set_agent_team('${id(3)}',true,null)`);await reject(`select public.set_agent_team('${id(4)}',false,null)`,/own division/);
+await db.exec(`reset role;update profiles set active=false where id='${id(6)}'`);await as(6);await reject(`select public.set_agent_team('${id(3)}',false,null)`,/Active admin/);
+await db.exec(`reset role;update profiles set active=true,archived=true where id='${id(6)}'`);await as(6);await reject(`select public.set_agent_team('${id(3)}',false,null)`,/Active admin/);
+await as(1);await db.exec(`select public.set_agent_team('${id(3)}',false,null)`);
+console.log('PASS: Legacy/Vivid own-division team management, cross-division denial, inactive/archived admin denial, Master retained');
 console.log('PASS: team setup, cross-division/self-promotion denial, uploader stamp, own-only deletion, MFA, ordinary-agent denial, exact type/quantity reclaim, shortfall rollback, closed leads preserved');await db.close();})().catch(e=>{console.error(e);process.exit(1)});
