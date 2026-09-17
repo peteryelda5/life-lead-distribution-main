@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Master key preparation</title><link rel="stylesheet" href="/setup.css"></head><body><main>
+<p class="eyebrow">LIFE LEAD DISTRIBUTION</p><h1>Prepare your Master key</h1>
+<p>Your key is created on this computer. Your recovery password and private key are never sent to Supabase or Vercel.</p>
+<p class="notice">Preparation only: this key is not enrolled as your Master key yet. Existing leads are unchanged. This unsigned trial does not activate production encryption.</p>
+<section><h2>Key status</h2><p id="state" role="status">Checking…</p><p id="fingerprint" class="fingerprint"></p></section>
+<form id="setup"><label for="password">Recovery password</label><input id="password" type="password" minlength="20" maxlength="512" autocomplete="new-password" placeholder="A long, unique phrase (at least 20 characters)"><label for="confirm">Confirm password when creating a key</label><input id="confirm" type="password" autocomplete="new-password">
+<p class="hint">Keep this password in a password manager. Store the recovery file separately, ideally on an offline USB drive. We cannot reset the password.</p>
+<div class="actions"><button id="create" type="submit">1. Create key on this computer</button><button id="backup" type="button">2. Save encrypted recovery file</button><button id="verify" type="button">3. Reopen file and test recovery</button></div>
+<div class="actions secondary"><button id="unlock" type="button">Unlock local key</button><button id="lock" type="button">Lock key</button><button id="restore" type="button">Recover on a new computer</button></div></form>
+<p id="message" role="status" aria-live="polite"></p>
+<p class="hint">Locking applies to this preparation key. It does not lock your current portal or encrypt its existing session. This window locks the key when closed or after five minutes without a key operation.</p>
+</main><script src="/setup.js"></script></body></html>

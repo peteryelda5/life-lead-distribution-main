@@ -1,3 +1,7 @@
+Version 0.2.0 adds local Master-key preparation; see KEY-SETUP.md for the new
+setup window, restricted IPC, Windows storage and recovery tests. Statements below
+describe the original portal renderer, which still has no key bridge.
+
 # Windows portal trial
 
 Separate evaluation package, not a production encryption rollout. The website is unchanged

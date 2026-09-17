@@ -1,0 +1,18 @@
+'use strict';
+const fs=require('node:fs/promises'),path=require('node:path');
+const crypto=require('./crypto.cjs');
+class Vault {
+ constructor(file,storage){this.file=file;this.storage=storage;this.privateKey=null;this.timer=null;this.epoch=0;}
+ async available(){return this.storage.isAsyncEncryptionAvailable();}
+ async read(){try{const stat=await fs.stat(this.file);if(stat.size>131072)throw Error('Invalid device vault');const value=await this.storage.decryptStringAsync(await fs.readFile(this.file));const record=JSON.parse(value.result);crypto.parse(JSON.stringify(record.bundle));if(!/^[a-f0-9]{64}$/.test(record.fingerprint))throw Error('Invalid device vault');return record;}catch(e){if(e.code==='ENOENT')return null;throw e;}}
+ async write(record,newOnly=false){if(!await this.available())throw Error('Protected device storage is unavailable');const bytes=await this.storage.encryptStringAsync(JSON.stringify(record));await fs.mkdir(path.dirname(this.file),{recursive:true});if(newOnly){await fs.writeFile(this.file,bytes,{flag:'wx',mode:0o600});return;}const temporary=this.file+'.new';try{await fs.writeFile(temporary,bytes,{flag:'wx',mode:0o600});await fs.rename(temporary,this.file);}finally{await fs.rm(temporary,{force:true});}}
+ lock(){this.epoch++;this.privateKey=null;clearTimeout(this.timer);this.timer=null;}
+ unlocked(key){this.lock();this.privateKey=key;this.timer=setTimeout(()=>this.lock(),300000);this.timer.unref?.();}
+ async status(){const available=await this.available();if(!available)return {available:false,exists:false,unlocked:false};const r=await this.read();return {available,exists:!!r,unlocked:!!this.privateKey,fingerprint:r?.fingerprint||null,verified:!!r?.verified};}
+ async create(password){const epoch=this.epoch;if(await this.read())throw Error('A key already exists. It will not be replaced.');const r=await crypto.create(password);crypto.proof(r.privateKey);await this.write({bundle:r.bundle,fingerprint:r.fingerprint,verified:false},true);if(this.epoch===epoch)this.unlocked(r.privateKey);return {message:'Key prepared locally. Save an encrypted recovery file next.'};}
+ async backup(){const r=await this.read();if(!r)throw Error('Create a key first');return JSON.stringify(r.bundle,null,2);}
+ async unlock(password){const epoch=this.epoch;const r=await this.read();if(!r)throw Error('Create a key first');const restored=await crypto.recover(JSON.stringify(r.bundle),password);if(restored.fingerprint!==r.fingerprint)throw Error('Device key mismatch');crypto.proof(restored.privateKey);if(this.epoch===epoch)this.unlocked(restored.privateKey);return {message:'Local preparation key unlocked. Production encryption remains off.'};}
+ async verify(text,password){const epoch=this.epoch;const current=await this.read();if(!current)throw Error('Create a key first');const r=await crypto.recover(text,password);if(r.fingerprint!==current.fingerprint)throw Error('This recovery file belongs to a different key');crypto.proof(r.privateKey);await this.write({...current,verified:true});if(this.epoch===epoch)this.unlocked(r.privateKey);return {message:'Recovery passed using the file you selected. Keep that file and password safe. Production enrollment is still pending.'};}
+ async restore(text,password){const epoch=this.epoch;if(await this.read())throw Error('A key already exists. Recovery will not overwrite it.');const r=await crypto.recover(text,password);crypto.proof(r.privateKey);await this.write({bundle:r.bundle,fingerprint:r.fingerprint,verified:true},true);if(this.epoch===epoch)this.unlocked(r.privateKey);return {message:'Key recovered to this computer. Production enrollment is still pending.'};}
+}
+module.exports={Vault};

@@ -1,4 +1,4 @@
-Life Lead Distribution - Windows Trial 0.1.0
+Life Lead Distribution - Windows Key Setup 0.2.0
 Windows 10/11 x64. Portable trial, not an installer.
 
 1. Extract the entire ZIP into a folder on your computer.
@@ -13,7 +13,10 @@ the approved LLD logo. The sign-in library is bundled, not loaded from a CDN.
 IMPORTANT
 This connects to your LIVE account. Edits, uploads and deletions affect real
 leads. It is not a sample database. New field encryption is NOT enabled.
-Device encryption keys and recovery are not set up.
+Use Encryption > Master key preparation (or Ctrl+Shift+E) to prepare a local
+key, save its encrypted recovery file, and reopen it to verify recovery.
+This does not enroll the key or activate production encryption.
+Do not share your password or recovery file in chat.
 
 This trial is UNSIGNED. Windows may flag an unknown publisher or block it.
 Do not disable Windows security. If blocked, report the exact message so a
