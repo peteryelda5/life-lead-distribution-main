@@ -1,3 +1,8 @@
+TEAM PERMISSIONS UPDATE 0.4.0
+Division admins can now open Agents > Team settings for their own agents.
+Master retains control across divisions. No agents are automatically promoted.
+Close the older app before launching this build. Existing keys are retained.
+
 DASHBOARD UPDATE 0.3.0
 Close every old app window before opening this version.
 Your prepared key and recovery-check status remain in the existing Windows
