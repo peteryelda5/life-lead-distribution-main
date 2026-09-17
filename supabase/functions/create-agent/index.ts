@@ -12,16 +12,18 @@ Deno.serve(async(req:Request)=>{
  if(!cp||cp.role!=="admin"||!cp.active)return json({error:"Admin only"},403);
  const body=await req.json().catch(()=>({}));
  const full_name=String(body.full_name??"").trim(),email=String(body.email??"").trim().toLowerCase(),password=String(body.password??"");
- let division=cp.is_super_admin?String(body.division??"owner").trim():String(cp.division??"").trim();
+ const {data:allowedDivisions,error:scopeError}=await caller.rpc("my_admin_divisions");
+ if(scopeError||!Array.isArray(allowedDivisions))return json({error:"Could not verify division permissions"},403);
+ let division=String(body.division??cp.division??"").trim();
  if(!full_name||!email||!password)return json({error:"Full name, email and temporary password are required"},400);
  if(password.length<8)return json({error:"Temporary password must be at least 8 characters"},400);
  if(!["owner","vivid_life","legacy_life"].includes(division))return json({error:"Invalid division"},400);
- if(!cp.is_super_admin&&!["vivid_life","legacy_life"].includes(division))return json({error:"Your admin division is not configured"},400);
+ if(!allowedDivisions.includes(division))return json({error:"You cannot manage that division"},403);
  const admin=createClient(url,service,{auth:{autoRefreshToken:false,persistSession:false}});
  const {data:existing,error:lookupError}=await admin.from("profiles").select("id,email,full_name,role,active,archived,division,is_super_admin").eq("email",email).maybeSingle();
  if(lookupError)return json({error:"Could not check the existing account. Try again."},500);
  if(existing){
-  if(existing.role!=="agent"||existing.is_super_admin||!existing.archived||existing.active||(!cp.is_super_admin&&existing.division!==cp.division))return json({error:"This email already belongs to an account. Contact the Master Admin if it needs review."},409);
+  if(existing.role!=="agent"||existing.is_super_admin||!existing.archived||existing.active||!allowedDivisions.includes(existing.division))return json({error:"This email already belongs to an account. Contact the Master Admin if it needs review."},409);
   if(body.restore!==true)return json({error:"This agent was removed but their account was kept to preserve history.",code:"AGENT_ARCHIVED",division:existing.division},409);
   const {error:authError}=await admin.auth.admin.updateUserById(existing.id,{password});
   if(authError)return json({error:authError.message},400);
