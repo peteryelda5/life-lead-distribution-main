@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '../..');
 test('UI and workflows are copied intact; only SDK location changes', () => {
   const original = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.equal(fs.readFileSync(path.join(root, 'desktop/ui/index.html'), 'utf8'), original.replace('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', '/vendor/supabase.js'));
-  for (const file of ['team-leaders.js', 'corporate-blue.css']) assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), fs.readFileSync(path.join(root, 'desktop/ui', file), 'utf8'));
+  for (const file of ['team-leaders.js', 'corporate-blue.css', 'dashboard.js', 'dashboard.css']) assert.equal(fs.readFileSync(path.join(root, file), 'utf8'), fs.readFileSync(path.join(root, 'desktop/ui', file), 'utf8'));
 });
 test('only exact bundled routes are served', () => {
   assert.equal(assetPath('lld://portal/', manifest), '/index.html');

@@ -1,3 +1,9 @@
+DASHBOARD UPDATE 0.3.0
+Close every old app window before opening this version.
+Your prepared key and recovery-check status remain in the existing Windows
+app profile. Do not create a replacement key. Keep your recovery backup.
+This update changes the dashboard only; production encryption is still off.
+
 Life Lead Distribution - Windows Key Setup 0.2.0
 Windows 10/11 x64. Portable trial, not an installer.
 
