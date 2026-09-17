@@ -25,3 +25,18 @@ th{background:#f0f5fc;color:#3f5d7e;font-size:11px;letter-spacing:.045em;padding
 @media(min-width:1001px){.top{position:fixed;top:0;left:0;bottom:0;width:236px;height:100dvh;overflow-y:auto;z-index:10;background:linear-gradient(175deg,#092e58,#061e3d)}.topin{padding:28px 18px;height:100%;max-width:none;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:32px}.brand{align-items:flex-start;gap:10px}.nav{flex-direction:column;gap:8px;flex-wrap:nowrap}.nav button{width:100%;padding:13px 14px;text-align:left;white-space:normal}.wrap{margin-left:236px;max-width:none;padding:32px;min-height:100vh}.topscroll{top:12px}}
 @media(max-width:1000px){.topin{max-width:none;padding:14px 18px;flex-direction:column;align-items:stretch;gap:14px}.nav{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.nav button{white-space:nowrap;flex-shrink:0}.nav #out{margin-top:0}.wrap{padding:20px 16px}.head h1{font-size:26px}.brandname{font-size:16px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+
+/* Collapsed desktop rail keeps every destination available. */
+.nav-short,.sidebar-toggle{display:none}
+@media(min-width:1001px){
+ .sidebar-toggle{display:block;align-self:flex-end;flex-shrink:0;width:36px;height:36px;border:1px solid #416181;border-radius:8px;background:#164579;color:white;font-size:28px;line-height:1;cursor:pointer;margin-bottom:-18px}
+ .sidebar-collapsed{width:76px}
+ .sidebar-collapsed .topin{padding:20px 10px;gap:28px}
+ .sidebar-collapsed .sidebar-toggle{align-self:center}
+ .sidebar-collapsed .brand{justify-content:center}
+ .sidebar-collapsed .brand>div:not(.mark){display:none}
+ .sidebar-collapsed .nav button{padding:13px 4px;text-align:center}
+ .sidebar-collapsed .nav-short{display:inline;font-size:12px;letter-spacing:.04em}
+ .sidebar-collapsed .nav-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+ .sidebar-collapsed+.wrap{margin-left:76px}
+}
