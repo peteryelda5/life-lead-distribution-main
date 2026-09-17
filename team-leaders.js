@@ -1,0 +1,20 @@
+function teamSettingsModal(id){
+ const agent=S.agents.find(a=>a.id===id);if(!S.profile?.is_super_admin||!agent)return;
+ const leaders=S.agents.filter(a=>a.id!==id&&a.is_team_leader&&a.active&&!a.archived&&a.division===agent.division);
+ modal('<h2>Team settings: '+esc(agent.full_name)+'</h2><form id="teamForm" class="stack"><label><input id="isTeamLeader" type="checkbox" '+(agent.is_team_leader?'checked':'')+'> Team leader — may upload leads and delete only their own non-closed uploads</label><div class="field"><label>Assigned team leader</label><select id="teamLeader"><option value="">No team leader</option>'+leaders.map(a=>'<option value="'+a.id+'" '+(a.id===agent.team_leader_id?'selected':'')+'>'+esc(a.full_name)+'</option>').join('')+'</select></div><div class="notice">Team members and their leader must be in the same division. Only the Master Admin can change these settings.</div><div id="teamError" role="status"></div><div class="row"><button type="button" class="btn secondary" id="cancel">Cancel</button><button class="btn primary">Save team settings</button></div></form>');
+ const sync=()=>{q('#teamLeader').disabled=q('#isTeamLeader').checked;if(q('#isTeamLeader').checked)q('#teamLeader').value=''};q('#isTeamLeader').onchange=sync;sync();q('#cancel').onclick=closeModal;
+ q('#teamForm').onsubmit=async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;try{await api('/rest/v1/rpc/set_agent_team',{method:'POST',body:{p_agent:id,p_is_leader:q('#isTeamLeader').checked,p_leader:q('#teamLeader').value||null}});closeModal();await reload('Team settings saved.')}catch(x){q('#teamError').className='error';q('#teamError').textContent=x.message}finally{button.disabled=false}};
+}
+async function loadMyUploads(){
+ const params=new URLSearchParams({select:'*',uploaded_by:'eq.'+S.profile.id,division:'eq.'+S.profile.division,order:'created_at.desc,id.desc',limit:String(S.pageSize),offset:String((S.uploadPage-1)*S.pageSize)});
+ const result=await apiPage('/rest/v1/leads?'+params);S.uploads=result.data;S.uploadCount=result.count;
+ if(S.uploadPage>pageCount(S.uploadCount)){S.uploadPage=pageCount(S.uploadCount);return loadMyUploads()}
+}
+function myUploads(){
+ const rows=S.uploads||[];
+ return '<div class="head"><div><h1>My uploads</h1><p>Leads you added to '+esc(divisionLabel(S.profile.division))+'. Your admin assigns them to agents.</p></div></div><div class="tools"><button id="teamAddLead" class="btn primary">Add lead</button><button id="teamImport" class="btn secondary">Import CSV</button><button id="teamDelete" class="btn danger">Delete selected uploads</button></div><div class="notice">You can delete only leads you uploaded. Closed business is protected. Older uploads without a verified uploader remain under admin control.</div>'+pager('uploads',S.uploadPage,S.uploadCount)+'<div class="table"><table><thead><tr><th>Select</th><th>Name</th><th>Phone</th><th>Lead type / batch</th><th>Status</th><th>Source file</th></tr></thead><tbody>'+(rows.length?rows.map(l=>'<tr><td><input class="teamUploadCheck" type="checkbox" value="'+l.id+'" '+(l.status==='closed'?'disabled':'')+'></td><td>'+esc((l.first_name||'')+' '+(l.last_name||''))+'</td><td>'+esc(l.phone)+'</td><td>'+esc(l.lead_type??'Unlabeled')+'</td><td>'+esc(l.status)+'</td><td>'+esc(l.csv_filename)+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">No uploads yet.</td></tr>')+'</tbody></table></div>'+pager('uploads',S.uploadPage,S.uploadCount);
+}
+function bindMyUploads(){
+ q('#teamAddLead').onclick=addLeadModal;q('#teamImport').onclick=importCsvModal;
+ q('#teamDelete').onclick=async()=>{const ids=qa('.teamUploadCheck:checked').map(x=>x.value);if(!ids.length)return flash('Select the uploads you want to delete.',true);if(!confirm('Permanently delete '+ids.length+' of your uploaded leads? This also removes any open assignments for those leads.'))return;const button=q('#teamDelete');button.disabled=true;try{const n=await api('/rest/v1/rpc/delete_team_uploads',{method:'POST',body:{p_ids:ids}});await reload(n+' uploaded leads deleted.')}catch(x){flash(x.message,true)}finally{button.disabled=false}};
+}
