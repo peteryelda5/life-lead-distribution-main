@@ -6,13 +6,14 @@ const manifest = require('./ui/manifest.json');
 app.setName('Life Lead Distribution Trial');
 app.setPath('userData', path.join(app.getPath('appData'), 'Life Lead Distribution Trial'));
 app.enableSandbox();
-protocol.registerSchemesAsPrivileged([{ scheme: 'lld', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
+protocol.registerSchemesAsPrivileged([{ scheme: 'lld-keys', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }, { scheme: 'lld', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 let mainWindow;
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } });
   app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null);
+    const openKeySetup = require('./key-setup/window.cjs').register();
+    Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Encryption', submenu: [{ label: 'Master key preparation', accelerator: 'CommandOrControl+Shift+E', click: openKeySetup }, { type: 'separator' }, { role: 'quit' }] }]));
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     session.defaultSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !allowedRequest(details.url, details.resourceType, manifest) }));
