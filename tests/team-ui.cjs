@@ -10,3 +10,10 @@ assert(vm.runInContext("canAddLeads('vivid_life')",ctx));assert(!vm.runInContext
 assert(vm.runInContext('myUploads()',ctx).includes('Import CSV'));
 vm.runInContext('S.profile.is_team_leader=false',ctx);assert(!vm.runInContext("shell('','agent')",ctx).includes('My uploads'));assert(!vm.runInContext("canAddLeads('vivid_life')",ctx));
 console.log('PASS: master team controls, team-leader upload tab, ordinary-agent restrictions, same-division uploads');
+
+vm.runInContext("S.profile={id:'legacy-admin',role:'admin',active:true,is_super_admin:false,division:'legacy_life'};",ctx);
+assert(vm.runInContext("canManageTeam({division:'legacy_life',archived:false})",ctx));
+assert(!vm.runInContext("canManageTeam({division:'vivid_life',archived:false})",ctx));
+assert(!vm.runInContext("canManageTeam({division:'legacy_life',archived:true})",ctx));
+vm.runInContext('S.profile.active=false',ctx);assert(!vm.runInContext("canManageTeam({division:'legacy_life'})",ctx));
+console.log('PASS: division-scoped team controls, archived target and inactive admin blocked');
