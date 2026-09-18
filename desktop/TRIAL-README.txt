@@ -1,3 +1,9 @@
+STATUS DESIGN UPDATE 0.5.0
+Lead status uses a badge and pencil edit menu. Choose No status to clear.
+Dead numbers sort last across all pages of an agent's assigned leads.
+Close the older app before launching this version. Your prepared key and
+recovery status remain in the existing app profile. Encryption is unchanged.
+
 TEAM PERMISSIONS UPDATE 0.4.0
 Division admins can now open Agents > Team settings for their own agents.
 Master retains control across divisions. No agents are automatically promoted.
