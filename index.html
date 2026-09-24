@@ -170,7 +170,42 @@ function bindMyFolders(){qa('.my-lead-folder').forEach(b=>b.onclick=async()=>{co
 function myLeads(){let openLeads=S.leads||[],cols=csvColumns(openLeads);return '<div class="head"><div><h1>My leads</h1><p>Choose a folder for the lead type you want to call. Dead numbers stay at the bottom; lead colors update instantly when status changes.</p>'+ (S.teamInfo?.leader_name?'<p>Team leader: '+esc(S.teamInfo.leader_name)+(S.teamInfo.leader_active?'':' (inactive)')+'</p>':'')+'</div><div class="notice">'+Number(S.myCount||0).toLocaleString()+' open leads</div></div><div class="tools"><button class="btn primary requestLeads">Request leads</button></div>'+myLeadFolders()+'<div class="loadingline">Only '+S.pageSize+' leads are loaded at a time for speed.</div>'+pager('my',S.myPage,S.myCount)+'<div id="leadTopScroll" class="topscroll" title="Drag to scroll your leads left and right"><div id="leadTopScrollInner" class="topscroll-inner"></div></div><div id="leadTableScroll" class="table csvtable"><table><thead><tr><th>Lead Type</th><th>Lead Status</th>'+cols.map(c=>'<th>'+esc(c.label)+'</th>').join('')+'<th>Call Notes</th><th></th></tr></thead><tbody>'+(openLeads.length?openLeads.map(l=>'<tr class="leadrow '+esc(l.agent_status||'none')+'"><td><span class="badge typepill">'+esc(l.lead_type||'Unlabeled')+'</span></td><td>'+leadStatusBar(l)+'</td>'+cols.map(c=>'<td>'+esc(csvValue(l,c)||'—')+'</td>').join('')+'<td><div class="callnotes-wrap"><textarea class="callnotes" id="callnotes-'+l.id+'" placeholder="Notes about the call…">'+esc(l.call_notes||'')+'</textarea><button class="btn secondary saveCallNotes" data-id="'+l.id+'">Save</button></div></td><td><button class="btn primary closeLead" data-id="'+l.id+'">Mark closed</button></td></tr>').join(''):'<tr><td colspan="'+(cols.length+4)+'" class="empty">No open assigned leads in this folder.</td></tr>')+'</tbody></table></div>'+pager('my',S.myPage,S.myCount)}
 function myClosed(){let ap=Number(S.myClosedStats?.annual_premium||0);return '<div class="head"><div><h1>Closed leads</h1><p>Your submitted production history.</p></div><div class="notice">Annual premium: '+money(ap)+'</div></div>'+pager('myClosed',S.myClosedPage,S.myClosedCount)+'<div class="table"><table><thead><tr><th>Client</th><th>Lead Type</th><th>Carrier</th><th>Type</th><th>Monthly</th><th>Annual</th><th>Date</th></tr></thead><tbody>'+(S.closed.length?S.closed.map(r=>'<tr><td>'+esc((r.leads?.first_name||'')+' '+(r.leads?.last_name||''))+'</td><td>'+esc(r.leads?.lead_type||'—')+'</td><td>'+esc(r.carrier)+'</td><td>'+esc(r.policy_type)+'</td><td>'+money(r.monthly_premium)+'</td><td>'+money(r.annual_premium)+'</td><td>'+esc(r.application_date||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">No closed leads yet.</td></tr>')+'</tbody></table></div>'+pager('myClosed',S.myClosedPage,S.myClosedCount)}
 
-async function setAgentLeadStatus(id,status,isActive){const next=isActive?'none':status;try{await api('/rest/v1/rpc/set_lead_agent_status',{method:'POST',body:{p_lead_id:id,p_agent_status:next}});await reload(next==='none'?'Lead status cleared.':'Lead status set to '+leadStatusLabel(next)+'.')}catch(x){flash(x.message,true)}}
+function applyLeadStatusInPlace(id,next){
+ const statuses=['dead_number','appointment_follow_up','not_interested','call_back'];
+ const lead=S.leads.find(x=>x.id===id);if(lead)lead.agent_status=next;
+ const row=qa('.lead-status-edit').find(b=>b.dataset.id===id)?.closest('tr.leadrow');
+ if(!row)return;
+ row.classList.remove(...statuses,'none');row.classList.add(next||'none');
+ const badge=row.querySelector('.leadstatusbadge');
+ if(badge){
+   badge.classList.remove(...statuses,'none');badge.classList.add(next||'none');
+   badge.innerHTML='<span class="lead-status-dot" aria-hidden="true"></span>'+esc(leadStatusLabel(next));
+ }
+ const edit=row.querySelector('.lead-status-edit');
+ if(edit)edit.setAttribute('aria-label','Change lead status: '+leadStatusLabel(next));
+ row.querySelectorAll('.lead-status-choice').forEach(b=>{
+   const active=b.dataset.status===next;
+   b.setAttribute('aria-pressed',String(active));
+   const tick=b.querySelector('.lead-status-tick');if(tick)tick.textContent=active?'✓':'';
+ });
+ if(next==='dead_number'){
+   row.parentElement?.appendChild(row);
+   if(lead){
+     const i=S.leads.findIndex(x=>x.id===id);
+     if(i>=0){const [moved]=S.leads.splice(i,1);S.leads.push(moved)}
+   }
+ }
+}
+async function setAgentLeadStatus(id,status,isActive){
+ const next=isActive?'none':status;
+ try{
+   await api('/rest/v1/rpc/set_lead_agent_status',{method:'POST',body:{p_lead_id:id,p_agent_status:next}});
+   applyLeadStatusInPlace(id,next);
+   S.msg=next==='none'?'Lead status cleared.':'Lead status set to '+leadStatusLabel(next)+'.';
+   S.err='';
+   setTimeout(()=>{S.msg=''},1800);
+ }catch(x){flash(x.message,true)}
+}
 async function saveCallNotes(id){const el=q('#callnotes-'+id);if(!el)return;try{await api('/rest/v1/rpc/set_lead_call_notes',{method:'POST',body:{p_lead_id:id,p_notes:el.value}});await reload('Call notes saved.')}catch(x){flash(x.message,true)}}
 function closeLeadModal(id){let l=S.leads.find(x=>x.id===id);modal('<h2>Close '+esc((l.first_name||'')+' '+(l.last_name||''))+'</h2><div class="notice">Lead type: <strong>'+esc(l.lead_type||'Unlabeled')+'</strong></div><form id="cf" class="stack"><div class="row"><div class="field"><label>Carrier</label><input name="p_carrier" required></div><div class="field"><label>Policy type</label><select name="p_policy_type" required><option value="">Select…</option><option>Final Expense</option><option>Term</option><option>IUL</option><option>Mortgage Protection</option><option>Whole Life</option><option>Other</option></select></div></div><div class="row"><div class="field"><label>Monthly premium</label><input name="p_monthly_premium" type="number" min="0" step=".01" required></div><div class="field"><label>Application date</label><input name="p_application_date" type="date" value="'+new Date().toISOString().slice(0,10)+'" required></div></div><div class="field"><label>Policy / application #</label><input name="p_policy_number"></div><div class="field"><label>Notes</label><textarea name="p_notes"></textarea></div><div class="row"><button type="button" id="cancel" class="btn secondary">Cancel</button><button class="btn primary right">Save closed lead</button></div></form>');q('#cancel').onclick=closeModal;q('#cf').onsubmit=async e=>{e.preventDefault();let p=Object.fromEntries(new FormData(e.target).entries());p.p_lead_id=id;p.p_monthly_premium=Number(p.p_monthly_premium);if(!p.p_policy_number)p.p_policy_number=null;if(!p.p_notes)p.p_notes=null;try{await api('/rest/v1/rpc/close_lead',{method:'POST',body:p});closeModal();await reload('Lead marked closed.')}catch(x){flash(x.message,true)}}}
 async function reload(m){await loadCore();if(m)S.msg=m;render();if(m)setTimeout(()=>{S.msg='';render()},2500)}
