@@ -17,3 +17,11 @@ assert(!vm.runInContext("canManageTeam({division:'vivid_life',archived:false})",
 assert(!vm.runInContext("canManageTeam({division:'legacy_life',archived:true})",ctx));
 vm.runInContext('S.profile.active=false',ctx);assert(!vm.runInContext("canManageTeam({division:'legacy_life'})",ctx));
 console.log('PASS: division-scoped team controls, archived target and inactive admin blocked');
+vm.runInContext("S.profile={id:'jonah',role:'admin',active:true,is_super_admin:false,division:'vivid_life',full_name:'Jonah'};S.adminDivisions=['owner','vivid_life'];S.divisionFilter='owner';S.extraLeadDivisions=[];S.agents=[{id:'o',full_name:'Owner agent',division:'owner',active:true},{id:'v',full_name:'Vivid agent',division:'vivid_life',active:true}];",ctx);
+assert(vm.runInContext("canAddLeads('owner')&&canAddLeads('vivid_life')&&!canAddLeads('legacy_life')",ctx));
+assert(vm.runInContext("canManageTeam({division:'owner',archived:false})",ctx));
+assert(!vm.runInContext("canManageTeam({division:'legacy_life',archived:false})",ctx));
+const agents=vm.runInContext('agentPage()',ctx);assert(agents.includes('Owner agent'));assert(!agents.includes('Vivid agent'));assert(!agents.includes('value="legacy_life"'));
+assert(!vm.runInContext('leadPage()',ctx).includes('value="legacy_life"'));
+assert(!vm.runInContext("shell('','admin')",ctx).includes('data-tab="admins"'));
+console.log('PASS Jonah two-division management selectors, correct agent filtering, Legacy and admin-management menus excluded');
