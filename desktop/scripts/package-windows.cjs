@@ -1,0 +1,23 @@
+const fs=require('node:fs'), path=require('node:path'), crypto=require('node:crypto'), {execFileSync}=require('node:child_process');
+(async()=>{
+ const {downloadArtifact}=await import('@electron/get'), {createPackage,listPackage}=await import('@electron/asar');
+ const root=path.resolve(__dirname,'..'),pkg=require('../package.json'), stage=path.join(root,'staging/app'),dist=path.join(root,'dist');
+ fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage,{recursive:true});fs.mkdirSync(dist,{recursive:true});
+ for(const file of ['main.cjs','policy.cjs'])fs.copyFileSync(path.join(root,file),path.join(stage,file));
+ fs.cpSync(path.join(root,'ui'),path.join(stage,'ui'),{recursive:true});
+ fs.writeFileSync(path.join(stage,'package.json'),JSON.stringify({name:pkg.name,version:pkg.version,main:pkg.main}));
+ const release=path.join(dist,'Life-Lead-Distribution-Windows-Trial');fs.rmSync(release,{recursive:true,force:true});fs.mkdirSync(release,{recursive:true});
+ console.log('Downloading checksum-verified Windows runtime...');
+ const runtime=await downloadArtifact({version:pkg.devDependencies.electron,artifactName:'electron',platform:'win32',arch:'x64'});
+ execFileSync('python3',['-c','import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])',runtime,release]);
+ fs.rmSync(path.join(release,'resources/default_app.asar'),{force:true});
+ await createPackage(stage,path.join(release,'resources/app.asar'));
+ if(listPackage(path.join(release,'resources/app.asar')).some(x=>/node_modules|\.env|\.git|tests/.test(x)))throw Error('Unexpected build files');
+ fs.renameSync(path.join(release,'electron.exe'),path.join(release,'Life-Lead-Distribution-Trial.exe'));
+ fs.copyFileSync(path.join(root,'TRIAL-README.txt'),path.join(release,'READ-ME-FIRST.txt'));
+ fs.copyFileSync(path.join(root,'node_modules/@supabase/supabase-js/LICENSE'),path.join(release,'LICENSE-SUPABASE.txt'));
+ const output=path.join(dist,'Life-Lead-Distribution-Windows-Trial.zip');fs.rmSync(output,{force:true});
+ execFileSync('python3',['-c','import sys,shutil; shutil.make_archive(sys.argv[1],"zip",sys.argv[2],sys.argv[3])',output.slice(0,-4),dist,path.basename(release)]);
+ const hash=crypto.createHash('sha256').update(fs.readFileSync(output)).digest('hex');fs.writeFileSync(output+'.sha256',hash+'  '+path.basename(output)+'\n');
+ console.log(JSON.stringify({output,bytes:fs.statSync(output).size,sha256:hash,signed:false,encryptionEnabled:false}));
+})().catch(e=>{console.error(e);process.exitCode=1});
