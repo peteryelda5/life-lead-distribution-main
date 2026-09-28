@@ -2,7 +2,7 @@
 
 A Discord-style text chat tab with separate general/deals channels per authorized division. Existing profile, division grants, active/archive state, and agent MFA determine access. Master sees every division; scoped admins see only permitted divisions; agents see their own division.
 
-- `/deal`: optionally link an assigned lead (including imported CSV values), enter policy details, save. Without a lead, select an eligible credited agent; agents can credit only themselves. Agents close their own leads. Admins close an active agent's lead in an authorized division. Linked deals credit the assigned agent. Unlinked deals use a nullable lead_id and a unique request UUID for retry protection; no synthetic lead is created.
+- `/deal`: enter credited agent, carrier, policy type, monthly premium and application date. Chat deals are standalone; no existing-lead link, policy/application number or private notes fields. Agents can credit only themselves; admins select eligible agents in the selected division.
 - `/leaderboard`: open the existing leaderboard in this division.
 - `/help`: command reference. Arrow keys, Enter/Tab, Escape supported.
 - Text: Enter sends; Shift+Enter inserts newline. Drafts are in-memory per room, cleared on logout/account change. Retry uses the same request UUID. Maximum 4,000 characters / 30 messages per minute per user.
@@ -25,3 +25,5 @@ Closed Business insert/update/delete triggers create/update a deal announcement.
 - Realtime publication and RLS verified on live database; no actual signed-in user websocket was used in browser tests.
 
 Website deployment only. The separately bundled Windows trial must be rebuilt to include this UI.
+
+The leaderboard signal trigger explicitly scopes its three counter updates to work with PostgREST safeupdate. Verified standalone saves and counter signals under the authenticated database role; fixture sale rolled back. The connector does not permit loading the safeupdate library, so that session configuration could not be reproduced in the database test.
