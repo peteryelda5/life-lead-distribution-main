@@ -6,9 +6,9 @@ vm.runInContext(`S.divisions=['owner','vivid_life','legacy_life'].map(id=>({id})
 
 vm.runInContext(fs.readFileSync('divisions.js','utf8'),ctx);
 let page=vm.runInContext('leadPage()',ctx);
-assert(page.includes('sendDivisionPick'));assert(!page.includes('id="pick"'));assert(!page.includes('id="assign"'));
+assert(page.includes('sendDivisionPick'));assert(page.includes('id="pick"'));assert(page.includes('id="assign"'));
 vm.runInContext("S.profile.is_super_admin=false;S.adminDivisions=['vivid_life']",ctx);
 page=vm.runInContext('leadPage()',ctx);assert(page.includes('id="pick"'));assert(page.includes('id="assign"'));assert(!page.includes('sendDivisionPick'));
 vm.runInContext("S.profile.is_super_admin=true;S.adminDivisions=['owner','vivid_life','legacy_life'];S.divisionFilter='legacy_life'",ctx);
 page=vm.runInContext('leadPage()',ctx);assert(page.includes('Legacy leads stay in Legacy'));assert(!page.includes('sendDivisionPick'));
-console.log('PASS Master division controls, admin assignments, Legacy boundary');
+console.log('PASS Master agent and division controls, admin assignments, Legacy boundary');

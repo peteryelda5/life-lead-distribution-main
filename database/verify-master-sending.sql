@@ -12,8 +12,8 @@ begin
   insert into public.leads(first_name,last_name,division) values('Test','Send','owner') returning id into lid;
   n:=public.send_leads_to_division(array[lid],'owner','legacy_life');
   if n<>1 or not exists(select 1 from public.leads where id=lid and division='legacy_life' and status='unassigned' and assigned_to is null) then raise exception 'Send failed';end if;
-  denied:=false;begin perform public.assign_leads_bulk(array[lid],aid);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master agent assignment allowed';end if;
-  denied:=false;begin update public.leads set assigned_to=aid,status='assigned' where id=lid;exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Direct assignment allowed';end if;
+  n:=public.assign_leads_bulk(array[lid],aid);if n<>1 then raise exception 'Master assignment failed';end if;
+  update public.leads set assigned_to=null,status='unassigned',assigned_at=null where id=lid;
   denied:=false;begin perform public.send_leads_to_division(array[lid],'legacy_life','owner');exception when others then denied:=true;end;if not denied then raise exception 'Legacy export allowed';end if;
   reset role;
   perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','aal','aal2')::text,true);
