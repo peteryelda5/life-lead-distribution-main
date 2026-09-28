@@ -17,7 +17,6 @@ Deno.serve(async(req:Request)=>{
  let division=String(body.division??cp.division??"").trim();
  if(!full_name||!email||!password)return json({error:"Full name, email and temporary password are required"},400);
  if(password.length<8)return json({error:"Temporary password must be at least 8 characters"},400);
- if(!["owner","vivid_life","legacy_life"].includes(division))return json({error:"Invalid division"},400);
  if(!allowedDivisions.includes(division))return json({error:"You cannot manage that division"},403);
  const admin=createClient(url,service,{auth:{autoRefreshToken:false,persistSession:false}});
  const {data:existing,error:lookupError}=await admin.from("profiles").select("id,email,full_name,role,active,archived,division,is_super_admin").eq("email",email).maybeSingle();

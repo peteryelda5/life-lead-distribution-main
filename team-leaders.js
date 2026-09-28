@@ -1,4 +1,4 @@
-function adminDivisionList(){return S.adminDivisions?.length?S.adminDivisions:S.profile?.is_super_admin?['owner','vivid_life','legacy_life']:S.profile?.role==='admin'?[S.profile.division]:[]}
+function adminDivisionList(){return S.adminDivisions?.length?S.adminDivisions:S.profile?.is_super_admin?(S.divisions||[]).map(d=>d.id):S.profile?.role==='admin'?[S.profile.division]:[]}
 function hasMultipleAdminDivisions(){return adminDivisionList().length>1}
 function operatingDivision(){return S.profile?.role==='admin'&&adminDivisionList().includes(S.divisionFilter)?S.divisionFilter:S.profile?.division}
 function adminDivisionOptions(selected){return adminDivisionList().map(d=>'<option value="'+d+'" '+(d===selected?'selected':'')+'>'+esc(divisionLabel(d))+'</option>').join('')}

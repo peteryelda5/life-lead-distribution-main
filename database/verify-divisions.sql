@@ -1,0 +1,52 @@
+-- Transaction-local fixtures and permission checks. No fixture survives.
+do $$
+declare master_id uuid; legacy_id uuid; agent_id uuid:=gen_random_uuid(); division_id text; lead_id uuid; value jsonb; denied boolean; previous_count integer;
+begin
+ select id into master_id from public.profiles where is_super_admin and active;
+ select id into legacy_id from public.profiles where role='admin' and division='legacy_life' and active limit 1;
+ select count(*) into previous_count from public.divisions;
+ begin
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',master_id,'role','authenticated','aal','aal2')::text,true);
+  set local role authenticated;
+  value:=public.create_division(' Verification   Division ',legacy_id);division_id:=value->>'id';
+  if value->>'name'<>'Verification Division' or not division_id=any(public.my_admin_divisions()) then raise exception 'Registry creation failed';end if;
+  if not exists(select 1 from public.divisions where id=division_id) or not exists(select 1 from public.leaderboard_updates where division=division_id) then raise exception 'Division metadata missing';end if;
+  perform public.division_admin_directory();
+  denied:=false;begin perform public.create_division('verification division');exception when others then denied:=true;end;if not denied then raise exception 'Duplicate division accepted';end if;
+  denied:=false;begin insert into public.leads(first_name,last_name,division) values('Fixture','Denied',division_id);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master upload boundary changed';end if;
+  reset role;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',legacy_id,'role','authenticated','aal','aal2')::text,true);
+  set local role authenticated;
+  if not division_id=any(public.my_admin_divisions()) or not 'legacy_life'=any(public.my_admin_divisions()) or 'vivid_life'=any(public.my_admin_divisions()) or 'owner'=any(public.my_admin_divisions()) then raise exception 'Existing admin scope changed incorrectly';end if;
+  if exists(select 1 from public.divisions where id in ('owner','vivid_life')) then raise exception 'Registry scope leak';end if;
+  denied:=false;begin perform public.create_division('Not allowed');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Non-master created division';end if;
+  denied:=false;begin perform public.division_admin_directory();exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Admin directory leak';end if;
+  insert into public.leads(first_name,last_name,division) values('Fixture','New Division',division_id) returning id into lead_id;
+  value:=public.dashboard_overview(division_id,7);
+  if (value->'inventory'->>'total_leads')::int<>1 then raise exception 'New division dashboard failed';end if;
+  perform public.chat_send(division_id,'general','Verification only',gen_random_uuid());
+  perform public.leaderboard_period(division_id,'month',null);
+  insert into public.sales_scripts(division,title,body) values(division_id,'Verification script','Test content');
+  reset role;
+  insert into auth.users(id,email) values(agent_id,'division-test-'||agent_id::text||'@example.invalid');
+  insert into public.profiles(id,email,full_name,role,active,division,created_by_admin_id) values(agent_id,'division-test-'||agent_id::text||'@example.invalid','Verification Agent','agent',true,division_id,legacy_id) on conflict(id) do update set role='agent',active=true,division=excluded.division,created_by_admin_id=legacy_id;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'role','authenticated','aal','aal2')::text,true);
+  set local role authenticated;
+  if (select count(*) from public.divisions)<>1 then raise exception 'Agent registry scope leak';end if;
+  value:=public.my_lead_request_route();if value->>'recipient_id'<>legacy_id::text then raise exception 'Granted admin request routing failed';end if;
+  if public.chat_scopes()<>array[division_id] then raise exception 'Agent workspace scope incorrect';end if;
+  if (select count(*) from public.sales_scripts)<>1 then raise exception 'Agent scripts scope incorrect';end if;
+  perform public.chat_send(division_id,'general','Agent verification only',gen_random_uuid());
+  denied:=false;begin perform public.chat_send('legacy_life','general','Denied',gen_random_uuid());exception when others then denied:=true;end;if not denied then raise exception 'Cross division chat allowed';end if;
+  denied:=false;begin perform public.create_division('Agent denied');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Agent created division';end if;
+  reset role;
+  perform set_config('request.jwt.claims','{}',true);
+  denied:=false;begin update public.profiles set division='not_a_registered_division' where id=agent_id;exception when foreign_key_violation then denied:=true;end;if not denied then raise exception 'Unregistered division accepted';end if;
+  raise exception using errcode='ZX001',message='Rollback verification';
+ exception when sqlstate 'ZX001' then null;
+ end;
+ reset role;
+ if (select count(*) from public.divisions)<>previous_count or exists(select 1 from auth.users where id=agent_id) then raise exception 'Verification data persisted';end if;
+ if (select count(*) from public.profiles where is_super_admin)<>1 then raise exception 'Master account invariant failed';end if;
+ if has_function_privilege('anon','public.create_division(text,uuid)','execute') or has_table_privilege('authenticated','public.divisions','insert') then raise exception 'Direct division write grant';end if;
+end $$;
