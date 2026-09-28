@@ -27,3 +27,7 @@ Closed Business insert/update/delete triggers create/update a deal announcement.
 Website deployment only. The separately bundled Windows trial must be rebuilt to include this UI.
 
 The leaderboard signal trigger explicitly scopes its three counter updates to work with PostgREST safeupdate. Verified standalone saves and counter signals under the authenticated database role; fixture sale rolled back. The connector does not permit loading the safeupdate library, so that session configuration could not be reproduced in the database test.
+
+## Removing deals
+
+Admins can remove a closed deal from its chat card or the Closed Business detail dialog. The server checks current admin division grants, locks the record, writes an audit entry, deletes the sale and reopens a linked lead (assigned to an active same-division agent, otherwise returned unassigned to its pool). Standalone deals have no lead to reopen. Existing triggers withdraw the chat card and invalidate leaderboard totals. Agents cannot remove closed deals. Repeated removal is harmless. Database rollback checks verified cross-division denial, agent denial, premium subtraction, withdrawn cards and linked-lead reopening; browser verification covers confirmation and admin-only controls.
