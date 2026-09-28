@@ -1,0 +1,27 @@
+# Division live chat
+
+A Discord-style text chat tab with separate general/deals channels per authorized division. Existing profile, division grants, active/archive state, and agent MFA determine access. Master sees every division; scoped admins see only permitted divisions; agents see their own division.
+
+- `/deal`: search assigned leads (including imported CSV values), select one, enter policy details, save. Agents close their own leads. Admins close an active agent's lead in an authorized division. The assigned agent receives credit.
+- `/leaderboard`: open the existing leaderboard in this division.
+- `/help`: command reference. Arrow keys, Enter/Tab, Escape supported.
+- Text: Enter sends; Shift+Enter inserts newline. Drafts are in-memory per room, cleared on logout/account change. Retry uses the same request UUID. Maximum 4,000 characters / 30 messages per minute per user.
+
+## Storage and live events
+
+`public.chat_messages` has SELECT-only client grants and division RLS. All writes go through checked private functions with invoker public wrappers. No anonymous grants. Author ID/name are server supplied. The table is added to supabase_realtime, with authenticated tokens supplied explicitly in the client. Events trigger a scoped refresh; reconnect, visibility, and a 15-second fallback catch missed messages. Leaving the tab removes the subscription. The view loads 100 messages initially and supports up to 1,000 recent messages to bound DOM/network costs; older records remain stored.
+
+Closed Business insert/update/delete triggers create/update a deal announcement. Only agent identity, carrier, policy type, and premium are shared. Removal withdraws the card. Client details, policy numbers, and notes are excluded. Existing historical sales are not backfilled as new announcements. Existing close-lead buttons also trigger announcements.
+
+`chat_close_deal` locks the lead, validates the caller and assigned agent, writes Closed Business + lead status + audit atomically, and returns the existing sale ID on retry. The existing unique lead_id constraint adds duplicate protection. Existing leaderboard triggers update production automatically. No production encryption claim is made; this is authenticated division-scoped chat, not end-to-end encrypted messaging.
+
+## Verification
+
+- Applied `database/live-chat.sql` to project yfuuigykpihoetgaefmu.
+- `database/verify-live-chat.sql`: real authenticated database role, every active admin/agent scope, message retry, forged direct inserts denied, unauthorized search/send denied, agent MFA, own-lead sale + idempotency + safe card. All writes rolled back.
+- Additional rollback check: Jonah could record permitted owner/Vivid agent sales with correct credit, and could not record Legacy sales.
+- `node tests/chat-browser.cjs`: full app with synthetic fixtures and mocked REST/realtime transport; commands, keyboard, send/error retry, event refresh, deal form/card, escaping, room drafts, mobile overflow and cleanup.
+- Existing leaderboard, agent restore, team UI and dashboard tests passed.
+- Realtime publication and RLS verified on live database; no actual signed-in user websocket was used in browser tests.
+
+Website deployment only. The separately bundled Windows trial must be rebuilt to include this UI.
