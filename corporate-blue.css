@@ -55,3 +55,9 @@ th{background:#f0f5fc;color:#3f5d7e;font-size:11px;letter-spacing:.045em;padding
 
 .lead-table-zoom{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:10px 0 12px;color:#25466a}.lead-zoom-label{font-size:13px;font-weight:600;margin-right:4px}.lead-table-zoom button{display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;padding:6px 10px;border:1px solid #cbd9e9;border-radius:8px;background:#fff;color:#173f70;font:inherit;font-weight:700;cursor:pointer}.lead-table-zoom button:hover{background:#edf4ff}.lead-table-zoom button:disabled{opacity:.4;cursor:default}.lead-table-zoom button:focus-visible{outline:3px solid #89b5ff;outline-offset:2px}.lead-table-zoom output{min-width:48px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}.lead-table-zoom .lead-zoom-reset{font-size:12px;font-weight:600}@media(max-width:600px){.lead-table-zoom{justify-content:flex-start}}
 .division-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}.division-card{padding:24px}.division-card h2{font-size:21px;margin:0;overflow-wrap:anywhere}.division-card .head{align-items:flex-start;gap:12px}.division-card .row{flex-wrap:wrap;margin-top:20px}.division-admins{min-height:44px;line-height:1.8}.division-card .badge{flex-shrink:0}
+
+/* Match the main vertical scrollbar to the lead table scrollbars. */
+html,body,.wrap,.top{scrollbar-color:#7298c2 #f2f4f7;scrollbar-width:auto}
+html::-webkit-scrollbar,body::-webkit-scrollbar,.wrap::-webkit-scrollbar,.top::-webkit-scrollbar{width:12px;height:12px}
+html::-webkit-scrollbar-thumb,body::-webkit-scrollbar-thumb,.wrap::-webkit-scrollbar-thumb,.top::-webkit-scrollbar-thumb{background:#7298c2;border:2px solid #f2f4f7;border-radius:999px}
+html::-webkit-scrollbar-track,body::-webkit-scrollbar-track,.wrap::-webkit-scrollbar-track,.top::-webkit-scrollbar-track{background:#f2f4f7;border-radius:999px}
