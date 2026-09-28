@@ -2,7 +2,7 @@
 
 A Discord-style text chat tab with separate general/deals channels per authorized division. Existing profile, division grants, active/archive state, and agent MFA determine access. Master sees every division; scoped admins see only permitted divisions; agents see their own division.
 
-- `/deal`: search assigned leads (including imported CSV values), select one, enter policy details, save. Agents close their own leads. Admins close an active agent's lead in an authorized division. The assigned agent receives credit.
+- `/deal`: optionally link an assigned lead (including imported CSV values), enter policy details, save. Without a lead, select an eligible credited agent; agents can credit only themselves. Agents close their own leads. Admins close an active agent's lead in an authorized division. Linked deals credit the assigned agent. Unlinked deals use a nullable lead_id and a unique request UUID for retry protection; no synthetic lead is created.
 - `/leaderboard`: open the existing leaderboard in this division.
 - `/help`: command reference. Arrow keys, Enter/Tab, Escape supported.
 - Text: Enter sends; Shift+Enter inserts newline. Drafts are in-memory per room, cleared on logout/account change. Retry uses the same request UUID. Maximum 4,000 characters / 30 messages per minute per user.
