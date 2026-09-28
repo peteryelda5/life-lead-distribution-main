@@ -1,0 +1,67 @@
+-- Every fixture and simulated-clock function edit is rolled back.
+do $$
+declare masterid uuid; agentid uuid; legacyid uuid; msg bigint; replyid bigint; dealid bigint; foreignid bigint; sid uuid:=gen_random_uuid(); req uuid:=gen_random_uuid(); d jsonb; oldd jsonb; denied boolean; beforecount bigint; sep numeric; def text;
+begin
+ select id into masterid from public.profiles where is_super_admin and active limit 1;
+ select id into agentid from public.profiles where role='agent' and division='owner' and active and not coalesce(archived,false) limit 1;
+ select id into legacyid from public.profiles where role='admin' and division='legacy_life' and active and not coalesce(archived,false) limit 1;
+ if masterid is null or agentid is null or legacyid is null then raise exception 'Missing verification roles';end if;
+ select count(*) into beforecount from public.chat_messages;
+ begin
+  insert into public.sales_scripts(id,division,title,body,created_by) values(sid,'owner','Verification script','Synthetic content',masterid);
+  insert into public.chat_messages(division,channel,author_id,author_name,kind,body) values('owner','deals',masterid,'Verification','deal','') returning id into dealid;
+  insert into public.chat_messages(division,channel,author_id,author_name,body) values('legacy_life','general',legacyid,'Verification','Private division fixture') returning id into foreignid;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',masterid,'role','authenticated','aal','aal2')::text,true);
+  set local role authenticated;
+  msg:=public.chat_send_social('owner','general','Verification @member',req,null,array[agentid]);
+  if public.chat_send_social('owner','general','Verification @member',req,null,array[agentid])<>msg then raise exception 'Send retry not idempotent';end if;
+  perform public.chat_pin('owner','general',sid,true);
+  d:=public.chat_social_state('owner','general',array[msg]);
+  if not exists(select 1 from jsonb_array_elements(d->'pins') p where p->>'id'=sid::text) then raise exception 'Pin missing';end if;
+  oldd:=public.live_leaderboard('all');d:=public.leaderboard_period('all','month',null);sep:=(d->'period'->>'ap')::numeric;
+  if sep<>(oldd->'totals'->>'month_ap')::numeric then raise exception 'Imported month mismatch';end if;
+  perform public.leaderboard_period('all','today',null);perform public.leaderboard_period('all','week',null);
+  reset role;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agentid,'role','authenticated','aal','aal2')::text,true);
+  set local role authenticated;
+  replyid:=public.chat_send_social('owner','general','Verification reply',gen_random_uuid(),msg,'{}');
+  d:=public.chat_social_state('owner','general',array[replyid]);
+  if not exists(select 1 from jsonb_array_elements(d->'replies') p where (p->>'id')::bigint=msg) then raise exception 'Reply missing';end if;
+  d:=public.chat_unread();
+  if not exists(select 1 from jsonb_array_elements(d) p where p->>'division'='owner' and (p->>'mentions')::int>=1) then raise exception 'Mention badge missing';end if;
+  perform public.chat_mark_read('owner','general',msg);
+  d:=public.chat_unread();
+  if exists(select 1 from jsonb_array_elements(d) p where p->>'division'='owner' and p->>'channel'='general' and (p->>'unread')::int>0) then raise exception 'Read marker failed';end if;
+  perform public.chat_mark_read('owner','general',msg-1);
+  perform public.chat_react(dealid,'🎉',true);perform public.chat_react(dealid,'🎉',true);
+  d:=public.chat_social_state('owner','deals',array[dealid]);
+  if (d->'reactions'->0->>'count')::int<>1 or not (d->'reactions'->0->>'mine')::boolean then raise exception 'Reaction retry failed';end if;
+  perform public.chat_react(dealid,'🎉',false);
+  d:=public.chat_social_state('owner','deals',array[dealid]);if jsonb_array_length(d->'reactions')<>0 then raise exception 'Reaction removal failed';end if;
+  denied:=false;begin perform public.chat_pin('owner','general',sid,false);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Agent pin write allowed';end if;
+  denied:=false;begin perform public.chat_social_state('legacy_life','general',array[foreignid]);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Metadata scope leak';end if;
+  denied:=false;begin perform public.leaderboard_period('legacy_life','month',null);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Ranking scope leak';end if;
+  denied:=false;begin perform public.chat_send_social('owner','general','Bad reply',gen_random_uuid(),foreignid,'{}');exception when others then denied:=true;end;if not denied then raise exception 'Cross division reply';end if;
+  denied:=false;begin perform public.chat_send_social('owner','general','Bad mention',gen_random_uuid(),null,array[legacyid]);exception when others then denied:=true;end;if not denied then raise exception 'Cross division mention';end if;
+  reset role;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agentid,'role','authenticated','aal','aal1')::text,true);
+  set local role authenticated;
+  if public.chat_unread()<>'[]'::jsonb then raise exception 'MFA bypass';end if;
+  reset role;
+  -- Exercise the actual period function with October 1 Detroit time inside this rollback block.
+  select pg_get_functiondef('private.leaderboard_period(text,text,date)'::regprocedure) into def;
+  execute replace(def,'now()', 'timestamptz ''2026-10-01 04:00:01+00''');
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',masterid,'role','authenticated','aal','aal2')::text,true);
+  set local role authenticated;
+  d:=public.leaderboard_period('all','previous',date '2026-09-01');
+  if (d->'period'->>'ap')::numeric<>sep or not (d->'available_months') @> '["2026-09-01"]'::jsonb then raise exception 'September history lost';end if;
+  d:=public.leaderboard_period('all','month',null);
+  if d->'period'->>'start'<>'2026-10-01' or (d->'period'->>'imported')::boolean then raise exception 'September carried into October';end if;
+  reset role;
+  raise exception using errcode='ZX001',message='Roll back verification';
+ exception when sqlstate 'ZX001' then null;
+ end;
+ reset role;
+ if (select count(*) from public.chat_messages)<>beforecount then raise exception 'Fixtures persisted';end if;
+ if has_function_privilege('anon','public.chat_social_state(text,text,bigint[])','execute') or has_function_privilege('anon','public.leaderboard_period(text,text,date)','execute') then raise exception 'Anonymous access';end if;
+end $$;
