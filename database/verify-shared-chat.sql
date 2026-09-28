@@ -1,0 +1,43 @@
+do $$
+declare a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); l uuid:=gen_random_uuid(); ad uuid:=gen_random_uuid(); mid bigint; replyid bigint; oid uuid:=gen_random_uuid(); data jsonb; denied boolean;
+begin
+ begin
+ insert into auth.users(id,email) values(a,a||'@example.invalid'),(b,b||'@example.invalid'),(l,l||'@example.invalid'),(ad,ad||'@example.invalid');
+ insert into public.profiles(id,email,full_name,role,active,division) values(a,a||'@example.invalid','Chat Fixture Vivid','agent',true,'vivid_life'),(b,b||'@example.invalid','Chat Fixture Owner','agent',true,'owner'),(l,l||'@example.invalid','Chat Fixture Legacy','agent',true,'legacy_life'),(ad,ad||'@example.invalid','Resource Admin Fixture','admin',true,'vivid_life') on conflict(id) do update set role=excluded.role,active=true,division=excluded.division;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',ad,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ insert into storage.objects(id,bucket_id,name) values(oid,'chat-resources','vivid_life/'||ad||'/'||gen_random_uuid()||'.pdf');
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ if not ('owner'=any(public.chat_scopes())) or 'legacy_life'=any(public.chat_scopes()) then raise exception 'Nonlegacy chat scopes wrong';end if;
+ mid:=public.chat_send_social('vivid_life','resources','Fixture resource',gen_random_uuid(),null,array[b]);
+ if not exists(select 1 from storage.objects where id=oid) then raise exception 'Shared document missing';end if;
+ denied:=false;begin insert into storage.objects(bucket_id,name) values('chat-resources','vivid_life/'||a||'/blocked.pdf');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Agent uploaded';end if;
+ if exists(select 1 from public.leads where division<>'vivid_life') then raise exception 'Leads widened';end if;
+ denied:=false;begin perform public.chat_deal_agents('owner');exception when others then denied:=true;end;if not denied then raise exception 'Deal management widened';end if;
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',b,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ if not exists(select 1 from public.chat_messages where id=mid) then raise exception 'Crossdivision message missing';end if;
+ replyid:=public.chat_send_social('owner','resources','Fixture reply',gen_random_uuid(),mid,array[a]);
+ data:=public.chat_social_state('all','resources',array[replyid]);
+ if not exists(select 1 from jsonb_array_elements(data->'replies') r where (r->>'id')::bigint=mid) then raise exception 'Shared reply missing';end if;
+ if not exists(select 1 from jsonb_array_elements(public.chat_unread()) r where r->>'channel'='resources' and (r->>'mentions')::int>0) then raise exception 'Resource unread missing';end if;
+ perform public.chat_mark_read('all','resources',replyid);
+ if exists(select 1 from jsonb_array_elements(public.chat_unread()) r where r->>'channel'='resources' and (r->>'unread')::int>0) then raise exception 'Shared read failed';end if;
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',l,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ if public.chat_scopes()<>array['legacy_life'] then raise exception 'Legacy scopes wrong';end if;
+ if exists(select 1 from public.chat_messages where id in(mid,replyid)) or exists(select 1 from storage.objects where id=oid) then raise exception 'Legacy crossed boundary';end if;
+ denied:=false;begin perform public.chat_send_social('vivid_life','resources','Blocked',gen_random_uuid(),null,'{}');exception when others then denied:=true;end;if not denied then raise exception 'Legacy send crossed boundary';end if;
+ perform public.chat_send_social('legacy_life','resources','Legacy resource fixture',gen_random_uuid(),null,'{}');
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'role','authenticated','aal','aal1')::text,true);
+ if cardinality(private.shared_chat_divisions())<>0 then raise exception 'MFA bypass';end if;
+ raise exception using errcode='ZX001',message='Rollback fixtures';
+ exception when sqlstate 'ZX001' then null;end;
+ reset role;
+ if exists(select 1 from auth.users where id in(a,b,l,ad)) or exists(select 1 from storage.objects where id=oid) then raise exception 'Fixtures persisted';end if;
+end $$;

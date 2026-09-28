@@ -10,7 +10,7 @@ begin
  set local role authenticated;
  r:=public.leaderboard_period('all','month',null);
  if not (r->'scopes') ? 'owner' or not (r->'scopes') ? 'vivid_life' or (r->'scopes') ? 'legacy_life' then raise exception 'Shared scopes wrong';end if;
- if public.chat_scopes()<>array['vivid_life'] then raise exception 'Chat widened';end if;
+ if 'legacy_life'=any(public.chat_scopes()) then raise exception 'Legacy chat exposed';end if;
  if exists(select 1 from public.leads where division<>'vivid_life') then raise exception 'Lead access widened';end if;
  denied:=false;begin perform public.leaderboard_period('legacy_life','month',null);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Legacy exposed';end if;
  reset role;

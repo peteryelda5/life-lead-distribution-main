@@ -1,0 +1,20 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const elements=new Map(),calls=[],uploads=[];let failShare=true;
+const q=s=>elements.get(s)||null;
+const ctx=vm.createContext({console,URLSearchParams,crypto:require('crypto').webcrypto,setTimeout:()=>{},setInterval:()=>{},clearInterval:()=>{},S:{profile:{id:'11111111-1111-4111-8111-111111111111',role:'admin',division:'vivid_life'},tab:'live-chat'},q,qa:()=>[],esc:v=>String(v).replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x])),divisionLabel:x=>x,adminDivisionList:()=>['vivid_life','owner'],money:x=>'$'+x,document:{removeEventListener(){}},window:{removeEventListener(){}},SB:{removeChannel(){},storage:{from:()=>({upload:async(path,file)=>{uploads.push({path,file});return {data:{path}}}})}},syncSbSession:async()=>{},modal:html=>{for(const id of [...html.matchAll(/id="([^"]+)"/g)].map(x=>x[1]))elements.set('#'+id,{isConnected:true});elements.set('#modal',{isConnected:true});},closeModal:()=>{if(q('#modal'))q('#modal').isConnected=false;},api:async(path,opt)=>{calls.push({path,body:opt.body});if(path.endsWith('chat_send_social')&&failShare){failShare=false;throw Error('Temporary unavailable')}return 1;}});
+vm.runInContext(fs.readFileSync('live-chat.js','utf8')+'\n'+fs.readFileSync('chat-social.js','utf8'),ctx);
+const run=s=>vm.runInContext(s,ctx);
+(async()=>{
+run("CHAT.division='all';CHAT.scopes=['owner','vivid_life'];CHAT.room='resources';refreshChat=async()=>{};");
+assert.equal(run('chatActionDivision()'),'vivid_life');assert.equal(new URLSearchParams(run('chatPath()').split('?')[1]).get('division'),'in.(owner,vivid_life)');
+assert(run('chatPage()').includes('data-chat-room="resources"'));assert(run('chatPage()').includes('id="chatUpload"'));
+assert(!run("chatBodyHtml({channel:'resources',body:'<script>evil</script> https://example.com/?x=\"onclick=\"bad',mention_ids:[]})").includes('<script>'));
+assert.equal(run("chatParseResource('LLD_RESOURCE:'+JSON.stringify({path:'../../private',name:'bad'}))"),null);
+run('chatResourceUpload()');q('#resourceFile').files=[{name:'Training.pdf',size:1024}];const submit=q('#resourceForm').onsubmit;
+await submit({preventDefault(){}});assert(q('#resourceError').textContent.includes('retry'));await submit({preventDefault(){}});
+assert.equal(uploads.length,1);const sends=calls.filter(x=>x.path.endsWith('chat_send_social'));assert.equal(sends.length,2);assert.equal(sends[0].body.p_request_id,sends[1].body.p_request_id);assert.equal(sends[0].body.p_channel,'resources');assert.equal(sends[0].body.p_division,'vivid_life');ctx.resourceBody=sends[0].body.p_body;assert(run('chatParseResource(resourceBody)'));assert(run("chatBodyHtml({channel:'resources',body:resourceBody})").includes('Training.pdf'));
+run("CHAT.room='deals';CHAT.rows=[{id:1,division:'legacy_life',author_name:'Agent',kind:'deal',source_deal_id:'deal-id',created_at:new Date().toISOString()}];");assert(!run('chatMessagesHtml()').includes('data-remove-deal'));
+run("S.profile.role='agent';CHAT.room='resources'");assert(!run('chatPage()').includes('id="chatUpload"'));
+run("CHAT.scopes=['legacy_life'];S.profile.division='legacy_life';CHAT.division='legacy_life'");assert.deepEqual(Array.from(run('chatWorkspaceOptions()')),['legacy_life']);assert.equal(run('chatActionDivision()'),'legacy_life');
+console.log('PASS shared queries, channel rendering, scoped deal controls, resource links/escaping, upload+retry idempotency, agent controls, Legacy workspace');
+})().catch(e=>{console.error(e);process.exit(1)});
