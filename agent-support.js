@@ -13,7 +13,7 @@ async function loadAgentSupport(){
  const a=supportAgent();if(!a){resetAgentSupport();S.tab='agents';return}
  const p=new URLSearchParams();p.set('select',SUPPORT.section==='open'?'*':'*,leads(first_name,last_name,lead_type,csv_headers,csv_values)');
  if(SUPPORT.section==='open'){
-  p.set('assigned_to','eq.'+a.id);p.set('division','eq.'+a.division);p.set('status','eq.assigned');
+  p.set('assigned_to','eq.'+a.id);p.set('status','eq.assigned');
   if(SUPPORT.type)p.set('lead_type',SUPPORT.type==='__unlabeled__'?'is.null':'eq.'+SUPPORT.type);
   p.set('order','is_dead_number.asc,assigned_at.desc,id.desc');
  }else{p.set('agent_id','eq.'+a.id);p.set('order','created_at.desc')}
