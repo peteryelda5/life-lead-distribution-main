@@ -1,6 +1,4 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
- const {data:mfaAllowed,error:mfaError}=await caller.rpc("require_portal_mfa");
- if(mfaError||mfaAllowed!==true)return json({error:"Two-step verification required. Sign in and verify your authenticator code."},403);
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -26,6 +24,8 @@ Deno.serve(async (req: Request) => {
   });
   const { data: { user }, error: userError } = await caller.auth.getUser();
   if (userError || !user) return json({ error: "Unauthorized" }, 401);
+  const {data:mfaAllowed,error:mfaError}=await caller.rpc("require_portal_mfa");
+  if(mfaError||mfaAllowed!==true)return json({error:"Two-step verification required. Sign in and verify your authenticator code."},403);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
