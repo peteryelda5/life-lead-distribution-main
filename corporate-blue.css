@@ -64,3 +64,5 @@ html::-webkit-scrollbar-track,body::-webkit-scrollbar-track,.wrap::-webkit-scrol
 html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.wrap::-webkit-scrollbar-thumb:hover,.top::-webkit-scrollbar-thumb:hover{background:#74b2ff}
 html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,.wrap::-webkit-scrollbar-corner,.top::-webkit-scrollbar-corner{background:#0b1b30}
 @supports selector(::-webkit-scrollbar){html,body,.wrap,.top{scrollbar-color:auto}}
+
+.closed-period-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0}.closed-period-card{display:flex;flex-direction:column;align-items:flex-start;gap:9px;text-align:left;cursor:pointer;color:#173b64;font:inherit}.closed-period-card strong{font-size:24px}.closed-period-card.selected{border:2px solid #2563eb;background:#edf4ff}.closed-period-card:hover{border-color:#2563eb}@media(max-width:700px){.closed-period-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}}
