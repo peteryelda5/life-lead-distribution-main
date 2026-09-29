@@ -1,0 +1,38 @@
+do $$
+declare actor uuid; boot jsonb; denied boolean; n bigint; original_claims text := current_setting('request.jwt.claims',true);
+begin
+ select id into actor from public.profiles where is_super_admin and active limit 1;
+ if actor is null then raise exception 'Missing active Master'; end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor,'role','authenticated','aal','aal1')::text,true);
+ perform set_config('request.path','/rpc/account_bootstrap',true);
+ perform set_config('request.method','POST',true);
+ set local role authenticated;
+ perform public.check_portal_request();
+ boot:=public.account_bootstrap();
+ if boot->>'id' <> actor::text then raise exception 'Bootstrap failed own-account check'; end if;
+ perform set_config('request.path','/rpc/admin_dashboard_stats',true);
+ denied:=false;
+ begin perform public.check_portal_request(); exception when sqlstate 'PT403' then denied:=true; end;
+ if not denied then raise exception 'Password-only Master Data API request was allowed'; end if;
+ denied:=false;
+ begin perform public.require_portal_mfa(); exception when sqlstate 'PT403' then denied:=true; end;
+ if not denied then raise exception 'Password-only Master Edge guard was allowed'; end if;
+ select count(*) into n from public.profiles;
+ if n<>0 then raise exception 'Password-only profile rows visible'; end if;
+ select count(*) into n from public.leads;
+ if n<>0 then raise exception 'Password-only leads visible'; end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',actor,'role','authenticated','aal','aal2')::text,true);
+ perform public.check_portal_request();
+ if public.require_portal_mfa() is not true then raise exception 'Verified Master denied'; end if;
+ if public.account_bootstrap()->>'id' <> actor::text then raise exception 'Verified bootstrap failed'; end if;
+ select count(*) into n from public.profiles where id=actor;
+ if n<>1 then raise exception 'Verified Master cannot read own profile'; end if;
+ reset role;
+ perform set_config('request.jwt.claims','{"role":"anon"}',true);
+ set local role anon;
+ denied:=false;
+ begin perform public.check_portal_request(); exception when sqlstate 'PT401' then denied:=true; end;
+ if not denied then raise exception 'Anonymous Data API allowed'; end if;
+ reset role;
+ perform set_config('request.jwt.claims',coalesce(original_claims,''),true);
+end $$;

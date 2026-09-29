@@ -8,6 +8,8 @@ Deno.serve(async(req:Request)=>{
  const url=Deno.env.get("SUPABASE_URL")!,anon=Deno.env.get("SUPABASE_ANON_KEY")!,service=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,authHeader=req.headers.get("Authorization")??"";
  const caller=createClient(url,anon,{global:{headers:{Authorization:authHeader}}});
  const {data:{user},error:userError}=await caller.auth.getUser(); if(userError||!user)return json({error:"Unauthorized"},401);
+ const {data:mfaAllowed,error:mfaError}=await caller.rpc("require_portal_mfa");
+ if(mfaError||mfaAllowed!==true)return json({error:"Two-step verification required. Sign in and verify your authenticator code."},403);
  const admin=createClient(url,service,{auth:{autoRefreshToken:false,persistSession:false}});
  const {data:callerProfile}=await admin.from("profiles").select("role,active,is_super_admin,division").eq("id",user.id).single();
  if(!callerProfile||callerProfile.role!=="admin"||!callerProfile.active)return json({error:"Admin only"},403);
