@@ -4,7 +4,8 @@ returns void language plpgsql security invoker set search_path = '' as $$
 begin
  if auth.role()='service_role' then return; end if;
  if auth.role()='authenticated'
- and ltrim(coalesce(current_setting('request.path',true),''),'/')='rpc/account_bootstrap'
+ and (ltrim(coalesce(current_setting('request.path',true),''),'/') ~ '(^|/)rpc/account_bootstrap/?$'
+ or ltrim(coalesce(current_setting('request.path',true),''),'/')='account_bootstrap')
  and current_setting('request.method',true) in ('GET','HEAD','POST') then return; end if;
  if auth.role() is distinct from 'authenticated' then
    raise sqlstate 'PT401' using message='Sign in to access the portal.';
