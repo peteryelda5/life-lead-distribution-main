@@ -1,0 +1,40 @@
+do $$
+declare m uuid; a uuid:=gen_random_uuid(); a2 uuid:=gen_random_uuid(); admin_id uuid; l1 uuid; l2 uuid; l3 uuid; n integer; denied boolean;
+begin
+ select id into m from public.profiles where is_super_admin and active and not coalesce(archived,false);
+ select id into admin_id from public.profiles where role='admin' and division='legacy_life' and active and not coalesce(archived,false) limit 1;
+ begin
+ perform set_config('request.jwt.claims','{}',true);
+ insert into auth.users(id,email) values(a,a||'@example.invalid'),(a2,a2||'@example.invalid');
+ insert into public.profiles(id,email,full_name,role,active,division) values(a,a||'@example.invalid','Recipient Fixture','agent',true,'legacy_life'),(a2,a2||'@example.invalid','Same Division Fixture','agent',true,'owner') on conflict(id) do update set role='agent',active=true,division=excluded.division;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',m,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ insert into public.leads(first_name,last_name,division) values('Recipient','Fixture1','owner') returning id into l1;
+ insert into public.leads(first_name,last_name,division) values('Recipient','Fixture2','owner') returning id into l2;
+ insert into public.leads(first_name,last_name,division) values('Recipient','Fixture3','owner') returning id into l3;
+ denied:=false;begin perform public.send_leads_to_recipient(array[l1],'owner','vivid_life',a);exception when others then denied:=true;end;if not denied then raise exception 'Wrong division agent accepted';end if;
+ if not exists(select 1 from public.leads where id=l1 and division='owner' and assigned_to is null) then raise exception 'Failed assignment moved lead';end if;
+ n:=public.send_leads_to_recipient(array[l1],'owner','legacy_life',a);
+ if n<>1 or not exists(select 1 from public.leads where id=l1 and division='legacy_life' and assigned_to=a and status='assigned') then raise exception 'Direct division assignment failed';end if;
+ denied:=false;begin perform public.send_leads_to_recipient(array[l1,l2],'owner','legacy_life',a);exception when others then denied:=true;end;if not denied then raise exception 'Stale selection accepted';end if;
+ if not exists(select 1 from public.leads where id=l2 and division='owner' and assigned_to is null) then raise exception 'Partial transfer occurred';end if;
+ n:=public.send_leads_to_recipient(array[l2],'owner','vivid_life',null);
+ if n<>1 or not exists(select 1 from public.leads where id=l2 and division='vivid_life' and assigned_to is null and status='unassigned') then raise exception 'Pool transfer failed';end if;
+ denied:=false;begin perform public.send_leads_to_recipient(array[l1],'legacy_life','owner',null);exception when others then denied:=true;end;if not denied then raise exception 'Legacy exported';end if;
+ reset role;
+ perform set_config('request.jwt.claims','{}',true);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',m,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ n:=public.send_leads_to_recipient(array[l3],'owner','owner',a2);
+ if n<>1 or not exists(select 1 from public.leads where id=l3 and division='owner' and assigned_to=a2) then raise exception 'Same division assignment failed';end if;
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',admin_id,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ denied:=false;begin perform public.send_leads_to_recipient(array[l2],'vivid_life','legacy_life',null);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Nonmaster transfer allowed';end if;
+ reset role;
+ raise exception using errcode='ZX001',message='Rollback fixtures';
+ exception when sqlstate 'ZX001' then null;end;
+ reset role;
+ if exists(select 1 from auth.users where id in(a,a2)) or exists(select 1 from public.leads where id in(l1,l2,l3)) then raise exception 'Fixtures persisted';end if;
+ if has_function_privilege('anon','public.send_leads_to_recipient(uuid[],text,text,uuid)','execute') then raise exception 'Anon access';end if;
+end $$;
