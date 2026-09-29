@@ -1,7 +1,7 @@
 /* Chat uses authenticated REST + RLS-filtered realtime; no client-side authority. */
 const CHAT={owner:null,scopes:[],division:null,room:'general',rows:[],drafts:{},pending:{},channel:null,timer:null,epoch:0,request:0,connected:false,starting:false,error:'',sending:false,older:false,commandIndex:0};
-const CHAT_COMMANDS=[{name:'/deal',title:'Log a closed deal',hint:'Enter the agent, carrier, and premium to record a sale.'},{name:'/leaderboard',title:'Open the live leaderboard',hint:'See your division’s production and rankings.'},{name:'/help',title:'Chat commands',hint:'See what you can do here.'}];
-function chatWorkspaceLabel(d){return d==='all'?'All divisions · excluding Legacy':divisionLabel(d);}
+const CHAT_COMMANDS=[{name:'/deal',title:'Log a closed deal',hint:'Enter the agent, carrier, and premium to record a sale.'},{name:'/leaderboard',title:'Open the live leaderboard',hint:'See your agency’s production and rankings.'},{name:'/help',title:'Chat commands',hint:'See what you can do here.'}];
+function chatWorkspaceLabel(d){return d==='all'?'All agencies · excluding Legacy':divisionLabel(d);}
 function chatActionDivision(){const own=S.profile.division;return CHAT.division!=='all'&&(S.profile.role==='admin'?adminDivisionList().includes(CHAT.division):CHAT.division===own)?CHAT.division:own;}
 function chatWorkspaceOptions(){return CHAT.scopes.includes('legacy_life')?['legacy_life']:['all',...CHAT.scopes.filter(d=>d===S.profile.division||adminDivisionList().includes(d))];}
 function chatKey(){return CHAT.division+':'+CHAT.room;}
