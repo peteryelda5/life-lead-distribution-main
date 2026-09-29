@@ -1,0 +1,14 @@
+const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
+const elements=new Map();const box={innerHTML:'',isConnected:true};
+const fakeQuery=s=>s==='#modal .modalbox'?box:elements.get(s)||null;
+const ctx=vm.createContext({URLSearchParams,Intl,Set,Map,Date,Number,String,JSON,localStorage:{getItem:()=>null},window:{supabase:{createClient:()=>({auth:{}})}},document:{getElementById:()=>({}),querySelector:fakeQuery,querySelectorAll:()=>[],addEventListener:()=>{}},setInterval:()=>{}});
+const source=[...fs.readFileSync('index.html','utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));vm.runInContext(source.slice(0,source.lastIndexOf('(async()=>{if(S.session)')),ctx);
+vm.runInContext(fs.readFileSync('closed-lead-corrections.js','utf8'),ctx);
+const deal={id:'deal-1',leads:{id:'lead-1',updated_at:'2026-09-29T11:01:02.123456+00:00',first_name:'Old',last_name:'Name',phone:'111',email:'old@example.com',division:'owner',csv_headers:['Name','Phone'],csv_values:['Old Name','111']}};
+vm.runInContext("S.profile={id:'master',role:'admin',full_name:'Peter Yelda'}",ctx);
+elements.set('#cancelLeadCorrection',{});elements.set('#closedLeadCorrectionForm',{});elements.set('#correctionError',{textContent:'',className:''});
+vm.runInContext('closedLeadEditForm('+JSON.stringify(deal)+')',ctx);
+assert.match(box.innerHTML,/Correct lead information/);assert.match(box.innerHTML,/Prior values and your reason/);assert.match(box.innerHTML,/name="csv_1"/);assert.doesNotMatch(box.innerHTML,/Remove deal \/ subtract production/);
+let called=null;ctx.FormData=class {constructor(){this.data=new Map([['first_name','New'],['last_name','Name'],['phone','222'],['email','new@example.com'],['state','MI'],['source','Corrected'],['lead_type','Batch'],['notes','Note'],['csv_0','New Name'],['csv_1','222'],['reason','Client confirmed correction']]);}get(k){return this.data.get(k)}};
+vm.runInContext("api=async(path,opt)=>{globalThis.called={path,body:opt.body};return {changed:true}};closeModal=async()=>{};loadCore=async()=>{};render=()=>{};openClosedDeal=async()=>{};",ctx);
+(async()=>{await elements.get('#closedLeadCorrectionForm').onsubmit({preventDefault(){},target:{},submitter:{disabled:false}});called=ctx.called;assert.equal(called.path,'/rest/v1/rpc/correct_closed_lead');assert.equal(called.body.p_expected_updated_at,deal.leads.updated_at);assert.equal(called.body.p_fields.phone,'222');assert.deepEqual([...called.body.p_fields.csv_values],['New Name','222']);assert.equal(called.body.p_reason,'Client confirmed correction');vm.runInContext("S.profile={role:'agent'}",ctx);box.innerHTML='';vm.runInContext('closedLeadEditForm('+JSON.stringify(deal)+')',ctx);assert.equal(box.innerHTML,'');console.log('PASS admin closed-lead edit payload, original version check, agent edit hidden');})().catch(e=>{console.error(e);process.exit(1)});
