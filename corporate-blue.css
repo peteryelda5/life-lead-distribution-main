@@ -75,3 +75,8 @@ html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,.wrap::-webkit-scr
 
 /* Hide status choices even on browsers without native Popover support. */
 .lead-status-menu[hidden]{display:none!important}.lead-status-menu{z-index:10000}
+
+/* Vivid Life Portal: selected E monogram */
+.mark{background:transparent;border:0;box-shadow:none;border-radius:0;overflow:visible}
+.mark img{object-fit:contain}
+.auth-logo{border-radius:0}
