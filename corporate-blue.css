@@ -72,3 +72,6 @@ html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,.wrap::-webkit-scr
 .nav-icon{display:block;width:19px;height:19px;flex:0 0 19px;pointer-events:none}
 .nav-label{min-width:0}
 @media(min-width:1001px){.sidebar-collapsed .nav button{justify-content:center;gap:0}}
+
+/* Hide status choices even on browsers without native Popover support. */
+.lead-status-menu[hidden]{display:none!important}.lead-status-menu{z-index:10000}
