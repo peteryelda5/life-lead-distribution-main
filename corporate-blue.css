@@ -105,3 +105,31 @@ html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,.wrap::-webkit-scr
 .brand .role{font-size:10px;white-space:normal}
 @media(max-width:480px){.auth .card{padding:28px 22px}.portal-brand-lockup{gap:12px}.portal-brand-lockup .auth-logo{width:64px;height:64px}.portal-wordmark strong{font-size:27px}.portal-wordmark span{font-size:11px;letter-spacing:6px}}
 @media(prefers-reduced-motion:reduce){.portal-spinner{animation:none}}
+
+/* Full-width top navigation, preserving role-specific destinations. */
+.top.portal-topnav{position:sticky;top:0;left:auto;bottom:auto;width:100%;height:auto;overflow:visible;z-index:30;background:#0b2848}
+.portal-topnav .topin{max-width:none;height:auto;min-height:76px;padding:0 24px;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:24px}
+.portal-topnav .brand{flex:0 0 auto;color:#fff;text-decoration:none;gap:10px;align-items:center}
+.portal-topnav .brand .mark{width:40px;height:40px}
+.portal-topnav .brandname{font-size:20px}
+.portal-topnav .sidebar-portal-label{font-size:10px;color:#83cdf7;letter-spacing:3px;margin-top:5px}
+.portal-topnav .nav{display:flex;flex:1;min-width:0;flex-direction:row;align-items:stretch;gap:2px;flex-wrap:nowrap;overflow-x:auto;padding:0;scrollbar-width:thin;scrollbar-color:#4777aa transparent}
+.portal-topnav .nav button{position:relative;flex:0 0 auto;width:auto;min-height:76px;padding:0 12px;border:0;border-bottom:4px solid transparent;border-radius:0;background:transparent;box-shadow:none;white-space:nowrap;font-size:14px;gap:8px;color:#d2e0ef}
+.portal-topnav .nav button:hover{background:#143b63;color:#fff}
+.portal-topnav .nav button.active{border-bottom-color:#2196f3;background:#123658;color:#fff}
+.portal-topnav .nav button .nav-label{position:static;width:auto;height:auto;margin:0;padding:0;clip:auto;overflow:visible;white-space:nowrap}
+.portal-topnav .nav button[data-tab="lead-requests"]{padding-right:32px}
+.portal-topnav .request-count-badge{top:10px;right:3px}
+.portal-topnav+.wrap{margin-left:0;max-width:none;padding:30px 32px;min-height:calc(100vh - 76px)}
+.portal-account{position:relative;flex:0 0 auto;color:#fff}
+.portal-account summary{cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none;padding:10px 0}
+.portal-account summary::-webkit-details-marker{display:none}
+.portal-account summary:after{content:'⌄';color:#b5cbe0}
+.portal-avatar{width:40px;height:40px;background:#1677dc;border-radius:50%;display:grid;place-items:center;font-weight:700}
+.portal-account-name{font-size:14px;font-weight:600;max-width:180px}
+.portal-account-name small{display:block;font-size:11px;color:#b2cee9;font-weight:400;line-height:1.4;margin-top:3px}
+.portal-account-menu{position:absolute;top:100%;right:0;width:220px;padding:8px;background:#fff;border:1px solid #dce6f2;border-radius:10px;box-shadow:0 12px 35px #082a5030;color:#173b63}
+.portal-account-menu button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;color:inherit;padding:12px;text-align:left;border-radius:6px;cursor:pointer;font-size:14px}
+.portal-account-menu button:hover{background:#edf4ff}
+@media(max-width:1300px){.portal-topnav .topin{flex-wrap:wrap;gap:0 20px;padding:10px 20px 0}.portal-topnav .nav{order:3;flex-basis:100%;width:100%;margin-top:8px}.portal-topnav .nav button{min-height:52px}.portal-account{margin-left:auto}.portal-topnav+.wrap{padding:24px}}
+@media(max-width:600px){.portal-topnav .topin{padding:10px 14px 0}.portal-topnav .brandname{font-size:18px}.portal-topnav .nav button{padding:0 12px;min-height:50px;font-size:13px}.portal-topnav .nav-icon{width:17px;height:17px;flex-basis:17px}.portal-account-name{display:none}.portal-topnav+.wrap{padding:20px 14px}.portal-account-menu{width:210px}}
