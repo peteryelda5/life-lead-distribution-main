@@ -199,6 +199,30 @@ function activityPage(){return '<div class="head"><div><h1>Activity</h1><p>Recen
 function modal(html){document.body.insertAdjacentHTML('beforeend','<div id="modal" class="modal"><div class="modalbox">'+html+'</div></div>');q('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()}}
 function closeModal(){q('#modal')?.remove()}
 
+
+function leadLayoutKey(){return 'vivid_lead_columns_v1:'+S.profile.id}
+function readLeadLayout(){try{const v=JSON.parse(localStorage.getItem(leadLayoutKey())||'[]');return Array.isArray(v)?v.filter(x=>typeof x==='string'):[]}catch{return []}}
+function bindLeadColumnLayout(onSize){
+ if(S.tab!=='my-leads')return;
+ const table=q('#leadTableScroll table');if(!table)return;
+ const headers=[...table.querySelectorAll('thead th')],counts={};
+ const columns=headers.map((th,i)=>{const label=th.textContent.trim()||'Actions';counts[label]=(counts[label]||0)+1;return {key:label+'::'+counts[label],label,index:i}});
+ const originals=[...table.rows].map(row=>({row,cells:[...row.cells]}));
+ const apply=order=>{const sorted=[...columns].sort((a,b)=>{const ai=order.indexOf(a.key),bi=order.indexOf(b.key);return (ai<0?order.length+a.index:ai)-(bi<0?order.length+b.index:bi)});for(const {row,cells} of originals){if(cells.length!==columns.length)continue;for(const col of sorted)row.appendChild(cells[col.index])}onSize();return sorted};
+ let current=apply(readLeadLayout());
+ const tools=q('.tools');if(!tools)return;
+ const controls=document.createElement('div');controls.className='row lead-layout-controls';controls.innerHTML='<button type="button" class="btn secondary" id="organizeLeadColumns">Organize Columns</button><button type="button" class="btn secondary" id="resetLeadLayout">Reset Layout</button>';tools.appendChild(controls);
+ const reset=()=>{try{localStorage.removeItem(leadLayoutKey())}catch{}current=apply([])};
+ q('#resetLeadLayout').onclick=reset;
+ q('#organizeLeadColumns').onclick=()=>{
+  let draft=current.map(c=>c.key);
+  modal('<h2>Organize columns</h2><p>Move columns into your preferred order. This layout is saved for your account in this browser.</p><div id="columnLayoutList" class="stack" style="max-height:50vh;overflow:auto"></div><div id="columnLayoutError" role="alert"></div><div class="row" style="margin-top:18px"><button type="button" id="columnLayoutReset" class="btn secondary">Reset Layout</button><button type="button" id="columnLayoutCancel" class="btn secondary">Cancel</button><button type="button" id="columnLayoutSave" class="btn primary">Save Layout</button></div>');
+  const draw=()=>{q('#columnLayoutList').innerHTML=draft.map((key,i)=>'<div class="row" style="align-items:center;flex-wrap:nowrap;padding:8px;border:1px solid #dce6f2;border-radius:8px"><span style="flex:1">'+esc(columns.find(c=>c.key===key).label)+'</span><button type="button" class="btn secondary column-move" data-index="'+i+'" data-direction="-1" aria-label="Move '+esc(columns.find(c=>c.key===key).label)+' left" '+(i===0?'disabled':'')+'>←</button><button type="button" class="btn secondary column-move" data-index="'+i+'" data-direction="1" aria-label="Move '+esc(columns.find(c=>c.key===key).label)+' right" '+(i===draft.length-1?'disabled':'')+'>→</button></div>').join('');qa('.column-move').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.index),j=i+Number(b.dataset.direction);if(j<0||j>=draft.length)return;[draft[i],draft[j]]=[draft[j],draft[i]];draw()})};
+  draw();q('#columnLayoutCancel').onclick=closeModal;q('#columnLayoutReset').onclick=()=>{reset();draft=columns.map(c=>c.key);draw()};
+  q('#columnLayoutSave').onclick=()=>{try{const visible=new Set(draft);const retained=readLeadLayout().filter(k=>!visible.has(k));localStorage.setItem(leadLayoutKey(),JSON.stringify([...draft,...retained]));current=apply(draft);closeModal()}catch{q('#columnLayoutError').textContent='Your browser could not save this layout. Please allow local storage and try again.'}};
+ };
+}
+
 function bindLeadTopScroll(){
  if(window.cleanupLeadScroll)window.cleanupLeadScroll();
  const top=q('#leadTopScroll'),table=q('#leadTableScroll'),inner=q('#leadTopScrollInner');if(!top||!table||!inner)return;
@@ -213,7 +237,7 @@ function bindLeadTopScroll(){
  top.addEventListener('scroll',topScroll,{passive:true});table.addEventListener('scroll',tableScroll,{passive:true});
  const observer=new ResizeObserver(scheduleSize);observer.observe(table);if(table.querySelector('table'))observer.observe(table.querySelector('table'));if(nav)observer.observe(nav);window.addEventListener('resize',scheduleSize);
  window.cleanupLeadScroll=()=>{disposed=true;cancelAnimationFrame(frame);cancelAnimationFrame(sizeFrame);observer.disconnect();window.removeEventListener('resize',scheduleSize);top.removeEventListener('scroll',topScroll);table.removeEventListener('scroll',tableScroll);};
- bindLeadTableZoom(size);size();
+ bindLeadTableZoom(size);bindLeadColumnLayout(scheduleSize);size();
 }
 function bindPager(){qa('.pageBtn').forEach(b=>b.onclick=async()=>{if(b.disabled)return;const n=Math.max(1,Number(b.dataset.page||1)),k=b.dataset.kind;try{if(k==='scripts'){S.scriptPage=n;await loadSalesScripts()}else if(k==='master-view'){S.masterLeadPage=n;await loadMasterLeadView()}else if(k==='requests'){S.requestPage=n;await loadLeadRequests()}else if(k==='pool'){S.poolPage=n;await loadPoolPage()}else if(k==='assigned'){S.assignedPage=n;await loadAssignedPage()}else if(k==='closed'){S.closedPage=n;await loadClosedPage()}else if(k==='my'){S.myPage=n;await loadMyLeadsPage()}else if(k==='uploads'){S.uploadPage=n;await loadMyUploads()}else if(k==='myClosed'){S.myClosedPage=n;await loadMyClosedPage()}render();window.scrollTo({top:0,behavior:'smooth'})}catch(x){flash(x.message,true)}})}
 
