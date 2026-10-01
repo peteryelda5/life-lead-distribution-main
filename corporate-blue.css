@@ -80,3 +80,28 @@ html::-webkit-scrollbar-corner,body::-webkit-scrollbar-corner,.wrap::-webkit-scr
 .mark{background:transparent;border:0;box-shadow:none;border-radius:0;overflow:visible}
 .mark img{object-fit:contain}
 .auth-logo{border-radius:0}
+
+/* Approved Vivid Life Portal brand layout */
+.auth{background:#0b2848}
+.auth .card{padding:36px;width:min(480px,100%);gap:22px}
+.portal-brand-lockup{display:flex;align-items:center;justify-content:center;gap:16px;margin:8px 0 14px}
+.portal-brand-lockup .auth-logo{width:80px;height:80px;margin:0;flex-shrink:0}
+.portal-wordmark{color:#0b2848;text-align:left}
+.portal-wordmark strong{display:block;font-size:32px;font-weight:750;letter-spacing:-1px;line-height:1.15;white-space:nowrap}
+.portal-wordmark span{display:block;font-size:13px;font-weight:650;letter-spacing:7px;margin-top:8px;padding-left:3px}
+.portal-welcome{text-align:center;margin:18px 0 6px}
+.portal-welcome h1{font-size:28px;letter-spacing:-.6px;margin:0 0 8px;color:#0b2848}
+.portal-welcome p{font-size:15px;color:#62768c;margin:0}
+.auth #login{gap:18px}.auth #login input{min-height:48px;border-radius:8px}.auth #login .btn{min-height:48px;border-radius:8px;background:#1677dc}
+.portal-auth-footer{text-align:center;color:#62768c;font-size:13px;padding-top:4px}
+#startupScreen .card{padding:44px 32px;text-align:center}
+#startupStatus{color:#62768c;font-size:15px;line-height:1.5;margin:0}
+#startupActions{justify-content:center}
+.portal-spinner{width:24px;height:24px;margin:6px auto 0;border:3px solid #dfeaf6;border-top-color:#1677dc;border-radius:50%;animation:portal-spin .8s linear infinite}
+@keyframes portal-spin{to{transform:rotate(360deg)}}
+.brand{align-items:center}.brand .mark{width:48px;height:48px}
+.brandname{font-size:20px;line-height:1.15;font-weight:750;white-space:nowrap}
+.sidebar-portal-label{display:block;font-size:10px;letter-spacing:4px;margin-top:7px;font-weight:600}
+.brand .role{font-size:10px;white-space:normal}
+@media(max-width:480px){.auth .card{padding:28px 22px}.portal-brand-lockup{gap:12px}.portal-brand-lockup .auth-logo{width:64px;height:64px}.portal-wordmark strong{font-size:27px}.portal-wordmark span{font-size:11px;letter-spacing:6px}}
+@media(prefers-reduced-motion:reduce){.portal-spinner{animation:none}}
