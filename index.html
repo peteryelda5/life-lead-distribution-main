@@ -206,7 +206,7 @@ function bindLeadTopScroll(){
  // Ignore the scroll event caused by mirroring the other scrollbar.
  const write=(element,value)=>{if(Math.abs(element.scrollLeft-value)<0.5)return;element.scrollLeft=value;echo.set(element,element.scrollLeft);};
  const sync=element=>{const expected=echo.get(element);echo.delete(element);if(expected!==undefined&&Math.abs(element.scrollLeft-expected)<0.5)return;source=element;if(!frame)frame=requestAnimationFrame(()=>{frame=0;if(disposed)return;const from=source;source=null;write(from===top?table:top,from.scrollLeft);});};
- const size=()=>{if(disposed)return;const range=Math.max(0,table.scrollWidth-table.clientWidth);top.style.display=range>0?'block':'none';if(range>0){const width=top.clientWidth+range;if(inner.style.width!==width+'px')inner.style.width=width+'px';}top.style.setProperty('--lead-scroll-top',(window.innerWidth>1000?12:(nav?.getBoundingClientRect().height||0)+4)+'px');write(top,table.scrollLeft);};
+ const size=()=>{if(disposed)return;const range=Math.max(0,table.scrollWidth-table.clientWidth);top.style.display=range>0?'block':'none';if(range>0){const width=top.clientWidth+range;if(inner.style.width!==width+'px')inner.style.width=width+'px';}const offset=(nav?.getBoundingClientRect().height||0)+8;top.style.setProperty('--lead-scroll-top',offset+'px');top.style.top=offset+'px';write(top,table.scrollLeft);};
  const scheduleSize=()=>{if(!sizeFrame)sizeFrame=requestAnimationFrame(()=>{sizeFrame=0;size();});};
  top.tabIndex=0;top.setAttribute('aria-label','Scroll lead columns left and right');top.style.scrollBehavior=table.style.scrollBehavior='auto';
  const topScroll=()=>sync(top),tableScroll=()=>sync(table);
