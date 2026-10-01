@@ -11,3 +11,9 @@
 .dash-request-count{display:grid;place-items:center;min-width:28px;height:28px;padding:0 6px;border-radius:50%;background:#e82039;color:#fff;font-weight:700;font-size:14px}
 .dash-request-action:hover{background:#ffe4e7}
 .dash-request-action:focus-visible{outline:3px solid #89b5ff;outline-offset:3px}
+
+/* Keep Quick Actions sized to its controls instead of stretching with the adjacent table. */
+.dash-quick-actions{align-self:start;padding:18px;height:auto;min-height:0}
+.dashboard .dash-quick-actions h2{margin-bottom:14px}
+.dash-quick-buttons{gap:8px}
+.dash-quick-actions .dash-request-action{margin-top:14px;padding:12px 14px}
