@@ -79,6 +79,56 @@
   const s=(hit<0?String(body||''):lines.slice(Math.max(0,hit-1),hit+3).join(' ')).replace(/\s+/g,' ').trim();
   return s.split(/\s+/).slice(0,12).join(' ')+(s.split(/\s+/).length>12?'…':'');
  }
+ function caseFit(c,f,context){
+  const type=c.guide.rules?.type,age=number(f.age),a1c=number(f.a1c),dx=number(f.diagnosisAge);
+  const fit={strength:0,supported:false,excluded:false,reason:'This is a relevant guide section; the available evidence does not establish a best carrier for this case.'};
+  if(f.currentInsulin==='yes'&&f.insulin==='no'){fit.reason='Current insulin use conflicts with the past-12-month answer. Confirm those details first.';return fit;}
+  if(c.caution&&/Decline|No Coverage|Outside|Type I decline/.test(c.label)){fit.excluded=true;fit.reason='The entered case flags an exclusion or issue-age limit in this guide.';return fit;}
+  if(context.complex||!context.diabetes||['gestational','prediabetes'].includes(f.diabetesType))return fit;
+  const known=context.missing.length===0;
+  if(type==='corebridge-siwl-diabetes'){
+   if(age!=null&&(age<50||age>80)){fit.excluded=true;return fit;}
+   if(f.complications==='amputation'||f.hospitalization==='yes'||f.coronary==='yes'||a1c!=null&&a1c>=10){fit.excluded=true;return fit;}
+   if(a1c!=null&&a1c<=8.6&&f.currentInsulin==='no'&&f.complications==='none'){
+    fit.strength=4;fit.supported=known;fit.reason='The entered A1C and no current insulin match the guide’s Level diabetes row. Review the complete health and medication history.';
+   }else if(a1c!=null&&((a1c>=8.7&&a1c<=9.9)||(a1c<=8.6&&f.currentInsulin==='yes'))){fit.strength=2;fit.supported=known;fit.reason='These diabetes details match the guide’s Graded row. Review the benefit limitations and other supported options.';}
+   else{fit.strength=1;fit.reason='This guide has explicit A1C and insulin criteria, but the entered details do not resolve the applicable row.';}
+  }else if(type==='transamerica-fe-diabetes'){
+   if(age!=null&&(age<18||age>85)){fit.excluded=true;return fit;}
+   if(f.complications==='amputation'||f.complications==='other'||f.hospitalization==='yes'||f.coronary==='yes'){fit.strength=1;fit.reason='The full case needs the comorbidity chart; a single diabetes row cannot establish the strongest match.';return fit;}
+   if(dx!=null&&dx>40&&f.insulin==='no'&&f.complications==='none'&&f.coronary==='no'&&f.state&&f.state!=='CA'){
+    fit.strength=4;fit.supported=known;fit.reason='Diagnosis after age 40, no insulin, and no reported complications/comorbidities match the Premier diabetes row. Confirm build and full application criteria.';
+   }else if(f.insulin==='yes'||dx!=null&&dx<40||f.complications==='eye-kidney-nerve'){
+    fit.strength=3;fit.supported=known;fit.reason='The entered diabetes history matches a Select row in the guide. Confirm build, other conditions and state availability.';
+   }else{fit.strength=1;fit.reason=f.state==='CA'?'Premier is unavailable in California; the current details do not establish another class.':'Confirm diagnosis age, insulin use and complications to resolve Premier versus Select.';}
+  }else if(type==='foresters-planright-diabetes'){
+   if(age!=null&&(age<50||age>85)||f.complications==='amputation'){fit.excluded=true;return fit;}
+   if(f.complications==='eye-kidney-nerve'){fit.strength=1;fit.reason='The guide lists diabetic nephropathy, neuropathy and retinopathy as Basic; confirm the specific condition and benefit limits.';}
+   else if(f.complications==='none'&&/\b(glipizide|glucophage|glyburide|janumet|januvia|jardiance|humalog|humulin)\b/i.test(f.medications||'')){
+    fit.strength=4;fit.supported=known;fit.reason='The stated medication has a diabetes Preferred row in this guide. Verify the exact drug indication and all application answers.';
+   }else{fit.strength=1;fit.reason='The drug/condition matrix is relevant, but the actual medication and indication need to be matched before selecting a class.';}
+  }else if(type==='instabrain-term-diabetes'){
+   if(f.diabetesType==='type1'||age!=null&&(age<18||age>60))fit.excluded=true;
+  }
+  if(fit.strength>0&&!known)fit.reason+=' Missing case details must be confirmed before treating this as the strongest match.';
+  return fit;
+ }
+ function guideEdition(g){
+  const value=String(g.version_label||'');const year=value.match(/20\d{2}/);if(!year)return 0;
+  const months=['january','february','march','april','may','june','july','august','september','october','november','december'];const month=months.findIndex(m=>value.toLowerCase().includes(m));
+  return Number(year[0])*12+Math.max(0,month);
+ }
+ function choosePrimary(candidates,f,context){
+  for(const c of candidates)c.fit=caseFit(c,f,context);
+  const ordered=candidates.filter(c=>!c.fit.excluded).sort((a,b)=>Number(b.fit.supported)-Number(a.fit.supported)||b.fit.strength-a.fit.strength||Number(b.guide.kind==='underwriting')-Number(a.guide.kind==='underwriting')||guideEdition(b.guide)-guideEdition(a.guide)||b.score-a.score||a.guide.carrier.localeCompare(b.guide.carrier));
+  const primary=ordered[0]||null;
+  const status=!primary?'no-supported-match':primary.fit.supported?'supported':context.missing.length?'needs-details':'guide-only';
+  // One primary product per carrier; full source references remain available on demand.
+  const seen=new Set(primary?[primary.guide.carrier]:[]),alternatives=[];
+  for(const c of [...ordered.slice(1),...candidates.filter(c=>c.fit.excluded)]){if(!seen.has(c.guide.carrier)){seen.add(c.guide.carrier);alternatives.push(c);}}
+  return {primary,alternatives,status};
+ }
+
  function compare(guides,hits,f){
   const list=terms(f.question,f.medications);const diabetes=/diabet|a1c|insulin|blood sugar/i.test(f.question||'');
   // A negated condition or multiple conditions cannot safely drive a single-condition rule.
@@ -92,14 +142,15 @@
    const pages=[...new Set([...review.pages,...matches.map(h=>h.page_number)])].filter(p=>p>0&&p<=g.page_count);
    candidates.push({guide:g,...review,pages,matches:matches.slice(0,2).map(h=>({...h,excerpt:snippet(h.body,list)})),score:Math.max(0,...matches.map(h=>Number(h.score)||0))});
   }
-  candidates.sort((a,b)=>Number(a.caution)-Number(b.caution)||((a.guide.carrier==='Transamerica'?0:1)-(b.guide.carrier==='Transamerica'?0:1))||b.score-a.score||a.guide.carrier.localeCompare(b.guide.carrier));
-  return {candidates,missing:missing(f,diabetes),terms:list,complex,diabetes};
+  const context={missing:missing(f,diabetes),terms:list,complex,diabetes};
+  const selected=choosePrimary(candidates,f,context);
+  return {candidates,...context,...selected};
  }
  function pageRanges(value,max){
   if(!String(value||'').trim())return [{from:1,to:max}];
   return String(value).split(',').map(part=>{const m=part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);if(!m)throw Error('Use PDF page numbers such as 4-12, 25-29.');const from=Number(m[1]),to=Number(m[2]||m[1]);if(from<1||to<from||to>max)throw Error('The selected comparison pages are outside this PDF.');return {from,to};});
  }
- const engine={terms,searchQuery,missing,ruleReview,compare,snippet,pageRanges};
+ const engine={terms,searchQuery,missing,ruleReview,compare,snippet,pageRanges,caseFit,choosePrimary};
  root.PORTAL_UW_ENGINE=engine;
  if(typeof module!=='undefined'&&module.exports)module.exports=engine;
 })(typeof window==='undefined'?globalThis:window);
@@ -121,18 +172,23 @@ if(typeof window!=='undefined'){
  function uwSelect(label,name,options){return '<label class="uw-field"><span>'+label+'</span><select name="'+name+'">'+options.map(([v,l])=>'<option value="'+v+'" '+(UW.form[name]===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';}
  function uwHelpPage(){
   const yesno=[['unknown','Unknown'],['yes','Yes'],['no','No']];
-  return '<section class="uw-page"><div class="head"><div><h1>Underwriting Help</h1><p>Compare cases using your carrier guides.</p></div>'+(S.profile?.is_super_admin?'<button class="btn secondary" id="uwManage">Manage guides</button>':'')+'</div>'+(UW.error?'<div class="notice" role="alert">'+esc(UW.error)+' <button class="btn secondary" id="uwRetry">Retry</button></div>':'')+'<div class="uw-grid"><div><form class="uw-panel" id="uwCaseForm"><h2>Describe the case</h2><label class="uw-field"><span>Your question</span><textarea name="question" rows="3" maxlength="1000" required placeholder="Where should I review a diabetic client for final expense?">'+esc(UW.form.question)+'</textarea></label><div class="uw-fields three">'+uwInput('Age','age','number','min="18" max="100" step="1" placeholder="e.g. 65"')+uwSelect('State','state',[['','Choose state'],...UW_STATES.map(s=>[s,s])])+uwSelect('Coverage type','coverage',[['final-expense','Final expense'],['term','Term'],['iul','IUL']])+'</div><h3>Additional details <span>(if known)</span></h3><div class="uw-fields two">'+uwSelect('Diabetes type','diabetesType',[['unknown','Unknown / not applicable'],['type1','Type I'],['type2','Type II'],['gestational','Gestational'],['prediabetes','Prediabetes']])+uwSelect('Currently using insulin','currentInsulin',yesno)+uwSelect('Insulin in past 12 months','insulin',yesno)+uwInput('Latest A1C','a1c','number','min="3" max="25" step="0.1" placeholder="Unknown"')+uwInput('Age at diagnosis','diagnosisAge','number','min="0" max="100" step="1" placeholder="Unknown"')+uwSelect('Diabetic complications','complications',[['unknown','Unknown'],['none','None confirmed'],['eye-kidney-nerve','Eye / kidney / nerve'],['amputation','Diabetes-related amputation'],['other','Other complication']])+uwSelect('Diabetes hospitalization, past 24 months','hospitalization',yesno)+uwSelect('Stroke / coronary disease history','coronary',yesno)+uwInput('Medications / indications','medications','text','maxlength="500" placeholder="e.g. metformin for diabetes"')+'</div><div id="uwCaseError" role="alert"></div><button class="btn primary uw-compare" '+(UW.loading?'disabled':'')+'>'+(UW.loading?'Comparing guides…':'Compare guides')+'</button><p class="uw-small">Use case details only. No client names needed. Cases stay in this browser session.</p></form><div class="uw-panel uw-confirm"><h2>Details to confirm</h2>'+((UW.result?.missing?.length?UW.result.missing:['Latest A1C, test date and age at diagnosis','Insulin use and recent hospitalizations','Eye, kidney, nerve or amputation complications','Complete medication list and other conditions']).map(t=>'<div class="uw-check"><span aria-hidden="true">□</span>'+esc(t)+'</div>').join(''))+'</div></div><div class="uw-results" aria-live="polite" aria-busy="'+UW.loading+'"><div class="uw-result-head"><h2>Carrier options to review</h2><span class="uw-status">'+(UW.loading?'Comparing…':!UW.result?'Awaiting case':UW.result.missing.length?'More details needed':'Review complete case')+'</span></div>'+uwResultsHTML()+'<p class="uw-small uw-decision">Guide matches support a review, not an approval or a carrier ranking. Confirm the applicable product, state, current carrier guidance and complete application. The carrier makes the final decision.</p></div></div>'+uwGuideLibrary()+'</section>';
+  return '<section class="uw-page"><div class="head"><div><h1>Underwriting Help</h1><p>Compare cases using your carrier guides.</p></div>'+(S.profile?.is_super_admin?'<button class="btn secondary" id="uwManage">Manage guides</button>':'')+'</div>'+(UW.error?'<div class="notice" role="alert">'+esc(UW.error)+' <button class="btn secondary" id="uwRetry">Retry</button></div>':'')+'<div class="uw-grid"><div><form class="uw-panel" id="uwCaseForm"><h2>Describe the case</h2><label class="uw-field"><span>Your question</span><textarea name="question" rows="3" maxlength="1000" required placeholder="Where should I review a diabetic client for final expense?">'+esc(UW.form.question)+'</textarea></label><div class="uw-fields three">'+uwInput('Age','age','number','min="18" max="100" step="1" placeholder="e.g. 65"')+uwSelect('State','state',[['','Choose state'],...UW_STATES.map(s=>[s,s])])+uwSelect('Coverage type','coverage',[['final-expense','Final expense'],['term','Term'],['iul','IUL']])+'</div><h3>Additional details <span>(if known)</span></h3><div class="uw-fields two">'+uwSelect('Diabetes type','diabetesType',[['unknown','Unknown / not applicable'],['type1','Type I'],['type2','Type II'],['gestational','Gestational'],['prediabetes','Prediabetes']])+uwSelect('Currently using insulin','currentInsulin',yesno)+uwSelect('Insulin in past 12 months','insulin',yesno)+uwInput('Latest A1C','a1c','number','min="3" max="25" step="0.1" placeholder="Unknown"')+uwInput('Age at diagnosis','diagnosisAge','number','min="0" max="100" step="1" placeholder="Unknown"')+uwSelect('Diabetic complications','complications',[['unknown','Unknown'],['none','None confirmed'],['eye-kidney-nerve','Eye / kidney / nerve'],['amputation','Diabetes-related amputation'],['other','Other complication']])+uwSelect('Diabetes hospitalization, past 24 months','hospitalization',yesno)+uwSelect('Stroke / coronary disease history','coronary',yesno)+uwInput('Medications / indications','medications','text','maxlength="500" placeholder="e.g. metformin for diabetes"')+'</div><div id="uwCaseError" role="alert"></div><button class="btn primary uw-compare" '+(UW.loading?'disabled':'')+'>'+(UW.loading?'Comparing guides…':'Compare guides')+'</button><p class="uw-small">Use case details only. No client names needed. Cases stay in this browser session.</p></form><div class="uw-panel uw-confirm"><h2>Details to confirm</h2>'+((UW.result?.missing?.length?UW.result.missing:['Latest A1C, test date and age at diagnosis','Insulin use and recent hospitalizations','Eye, kidney, nerve or amputation complications','Complete medication list and other conditions']).map(t=>'<div class="uw-check"><span aria-hidden="true">□</span>'+esc(t)+'</div>').join(''))+'</div></div><div class="uw-results" aria-live="polite" aria-busy="'+UW.loading+'"><div class="uw-result-head"><h2>Best supported carrier match</h2><span class="uw-status">'+(UW.loading?'Comparing…':!UW.result?'Awaiting case':UW.result.missing.length?'More details needed':UW.result.status==='supported'?'Strongest guide match':'Needs carrier review')+'</span></div>'+uwResultsHTML()+'<p class="uw-small uw-decision">The primary result is the strongest supported starting point among the guides available here. It is not an approval or a price comparison. Confirm the applicable product, state, current carrier guidance and complete application. The carrier makes the final decision.</p></div></div>'+uwGuideLibrary()+'</section>';
  }
+ function uwResultCard(c){return '<article class="uw-panel uw-option"><div class="uw-option-head">'+carrierBrandLogo(c.guide.carrier)+'<div><h3>'+esc(c.guide.carrier)+'</h3><p>'+esc(c.guide.title)+'</p></div></div><div class="uw-option-label '+(c.caution?'uw-caution':'')+'">'+esc(c.label)+'</div><ul>'+c.notes.map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul>'+(c.matches.length?'<details class="uw-source-excerpts"><summary>Matching source text</summary>'+c.matches.map(m=>'<p><strong>PDF page '+m.page_number+'</strong><br>'+esc(m.excerpt)+'</p>').join('')+'</details>':'')+'<div class="uw-option-footer"><span>'+esc(c.guide.version_label)+'</span><button class="btn secondary uw-open-guide" data-guide="'+c.guide.id+'" data-page="'+(c.pages[0]||1)+'">View guide'+(c.pages.length?' · p. '+c.pages.slice(0,4).join(', '):'')+'</button></div>'+(c.guide.notes?'<p class="uw-guide-note">'+esc(c.guide.notes)+'</p>':'')+'</article>';}
  function uwResultsHTML(){
-  if(!UW.result)return '<div class="uw-panel uw-empty"><div class="uw-search-mark" aria-hidden="true">⌕</div><h3>Start with a case question</h3><p>Enter a condition or medication and choose a coverage type. We’ll find relevant guide sections and show what to confirm.</p><button type="button" class="btn secondary" id="uwExample">Try a diabetes example</button></div>';
-  if(!UW.result.candidates.length)return '<div class="uw-panel"><h3>No supported guide matches</h3><p>There is not enough applicable guidance in this library to compare that case. Try the condition name or medication, or ask the carrier underwriting team.</p><p>Missing guidance is not evidence that a carrier accepts or declines a case.</p></div>';
-  return (UW.result.complex?'<div class="notice">Review the conditions together. These results show source sections; a single-condition chart cannot resolve this full case.</div>':'')+UW.result.candidates.map(c=>'<article class="uw-panel uw-option"><div class="uw-option-head">'+carrierBrandLogo(c.guide.carrier)+'<div><h3>'+esc(c.guide.carrier)+'</h3><p>'+esc(c.guide.title)+'</p></div></div><div class="uw-option-label '+(c.caution?'uw-caution':'')+'">'+esc(c.label)+'</div><ul>'+c.notes.map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul>'+(c.matches.length?'<details class="uw-source-excerpts"><summary>Matching source text</summary>'+c.matches.map(m=>'<p><strong>PDF page '+m.page_number+'</strong><br>'+esc(m.excerpt)+'</p>').join('')+'</details>':'')+'<div class="uw-option-footer"><span>'+esc(c.guide.version_label)+'</span><button class="btn secondary uw-open-guide" data-guide="'+c.guide.id+'" data-page="'+(c.pages[0]||1)+'">View guide'+(c.pages.length?' · p. '+c.pages.slice(0,4).join(', '):'')+'</button></div>'+(c.guide.notes?'<p class="uw-guide-note">'+esc(c.guide.notes)+'</p>':'')+'</article>').join('');
+  if(!UW.result)return '<div class="uw-panel uw-empty"><div class="uw-search-mark" aria-hidden="true">⌕</div><h3>Find the best supported starting point</h3><p>Enter the case details. We’ll show one primary carrier with its reason and source, rather than a list of every carrier.</p><button type="button" class="btn secondary" id="uwExample">Try a diabetes example</button></div>';
+  const r=UW.result;
+  if(!r.primary)return '<div class="uw-panel"><h3>No supported carrier match yet</h3><p>The available evidence does not support selecting a carrier for this case. Confirm the complete health details or contact underwriting.</p></div>'+uwAlternativesHTML(r.alternatives);
+  const title=r.status==='supported'?'Primary carrier to review':r.status==='needs-details'?'Provisional carrier — confirm details':'Closest guide — carrier review needed';
+  return '<div class="uw-primary-reason"><strong>'+title+'</strong><p>'+esc(r.primary.fit.reason)+'</p></div>'+(r.complex?'<div class="notice">Multiple or negated conditions require a full case review. This guide match does not resolve those conditions together.</div>':'')+uwResultCard(r.primary)+uwAlternativesHTML(r.alternatives);
  }
- function uwGuideLibrary(){return '<div class="uw-panel uw-library"><div class="uw-result-head"><h2>Guide library</h2><span class="uw-small">Versions and coverage</span></div><div class="uw-guide-chips">'+UW_CARRIERS.map(carrier=>{const guides=UW.guides.filter(g=>g.active&&g.carrier===carrier),types=[...new Set(guides.flatMap(g=>g.coverage_types))];return '<button type="button" class="uw-guide-chip '+(!guides.length?'uw-pending':'')+'" data-uw-carrier="'+esc(carrier)+'"><strong>'+esc(carrier)+'</strong><span>'+esc(guides.length?types.map(uwLabel).join(' · '):carrier==='Combined Insurance'?'Guide pending':carrier==='SBLI'?'Full guide pending':'Guide pending')+'</span></button>';}).join('')+'</div><p class="uw-small">Some files are product or dated references rather than full medical underwriting guides. Open a carrier to see the scope.</p></div>';}
+ function uwAlternativesHTML(rows){return rows.length?'<details class="uw-alternatives"><summary>Other options and guide sections ('+rows.length+')</summary><div>'+rows.map(uwResultCard).join('')+'</div></details>':'';}
+ function uwGuideLibrary(){return '<div class="uw-library-tools"><span class="uw-small">'+UW.guides.filter(g=>g.active).length+' source guides / references connected</span><button type="button" class="btn secondary" id="uwBrowseLibrary">Browse guide library</button></div>';}
  function uwSaveForm(form){UW.form={...UW_BLANK,...Object.fromEntries(new FormData(form))};}
  function uwBind(){
   qa('[data-uw-tab]').forEach(b=>b.onclick=()=>{const f=q('#uwCaseForm');if(f&&!UW.loading)uwSaveForm(f);UW.tab=b.dataset.uwTab;render();});
   if(q('#uwManage'))q('#uwManage').onclick=uwManageGuides;
+  if(q('#uwBrowseLibrary'))q('#uwBrowseLibrary').onclick=uwBrowseLibrary;
   if(q('#uwRetry'))q('#uwRetry').onclick=async()=>{await uwLoadGuides();render();};
   if(q('#uwExample'))q('#uwExample').onclick=()=>{UW.form={...UW_BLANK,question:'Where should I review a diabetic client for final expense?'};UW.result=null;render();q('#uwCaseForm textarea')?.focus();};
   qa('[data-uw-carrier]').forEach(b=>b.onclick=()=>uwCarrierGuides(b.dataset.uwCarrier));
@@ -142,6 +198,7 @@ if(typeof window!=='undefined'){
   const changed=()=>{uwSaveForm(f);if(UW.result){UW.result=null;const results=q('.uw-results');if(results)results.innerHTML='<div class="uw-panel"><h2>Case details changed</h2><p>Click Compare guides to review the updated case.</p></div>';}};f.oninput=changed;f.onchange=changed;
   f.onsubmit=async e=>{
    e.preventDefault();if(UW.loading)return;uwSaveForm(f);const input={...UW.form};
+   if(input.currentInsulin==='yes'&&input.insulin==='no'){q('#uwCaseError').textContent='Current insulin use means insulin was used within the past 12 months. Please correct those answers.';return;}
    if(input.diagnosisAge!==''&&input.age!==''&&Number(input.diagnosisAge)>Number(input.age)){q('#uwCaseError').textContent='Age at diagnosis cannot be greater than current age.';return;}
    const list=PORTAL_UW_ENGINE.terms(input.question,input.medications);if(!list.length){q('#uwCaseError').textContent='Enter a health condition or medication to search the guides.';return;}
    UW.loading=true;UW.error='';const request=++UW.request;render();
@@ -149,6 +206,9 @@ if(typeof window!=='undefined'){
   };
  }
  function uwBindOpenGuides(){qa('.uw-open-guide').forEach(b=>b.onclick=()=>uwOpenGuide(b.dataset.guide,Number(b.dataset.page)||1));}
+ function uwBrowseLibrary(){
+  closeModal();modal('<h2>Guide library</h2><div class="uw-guide-chips">'+UW_CARRIERS.map(c=>'<button type="button" class="uw-guide-chip" data-uw-carrier="'+esc(c)+'"><strong>'+esc(c)+'</strong><span>'+UW.guides.filter(g=>g.active&&g.carrier===c).length+' connected</span></button>').join('')+'</div><button class="btn secondary" id="uwClose">Close</button>');q('#uwClose').onclick=closeModal;qa('[data-uw-carrier]').forEach(b=>b.onclick=()=>uwCarrierGuides(b.dataset.uwCarrier));
+ }
  function uwCarrierGuides(carrier){
   const guides=UW.guides.filter(g=>g.active&&g.carrier===carrier);
   modal('<h2>'+esc(carrier)+' guides</h2>'+(guides.length?guides.map(g=>'<div class="uw-guide-row"><div><strong>'+esc(g.title)+'</strong><p>'+esc(g.version_label)+' · '+g.coverage_types.map(uwLabel).join(', ')+' · '+esc(g.kind==='rates'?'Rate reference':g.kind==='product'?'Product reference':'Underwriting guide')+'</p><p class="uw-small">'+esc(g.notes)+'</p></div><button class="btn secondary uw-open-guide" data-guide="'+g.id+'" data-page="1">View guide</button></div>').join(''):'<p>No full underwriting guide is connected for this carrier yet. '+(carrier==='Combined Insurance'?'Combined remains pending.':'Add the carrier-issued guide when available.')+'</p>')+'<button class="btn secondary" id="uwClose">Close</button>');q('#uwClose').onclick=closeModal;uwBindOpenGuides();
@@ -203,3 +263,4 @@ if(typeof window!=='undefined'){
  }
  Object.assign(window,{uwLoadGuides,portalUnderwritingResourcesPage,uwBind,uwOpenGuide});
 }
+
