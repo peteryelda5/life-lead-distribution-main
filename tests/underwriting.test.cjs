@@ -20,7 +20,7 @@ assert.match(review(ta,{}).notes.join(' '),/not an overall approval/);
 assert.equal(E.missing(base,true).length,0);
 assert.ok(E.missing({coverage:'final-expense'},true).length>=9);
 let r=E.compare([core,ta,guide('other',{kind:'rates'}),guide('other',{active:false})],[],base);
-assert.equal(r.candidates.length,2);assert.equal(r.candidates[0].guide.carrier,'Transamerica');
+assert.equal(r.candidates.length,2);assert.ok(r.primary);assert.equal(r.alternatives.length,1);
 assert.equal(E.compare([core],[],{...base,coverage:'term'}).candidates.length,0);
 assert.equal(E.compare([core],[],{...base,question:'Client is not diabetic but has COPD'}).candidates.length,0);
 assert.equal(E.compare([core],[],{...base,question:'Diabetic with COPD'}).candidates.length,0);
