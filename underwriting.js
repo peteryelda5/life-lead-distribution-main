@@ -103,6 +103,7 @@
    }else{fit.strength=1;fit.reason=f.state==='CA'?'Premier is unavailable in California; the current details do not establish another class.':'Confirm diagnosis age, insulin use and complications to resolve Premier versus Select.';}
   }else if(type==='foresters-planright-diabetes'){
    if(age!=null&&(age<50||age>85)||f.complications==='amputation'){fit.excluded=true;return fit;}
+   if(f.hospitalization==='yes'||f.coronary==='yes'||f.complications==='other'){fit.reason='Additional medical history needs full case review; a drug row alone cannot determine the strongest carrier.';return fit;}
    if(f.complications==='eye-kidney-nerve'){fit.strength=1;fit.reason='The guide lists diabetic nephropathy, neuropathy and retinopathy as Basic; confirm the specific condition and benefit limits.';}
    else if(f.complications==='none'&&/\b(glipizide|glucophage|glyburide|janumet|januvia|jardiance|humalog|humulin)\b/i.test(f.medications||'')){
     fit.strength=4;fit.supported=known;fit.reason='The stated medication has a diabetes Preferred row in this guide. Verify the exact drug indication and all application answers.';
