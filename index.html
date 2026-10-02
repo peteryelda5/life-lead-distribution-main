@@ -292,18 +292,18 @@ function bindLeadColumnLayout(onSize){
 function bindLeadTopScroll(){
  if(window.cleanupLeadScroll)window.cleanupLeadScroll();
  const top=q('#leadTopScroll'),table=q('#leadTableScroll'),inner=q('#leadTopScrollInner');if(!top||!table||!inner)return;
- const nav=q('.top'),echo=new WeakMap(),marker=document.createElement('div');let frame=0,sizeFrame=0,source=null,disposed=false;
+ const nav=q('.top'),marker=document.createElement('div');let sizeFrame=0,disposed=false;
  marker.className='lead-scroll-placeholder';marker.style.height='24px';top.before(marker);document.body.appendChild(top);
  Object.assign(top.style,{position:'fixed',zIndex:'29',margin:'0'});
- const write=(element,value)=>{if(Math.abs(element.scrollLeft-value)<0.5)return;element.scrollLeft=value;echo.set(element,element.scrollLeft)};
- const sync=element=>{const expected=echo.get(element);echo.delete(element);if(expected!==undefined&&Math.abs(element.scrollLeft-expected)<0.5)return;source=element;if(!frame)frame=requestAnimationFrame(()=>{frame=0;if(disposed)return;const from=source;source=null;write(from===top?table:top,from.scrollLeft)})};
+ const write=(element,value)=>{if(Math.abs(element.scrollLeft-value)>=0.5)element.scrollLeft=value};
+ const sync=element=>{if(disposed)return;write(element===top?table:top,element.scrollLeft)};
  const size=()=>{if(disposed)return;const rect=table.getBoundingClientRect(),mark=marker.getBoundingClientRect(),offset=Math.max(0,nav?.getBoundingClientRect().bottom||0)+8,range=Math.max(0,table.scrollWidth-table.clientWidth),visible=range>0&&mark.top<window.innerHeight-18&&rect.bottom>offset+18;marker.style.height=range>0?'24px':'0';top.style.display=visible?'block':'none';top.style.left=rect.left+'px';top.style.width=rect.width+'px';top.style.top=Math.max(offset,mark.top)+'px';if(visible)inner.style.width=(top.clientWidth+range)+'px';write(top,table.scrollLeft)};
  const scheduleSize=()=>{if(!sizeFrame)sizeFrame=requestAnimationFrame(()=>{sizeFrame=0;size()})};
  top.tabIndex=0;top.setAttribute('aria-label','Scroll lead columns left and right');top.style.scrollBehavior=table.style.scrollBehavior='auto';
- const topScroll=()=>sync(top),tableScroll=()=>sync(table);
+ const topScroll=()=>sync(top),tableScroll=()=>sync(table),viewportScroll=event=>{if(event.target!==top&&event.target!==table)scheduleSize()};
  top.addEventListener('scroll',topScroll,{passive:true});table.addEventListener('scroll',tableScroll,{passive:true});
- const observer=new ResizeObserver(scheduleSize);observer.observe(table);if(table.querySelector('table'))observer.observe(table.querySelector('table'));if(nav)observer.observe(nav);window.addEventListener('resize',scheduleSize);window.addEventListener('scroll',scheduleSize,{passive:true,capture:true});
- window.cleanupLeadScroll=()=>{disposed=true;cancelAnimationFrame(frame);cancelAnimationFrame(sizeFrame);observer.disconnect();window.removeEventListener('resize',scheduleSize);window.removeEventListener('scroll',scheduleSize,true);top.removeEventListener('scroll',topScroll);table.removeEventListener('scroll',tableScroll);if(marker.isConnected)marker.replaceWith(top);else top.remove();top.style.cssText='';window.cleanupLeadScroll=null};
+ const observer=new ResizeObserver(scheduleSize);observer.observe(table);if(table.querySelector('table'))observer.observe(table.querySelector('table'));if(nav)observer.observe(nav);window.addEventListener('resize',scheduleSize);window.addEventListener('scroll',viewportScroll,{passive:true,capture:true});
+ window.cleanupLeadScroll=()=>{disposed=true;cancelAnimationFrame(sizeFrame);observer.disconnect();window.removeEventListener('resize',scheduleSize);window.removeEventListener('scroll',viewportScroll,true);top.removeEventListener('scroll',topScroll);table.removeEventListener('scroll',tableScroll);if(marker.isConnected)marker.replaceWith(top);else top.remove();top.style.cssText='';window.cleanupLeadScroll=null};
  bindLeadTableZoom(size);bindLeadColumnLayout(scheduleSize);size();
 }
 function bindPager(){qa('.pageBtn').forEach(b=>b.onclick=async()=>{if(b.disabled)return;const n=Math.max(1,Number(b.dataset.page||1)),k=b.dataset.kind;try{if(k==='scripts'){S.scriptPage=n;await loadSalesScripts()}else if(k==='master-view'){S.masterLeadPage=n;await loadMasterLeadView()}else if(k==='requests'){S.requestPage=n;await loadLeadRequests()}else if(k==='pool'){S.poolPage=n;await loadPoolPage()}else if(k==='assigned'){S.assignedPage=n;await loadAssignedPage()}else if(k==='closed'){S.closedPage=n;await loadClosedPage()}else if(k==='my'){S.myPage=n;await loadMyLeadsPage()}else if(k==='uploads'){S.uploadPage=n;await loadMyUploads()}else if(k==='myClosed'){S.myClosedPage=n;await loadMyClosedPage()}render();window.scrollTo({top:0,behavior:'smooth'})}catch(x){flash(x.message,true)}})}
