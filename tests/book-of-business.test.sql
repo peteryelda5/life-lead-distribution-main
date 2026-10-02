@@ -1,0 +1,51 @@
+begin;
+do $$
+declare master_id uuid; agent_id uuid; other_id uuid; admin_id uuid; deal uuid; r jsonb; v jsonb; i int;
+begin
+ select id into master_id from public.profiles where active and is_super_admin limit 1;
+ select id into agent_id from public.profiles where active and role='agent' and division='vivid_life' and not coalesce(archived,false) limit 1;
+ select id into other_id from public.profiles where active and role='agent' and division='legacy_life' and not coalesce(archived,false) limit 1;
+ select id into admin_id from public.profiles where active and role='admin' and not is_super_admin and division<>'legacy_life' limit 1;
+ if master_id is null or agent_id is null or other_id is null then raise exception 'Test identities missing';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',master_id,'aal','aal2','session_id','bob-test-master')::text,true);
+ r:=public.book_access('status');if (r->>'unlocked')::bool then raise exception 'Starts locked';end if;
+ begin perform public.book_data();raise exception 'Locked access bypass';exception when insufficient_privilege then null;end;
+ r:=public.book_access('set','492816');if not (r->>'unlocked')::bool then raise exception 'PIN setup failed: %',r;end if;
+ r:=public.book_grid('save',agent_id,'__book_test__','Final Expense',80,75,'2026-01-01');
+ insert into public.closed_business(agent_id,carrier,policy_type,monthly_premium,application_date) values(agent_id,'__book_test__','Final Expense',100,'2026-10-02') returning id into deal;
+ r:=public.book_data(1,'__book_test__',agent_id);select x into v from jsonb_array_elements(r->'rows')x where x->>'id'=deal::text;
+ if (v->>'estimated_advance')::numeric<>720 then raise exception 'Advance should be 720: %',v;end if;
+ perform public.book_grid('save',agent_id,'__book_test__','Final Expense',100,90,'2026-01-01');
+ r:=public.book_data(1,'__book_test__',agent_id);select x into v from jsonb_array_elements(r->'rows')x where x->>'id'=deal::text;if (v->>'estimated_advance')::numeric<>720 then raise exception 'Existing snapshot changed';end if;
+ begin perform public.book_grid('save',agent_id,'__book_test__','Final Expense',80,101,'2026-01-01');raise exception 'Invalid advance accepted';exception when raise_exception then if sqlerrm='Invalid advance accepted' then raise;end if;end;
+ -- Personal agent unlock, own records, immutable grid and anti-brute-force.
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'aal','aal2','session_id','bob-test-agent')::text,true);
+ perform public.book_access('set','492816');r:=public.book_data(1,'__book_test__');if (r->>'count')::int<>1 then raise exception 'Own deal missing';end if;
+ perform public.book_client(deal,'Book Test Client','5551234567','test@example.com');
+r:=public.book_data(1,'Book Test Client');if (r->>'count')::int<>1 then raise exception 'Client edit/search failed';end if;
+r:=public.book_data(1,'',other_id);if (r->>'count')::int<>0 then raise exception 'Foreign agent visible';end if;
+update private.book_unlocks set expires_at=now()-interval '1 second' where user_id=agent_id;
+begin perform public.book_data();raise exception 'Expired unlock accepted';exception when insufficient_privilege then null;end;
+perform public.book_access('unlock','492816');
+ begin perform public.book_grid('save',agent_id,'__book_test__','Final Expense',150,90,'2026-01-01');raise exception 'Agent edited grid';exception when insufficient_privilege then null;end;
+ perform public.book_access('lock');
+ for i in 1..5 loop r:=public.book_access('unlock','111111');if r->>'error' is null then raise exception 'Bad PIN accepted';end if;end loop;
+ r:=public.book_access('unlock','492816');if r->>'error' is null then raise exception 'Lockout bypassed';end if;
+ update private.book_pins set locked_until=now()-interval '1 minute' where user_id=agent_id;
+ r:=public.book_access('unlock','492816');if not (r->>'unlocked')::bool then raise exception 'Unlock after lockout failed';end if;
+ r:=public.book_access('change','938271','492816');if not (r->>'unlocked')::bool then raise exception 'PIN change failed';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'aal','aal2','session_id','other-session')::text,true);
+ begin perform public.book_data();raise exception 'Session unlock leaked';exception when insufficient_privilege then null;end;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'aal','aal1','session_id','bob-test-agent')::text,true);
+ begin perform public.book_access('unlock','938271');raise exception 'MFA bypass';exception when insufficient_privilege then null;end;
+ if admin_id is not null then
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',admin_id,'aal','aal2','session_id','bob-test-admin')::text,true);
+ perform public.book_access('set','492816');
+begin perform public.book_client(deal,'Forbidden Client');raise exception 'Foreign client edit allowed';exception when insufficient_privilege then null;end;
+r:=public.book_data(1,'',other_id);if (r->>'count')::int<>0 then raise exception 'Agency isolation failed';end if;
+ begin perform public.book_grid('save',agent_id,'__book_test__','Final Expense',100,75,'2026-01-01');raise exception 'Agency admin edited comp';exception when insufficient_privilege then null;end;
+ end if;
+ if has_function_privilege('anon','public.book_data(integer,text,uuid)','execute') or has_table_privilege('authenticated','private.book_comp_grid','select') or has_function_privilege('authenticated','private.book_capture(uuid)','execute') then raise exception 'Unprotected grant';end if;
+ raise notice 'Book checks passed: PIN setup/lock/change/expiry, brute-force lockout, session binding, MFA, agent/agency isolation, Master-only grid, exact advance calculation and snapshots.';
+end $$;
+rollback;
