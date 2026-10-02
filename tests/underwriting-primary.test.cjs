@@ -14,3 +14,7 @@ r=E.compare([core],[],{...f,a1c:'10'});assert.equal(r.primary,null);assert.equal
 r=E.compare([{...ta,id:'ta2'},ta,core],[],f);assert.equal(r.alternatives.filter(x=>x.guide.carrier==='Transamerica').length,0);
 r=E.compare([ta,core],[],{...f,currentInsulin:'yes',insulin:'no'});assert.notEqual(r.status,'supported');
 console.log('Case-based primary selection passed: CA, insulin, A1C, age, missing data, duplicate carriers and no fixed brand preference.');
+
+r=E.compare([core,ta,ethos],[],f);assert.deepEqual(r.ranked.map(c=>c.guide.id),["ta","core","ethos"]);assert.equal(new Set(r.ranked.map(c=>c.guide.carrier)).size,r.ranked.length);
+r=E.compare([ta,core,ethos],[],{...f,a1c:"10"});assert(!r.ranked.some(c=>c.guide.id==="core"));
+console.log("Ranked options passed: best first, multiple relevant carriers, deduplication, and excluded criteria kept out of recommendations.");
