@@ -1,0 +1,20 @@
+create function private.book_crm_board(p_page int default 1,p_search text default '',p_agent uuid default null,p_status text default '',p_limit int default 100) returns jsonb language plpgsql stable security definer set search_path='' as $$
+declare result jsonb;
+begin
+ if not private.book_is_unlocked() then raise exception 'Book of Business is locked. Enter your PIN.' using errcode='42501';end if;
+ if coalesce(p_status,'')<>'' and p_status<>all(array['draft','submitted','active','issued','lapsed','cancelled']) then raise exception 'Invalid policy status';end if;
+ with permitted as(
+ select c.*,p.full_name agent_name,coalesce(d.carrier,c.carrier) current_carrier,coalesce(d.policy_type,c.policy_type) current_policy_type,coalesce(d.monthly_premium,c.monthly_payment) current_monthly_payment,coalesce(d.application_date,c.application_date) current_application_date,case when d.id is null then c.policy_number else coalesce(d.policy_number,'') end current_policy_number,
+ case when x.deal_id is not null then round(d.annual_premium*x.comp_percent/100*x.advance_percent/100,2) when d.id is null and g.id is not null then round(c.monthly_payment*12*g.comp_percent/100*g.advance_percent/100,2) end estimated_advance,
+ coalesce(x.comp_percent,g.comp_percent) comp_percent,coalesce(x.advance_percent,g.advance_percent) advance_percent,
+ case when d.id is null then null else jsonb_build_object('carrier',d.carrier,'policy_type',d.policy_type,'monthly_premium',d.monthly_premium,'application_date',d.application_date,'policy_number',d.policy_number,'notes',d.notes) end deal_version
+ from private.book_crm_clients c join public.profiles p on p.id=c.agent_id left join public.closed_business d on d.id=c.deal_id left join private.book_deal_comp x on x.deal_id=d.id
+ left join lateral(select g.* from private.book_comp_grid g where g.agent_id=c.agent_id and g.carrier=lower(trim(coalesce(d.carrier,c.carrier))) and g.policy_type=lower(trim(coalesce(d.policy_type,c.policy_type))) and g.effective_date<=coalesce(d.application_date,c.application_date) order by g.effective_date desc limit 1)g on true
+ where private.book_crm_can_access(c.agent_id,c.deal_id) and (p_agent is null or c.agent_id=p_agent)
+ ),searched as(select * from permitted where coalesce(p_search,'')='' or concat_ws(' ',client_name,agent_name,current_carrier,current_policy_number,phone,email,address_line1,city,state,zip) ilike '%'||left(p_search,100)||'%'),filtered as(select * from searched where coalesce(p_status,'')='' or status=p_status),paged as(select * from filtered order by created_at desc,id limit greatest(1,least(coalesce(p_limit,100),2000)) offset (greatest(1,least(coalesce(p_page,1),100000))-1)*greatest(1,least(coalesce(p_limit,100),2000)))
+ select jsonb_build_object('rows',coalesce((select jsonb_agg(to_jsonb(paged)||jsonb_build_object('carrier',current_carrier,'policy_type',current_policy_type,'monthly_payment',current_monthly_payment,'application_date',current_application_date,'policy_number',current_policy_number)) from paged),'[]'::jsonb),'status_counts',coalesce((select jsonb_object_agg(status,n) from (select status,count(*) n from searched group by status)t),'{}'::jsonb),'count',(select count(*) from filtered),'monthly_payment',(select coalesce(sum(current_monthly_payment),0) from filtered where status in ('active','issued')),'estimated_advance',(select coalesce(sum(estimated_advance),0) from filtered where status in ('active','issued')),'missing_comp',(select count(*) from filtered where estimated_advance is null and status in ('active','issued'))) into result;
+ return result;
+end;$$;
+create function public.book_crm_board(p_page int default 1,p_search text default '',p_agent uuid default null,p_status text default '',p_limit int default 100) returns jsonb language sql set search_path='' as $$select private.book_crm_board(p_page,p_search,p_agent,p_status,p_limit)$$;
+revoke all on function private.book_crm_board(int,text,uuid,text,int),public.book_crm_board(int,text,uuid,text,int) from public,anon,authenticated;
+grant execute on function private.book_crm_board(int,text,uuid,text,int),public.book_crm_board(int,text,uuid,text,int) to authenticated;
