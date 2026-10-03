@@ -1,0 +1,35 @@
+begin;
+do $$
+declare m uuid; a uuid; other_agent uuid; cid uuid:=gen_random_uuid(); fields jsonb; rec private.book_crm_clients%rowtype; r jsonb; old_count bigint; expected jsonb;
+begin
+ select id into m from public.profiles where is_super_admin and active limit 1;
+ select id into a from public.profiles where role='agent' and active and not archived and division='vivid_life' limit 1;
+ select id into other_agent from public.profiles where role='agent' and active and not archived and division='legacy_life' limit 1;
+ delete from private.book_unlocks where user_id in(m,a,other_agent);delete from private.book_pins where user_id in(m,a,other_agent);
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',m,'aal','aal2','session_id','crm-master')::text,true);
+ perform public.book_access('set','492816');perform public.book_grid('save',a,'__crm_test__','Final Expense',80,75,'2026-01-01');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'aal','aal2','session_id','crm-agent')::text,true);perform public.book_access('set','492816');
+ fields:=jsonb_build_object('client_name','CRM Test Client','agent_id',a,'address_line1','123 Test St','address_line2','Suite 2','city','Detroit','state','MI','zip','48201','phone','5551234567','email','test@example.com','carrier','__crm_test__','policy_type','Final Expense','monthly_payment',100,'policy_number','TEST-CRM','application_date','2026-10-02','status','draft','notes','Test notes');
+ select count(*) into old_count from public.closed_business where agent_id=a;
+ perform public.book_crm_save(cid,fields);select * into rec from private.book_crm_clients where id=cid;
+ if rec.deal_id is not null or rec.address_line1<>'123 Test St' or (select count(*) from public.closed_business where agent_id=a)<>old_count then raise exception 'Draft incorrectly records production or fields lost';end if;
+ fields:=fields||'{"status":"active"}';perform public.book_crm_save(cid,fields,rec.updated_at,null);select * into rec from private.book_crm_clients where id=cid;
+ if rec.deal_id is null or not rec.production_recorded or (select count(*) from public.closed_business where agent_id=a)<>old_count+1 then raise exception 'Activation failed';end if;
+ if (select count(*) from private.book_crm_clients where deal_id=rec.deal_id)<>1 then raise exception 'Activation created duplicate clients';end if;
+ r:=public.book_crm_board(1,'CRM Test Client',null,'active',2000);if (r->>'count')::int<>1 or ((r->'rows'->0)->>'estimated_advance')::numeric<>720 then raise exception 'CRM advance/list incorrect: %',r;end if;
+ expected:=(r->'rows'->0)->'deal_version';fields:=fields||'{"monthly_payment":150,"status":"issued"}';perform public.book_crm_save(cid,fields,rec.updated_at,expected);select * into rec from private.book_crm_clients where id=cid;
+ if (select count(*) from public.closed_business where agent_id=a)<>old_count+1 or (select annual_premium from public.closed_business where id=rec.deal_id)<>1800 then raise exception 'Repeated activation duplicated production or premium not updated';end if;
+ r:=public.book_crm_list(1,'CRM Test Client');if ((r->'rows'->0)->>'estimated_advance')::numeric<>1080 then raise exception 'Advance correction failed';end if;
+ expected:=(r->'rows'->0)->'deal_version';fields:=fields||'{"status":"cancelled"}';perform public.book_crm_save(cid,fields,rec.updated_at,expected);
+ if (select count(*) from public.closed_business where agent_id=a)<>old_count+1 then raise exception 'Status erased history';end if;
+ r:=public.book_crm_list(1,'CRM Test Client');if (r->>'monthly_payment')::numeric<>0 then raise exception 'Cancelled policy counted as active monthly payment';end if;
+ begin perform public.book_crm_save(cid,fields,null,expected);raise exception 'Stale update accepted';exception when sqlstate 'PT409' then null;end;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',other_agent,'aal','aal2','session_id','crm-other')::text,true);perform public.book_access('set','492816');
+ r:=public.book_crm_list(1,'CRM Test Client');if (r->>'count')::int<>0 then raise exception 'Foreign client visible';end if;
+ begin perform public.book_crm_save(cid,fields,rec.updated_at,expected);raise exception 'Foreign client edited';exception when insufficient_privilege then null;end;
+ begin perform public.book_crm_save(gen_random_uuid(),fields);raise exception 'Assigned unauthorized owner';exception when insufficient_privilege then null;end;
+ r:=public.book_crm_board(1,'CRM Test Client',null,'',2000);if (r->>'count')::int<>0 then raise exception 'Foreign board/export rows visible';end if;
+ perform public.book_access('lock');begin perform public.book_crm_list();raise exception 'PIN bypass';exception when insufficient_privilege then null;end;
+ if has_table_privilege('authenticated','private.book_crm_clients','select') or has_function_privilege('anon','public.book_crm_save(uuid,jsonb,timestamptz,jsonb)','execute') then raise exception 'Unsafe grant';end if;
+end $$;
+rollback;
