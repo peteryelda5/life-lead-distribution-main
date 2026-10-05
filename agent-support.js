@@ -1,16 +1,16 @@
-const SUPPORT={agentId:null,section:'open',type:'',page:1,count:0,rows:[],types:[]};
-function resetAgentSupport(){Object.assign(SUPPORT,{agentId:null,section:'open',type:'',page:1,count:0,rows:[],types:[]})}
+const SUPPORT={agentId:null,section:'dashboard',type:'',page:1,count:0,rows:[],types:[]};
+function resetAgentSupport(){Object.assign(SUPPORT,{agentId:null,section:'dashboard',type:'',page:1,count:0,rows:[],types:[]})}
 function supportAgent(){return S.profile?.role==='admin'&&S.profile.is_super_admin&&currentAal()==='aal2'?S.agents.find(a=>a.id===SUPPORT.agentId&&a.active&&!a.archived):null}
 async function openAgentSupport(id){
  if(S.profile?.role!=='admin'||!S.profile.is_super_admin||currentAal()!=='aal2')throw new Error('Verified Master account required.');
  const a=S.agents.find(x=>x.id===id&&x.active&&!x.archived);if(!a)throw new Error('Active agent not found.');
  const ok=await api('/rest/v1/rpc/open_agent_support',{method:'POST',body:{p_agent:id}});
  if(ok!==true)throw new Error('Could not open this agent view.');
- SUPPORT.agentId=id;SUPPORT.section='open';SUPPORT.type='';SUPPORT.page=1;
+ SUPPORT.agentId=id;SUPPORT.section='dashboard';SUPPORT.type='';SUPPORT.page=1;
  S.tab='support-agent';await loadAgentSupport();render();
 }
 async function loadAgentSupport(){
- const a=supportAgent();if(!a){resetAgentSupport();S.tab='agents';return}
+ const a=supportAgent();if(!a){resetAgentSupport();S.tab='agents';return}if(SUPPORT.section==='dashboard'){await loadAgentDashboard(a.id);return;}
  const p=new URLSearchParams();p.set('select',SUPPORT.section==='open'?'*':'*,leads(first_name,last_name,lead_type,csv_headers,csv_values)');
  if(SUPPORT.section==='open'){
   p.set('assigned_to','eq.'+a.id);p.set('status','eq.assigned');
@@ -27,6 +27,7 @@ async function loadAgentSupport(){
 }
 function agentSupportPage(){
  const a=supportAgent();if(!a)return '<div class="error">The selected agent is no longer available.</div>';
+ if(SUPPORT.section==='dashboard')return '<div class="head"><div><h1>Agent view: '+esc(a.full_name)+'</h1><p>Read-only preview · Signed in as '+esc(S.profile.full_name)+'</p></div><div class="tools"><button class="btn secondary" id="supportBack">← Back to Agents</button><button class="btn primary supportSection" data-section="dashboard">Dashboard</button><button class="btn secondary supportSection" data-section="open">Open leads</button><button class="btn secondary supportSection" data-section="closed">Closed leads</button></div></div>'+agentDashboardPage(a,true);
  const cols=SUPPORT.section==='open'?csvColumns(SUPPORT.rows):[];
  const menu='<div class="tools"><button class="btn secondary" id="supportBack">← Back to Agents</button><button class="btn '+(SUPPORT.section==='open'?'primary':'secondary')+' supportSection" data-section="open">Open leads</button><button class="btn '+(SUPPORT.section==='closed'?'primary':'secondary')+' supportSection" data-section="closed">Closed leads</button>'+(SUPPORT.section==='open'?'<select id="supportType" aria-label="Lead type"><option value="">All lead types</option>'+SUPPORT.types.map(x=>'<option value="'+esc(x.lead_type===null?'__unlabeled__':x.lead_type)+'" '+(SUPPORT.type===(x.lead_type===null?'__unlabeled__':x.lead_type)?'selected':'')+'>'+esc(x.lead_type||'Unlabeled')+' ('+Number(x.lead_count||0)+')</option>').join('')+'</select>':'')+'</div>';
  const pages=Math.max(1,Math.ceil(SUPPORT.count/S.pageSize));
@@ -41,5 +42,5 @@ function bindAgentSupport(){if(S.tab!=='support-agent')return;
  qa('.supportSection').forEach(b=>b.onclick=async()=>{SUPPORT.section=b.dataset.section;SUPPORT.page=1;SUPPORT.type='';try{await loadAgentSupport();render()}catch(e){flash(e.message,true)}});
  const type=q('#supportType');if(type)type.onchange=async()=>{SUPPORT.type=type.value;SUPPORT.page=1;try{await loadAgentSupport();render()}catch(e){flash(e.message,true)}};
  qa('.supportPage').forEach(b=>b.onclick=async()=>{SUPPORT.page=Number(b.dataset.page);try{await loadAgentSupport();render()}catch(e){flash(e.message,true)}});
- if(SUPPORT.section==='open')bindLeadTopScroll();
+ if(SUPPORT.section==='dashboard')bindAgentDashboard(true);if(SUPPORT.section==='open')bindLeadTopScroll();
 }
