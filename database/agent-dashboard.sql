@@ -14,7 +14,7 @@ begin
  'assigned',(select count(*) from public.leads where assigned_to=who and status='assigned'),
  'followups',(select count(*) from public.leads where assigned_to=who and status='assigned' and agent_status in ('call_back','appointment_follow_up')),
  'pipeline',coalesce((select jsonb_object_agg(s,n) from(select coalesce(agent_status,'none') s,count(*) n from public.leads where assigned_to=who and status='assigned' group by 1)t),'{}'::jsonb),
- 'priorities',coalesce((select jsonb_agg(to_jsonb(t)) from(select id,first_name,last_name,lead_type,agent_status,call_notes from public.leads where assigned_to=who and status='assigned' and agent_status in ('call_back','appointment_follow_up') order by case when agent_status='appointment_follow_up' then 0 else 1 end,updated_at desc,id limit 5)t),'[]'::jsonb),
+ 'priorities',coalesce((select jsonb_agg(to_jsonb(t)) from(select id,first_name,last_name,phone,csv_headers,csv_values,lead_type,agent_status,call_notes from public.leads where assigned_to=who and status='assigned' and agent_status in ('call_back','appointment_follow_up') order by case when agent_status='appointment_follow_up' then 0 else 1 end,updated_at desc,id limit 5)t),'[]'::jsonb),
  'recent',coalesce((select jsonb_agg(to_jsonb(t)) from(select c.id,c.carrier,c.monthly_premium,c.annual_premium,c.application_date,c.created_at,jsonb_build_object('first_name',l.first_name,'last_name',l.last_name,'csv_headers',l.csv_headers,'csv_values',l.csv_values) leads from public.closed_business c left join public.leads l on l.id=c.lead_id where c.agent_id=who order by c.created_at desc,c.id limit 6)t),'[]'::jsonb));
 end $$;
 revoke all on function private.agent_dashboard(uuid) from public,anon;
