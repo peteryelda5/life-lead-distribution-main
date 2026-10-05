@@ -3,14 +3,20 @@ let dashboardData=null,dashboardDays=30,dashboardDivision=null,dashboardError=''
 function resetDashboard(){dashboardRequest++;dashboardData=null;dashboardDivision=null;dashboardError='';dashboardOwner=null;dashboardClosings=[];dashboardClosingsError='';}
 async function loadDashboard(){
  if(dashboardOwner!==S.profile?.id){resetDashboard();dashboardOwner=S.profile?.id;}
- const request=++dashboardRequest;
+ const request=++dashboardRequest,owner=S.profile?.id;
  const division=dashboardDivision||(S.profile?.is_super_admin?'all':S.profile?.division);
  dashboardDivision=division;dashboardError='';dashboardClosings=[];dashboardClosingsError='';
- try{const data=await api('/rest/v1/rpc/dashboard_overview',{method:'POST',body:{p_division:division,p_days:dashboardDays}});if(request===dashboardRequest)dashboardData=data;
- const p=new URLSearchParams({select:'id,carrier,annual_premium,application_date,created_at,leads(first_name,last_name,csv_headers,csv_values),profiles!inner(full_name,division)',order:'created_at.desc,id.desc',limit:'8'});if(division!=='all')p.set('profiles.division','eq.'+division);
- try{const rows=await api('/rest/v1/closed_business?'+p);if(request===dashboardRequest)dashboardClosings=rows||[];}catch(e){if(request===dashboardRequest)dashboardClosingsError='Recent closings could not load.';}}
- catch(e){if(request===dashboardRequest){dashboardData=null;dashboardError=e.message||'Dashboard could not load';}}
+ const p=new URLSearchParams({select:'id,carrier,annual_premium,application_date,created_at,leads(first_name,last_name,csv_headers,csv_values),profiles!inner(full_name,division)',order:'created_at.desc,id.desc',limit:'8'});
+ if(division!=='all')p.set('profiles.division','eq.'+division);
+ const [overview,closings]=await Promise.allSettled([
+  api('/rest/v1/rpc/dashboard_overview',{method:'POST',body:{p_division:division,p_days:dashboardDays}}),
+  api('/rest/v1/closed_business?'+p)
+ ]);
+ if(request!==dashboardRequest||owner!==S.profile?.id)return;
+ if(overview.status==='fulfilled')dashboardData=overview.value;else{dashboardData=null;dashboardError=overview.reason?.message||'Dashboard could not load';}
+ if(closings.status==='fulfilled')dashboardClosings=closings.value||[];else dashboardClosingsError='Recent closings could not load.';
 }
+
 function dashboardIcon(kind){const paths={leads:'M7 3h7l4 4v14H5V3h2m9 0v6h6M8 13h7M8 17h7',people:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',check:'m6 12 4 4 8-8',chart:'M4 20V10m8 10V4m8 16v-8'};return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(paths[kind]||paths.leads)+'"/></svg>';}
 function dashboardTrend(rows){
  if(!rows?.length)return '<div class="empty">No trend data available.</div>';
