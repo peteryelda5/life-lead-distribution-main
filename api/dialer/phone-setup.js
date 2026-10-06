@@ -45,3 +45,5 @@ module.exports=async function(req,res){
   return res.status(200).json({preference:saved,purchaseEnabled:false});
  }catch(e){return res.status(e.status||503).json({error:e.status?e.message:'Phone number setup unavailable. Please retry.'});}
 };
+
+module.exports.verifySubscription=subscription;
