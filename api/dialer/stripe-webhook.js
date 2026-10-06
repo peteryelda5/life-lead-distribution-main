@@ -17,6 +17,7 @@ module.exports=async function(req,res){
   const secret=process.env.STRIPE_WEBHOOK_SECRET;if(typeof secret!=='string'||!/^whsec_[A-Za-z0-9]+$/.test(secret))throw failure(503,'Webhook signing secret is not configured.');
   const body=await raw(req);if(!verify(body,req.headers['stripe-signature'],secret))throw failure(400,'Invalid Stripe signature.');
   let event;try{event=JSON.parse(body.toString('utf8'))}catch{throw failure(400,'Invalid event.');}
+  if(event.data?.object?.metadata?.purpose!==PURPOSE&&await require('../../lib/dialer-full-billing').event(event))return res.status(200).json({received:true});
   if(event.livemode!==false)throw failure(400,'Live events are disabled.');testKey();
   if(!['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(event.type))return res.status(200).json({received:true,ignored:true});
   const s=event.data?.object;if(s?.metadata?.purpose!==PURPOSE||s?.metadata?.portal_user_id!==MASTER)return res.status(200).json({received:true,ignored:true});
@@ -26,3 +27,4 @@ module.exports=async function(req,res){
  }catch(e){return res.status(e.status||503).json({error:e.status?e.message:'Webhook processing unavailable. Please retry.'});}
 };
 module.exports.config={api:{bodyParser:false}};
+
