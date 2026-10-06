@@ -9,7 +9,7 @@ module.exports=async function(req,res){
     const c=config(),b=req.body;
     if(!/^application\/x-www-form-urlencoded(?:;|$)/i.test(req.headers['content-type']||'')||!b||typeof b!=='object'||Array.isArray(b)||!validWebhook(req,b,c)||b.AccountSid!==c.TWILIO_ACCOUNT_SID||b.From!=='client:'+IDENTITY) return res.status(403).send('<Response><Hangup/></Response>');
     let grant,limit=120,track=false;
-    try{grant=verifyGrant(b.CallGrant,c);}catch{grant=verifyLead(b.CallGrant,c);const phone=await rpc('consume_master_dialer_grant',{p_call_id:grant.callId,p_twilio_sid:b.CallSid});if(phone!==grant.to)throw Error('Phone changed');limit=1800;track=true;}
+    try{grant=verifyGrant(b.CallGrant,c);}catch{grant=verifyLead(b.CallGrant,c);const phone=await rpc('consume_master_dialer_grant',{p_call_id:grant.callId,p_twilio_sid:b.CallSid});if(phone!==grant.to)throw Error('Phone changed');let activeNumber=grant.callerId;if(activeNumber&&activeNumber!==c.TWILIO_PHONE_NUMBER&&!await rpc('master_dialer_number_active',{p_phone:activeNumber}))throw Error('Caller ID is not active');if(!activeNumber)activeNumber=await rpc('active_master_dialer_number',{});if(activeNumber){if(!/^\+1[2-9]\d{2}[2-9]\d{6}$/.test(activeNumber)||activeNumber===grant.to)throw Error('Invalid caller ID');c.TWILIO_PHONE_NUMBER=activeNumber;}limit=1800;track=true;}
     return res.status(200).send( '<Response><Dial callerId="'+c.TWILIO_PHONE_NUMBER+'" timeout="25" timeLimit="'+limit+'" answerOnBridge="true" record="do-not-record"><Number'+(track?' statusCallback="https://www.lldportal.com/api/dialer/call-status" statusCallbackEvent="completed" statusCallbackMethod="POST"':'')+'>'+grant.to+'</Number></Dial></Response>');
   }catch{return res.status(403).send('<Response><Hangup/></Response>');}
 };
