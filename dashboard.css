@@ -90,3 +90,8 @@
 .carrier-brand-logo img[alt="Ethos logo"]{filter:brightness(0) saturate(100%);object-fit:contain!important;min-width:0;max-width:100%!important}
 .dash-b .db-carrier .carrier-brand-logo:has(img[alt="Ethos logo"]){width:110px;height:28px;overflow:visible}
 .dash-b .db-carrier .carrier-brand-logo img[alt="Ethos logo"]{width:100%;height:auto;max-height:24px}
+
+/* Pending lead requests stay visible until handled. */
+.dash-b .db-request-panel.db-pending{background:#fff1f2;border-color:#f5b4bd}
+.dash-b .db-request-panel.db-pending h2,.dash-b .db-request-panel.db-pending .db-requests,.dash-b .db-request-panel.db-pending .db-requests small,.dash-b .db-request-panel.db-pending .db-requests>b,.dash-b .db-request-panel.db-pending .dash-link{color:#b42336}
+.dash-b .db-request-panel.db-pending .dash-icon{background:#ffe0e5;color:#d62945}
