@@ -157,7 +157,7 @@
 })(typeof window==='undefined'?globalThis:window);
 
 if(typeof window!=='undefined'){
- const UW_CARRIERS=['Transamerica','Ethos','Corebridge Financial','Foresters Financial','Combined Insurance','SBLI','Aetna','Aflac','American Home Life','F&G','InstaBrain','Baltimore Life'];
+ const UW_CARRIERS=['Transamerica','Ethos','Corebridge Financial','Foresters Financial','Combined Insurance','SBLI','Aetna','Aflac','American Home Life','F&G','InstaBrain','Baltimore Life','Americo'];
  const UW_STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
  const UW_BLANK={question:'',age:'',state:'',coverage:'final-expense',diabetesType:'unknown',insulin:'unknown',currentInsulin:'unknown',a1c:'',diagnosisAge:'',complications:'unknown',hospitalization:'unknown',coronary:'unknown',medications:''};
  const UW={tab:'library',guides:[],form:{...UW_BLANK},result:null,error:'',loading:false,userId:null,request:0};
