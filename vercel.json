@@ -27,5 +27,12 @@
       "path": "/api/dialer/maintenance",
       "schedule": "0 6 * * *"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/dialer.html",
+      "destination": "/#power-dialer",
+      "permanent": false
+    }
   ]
 }
