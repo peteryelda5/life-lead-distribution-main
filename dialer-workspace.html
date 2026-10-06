@@ -4,7 +4,7 @@
 'use strict';
 const $=id=>document.getElementById(id),labels={appointment_follow_up:'Appointment / Follow Up',call_back:'Call Back / Voicemail',not_interested:'Not Interested',dead_number:'Dead Number'},colors={appointment_follow_up:'blue',call_back:'orange',not_interested:'red',dead_number:'red'};
 let folders=[],rows=[],current=null,offset=0,folderIndex=0,busy=false,reviewing=false,selected=new Map(),owner=null,epoch=0;
-let callDevice=null,activeCall=null,callStarting=false,pendingOutcome=false,queueRunning=false,callEpoch=0,callStartedAt=0,callSessionToken=null;
+let callDevice=null,activeCall=null,callStarting=false,pendingOutcome=false,queueRunning=false,callEpoch=0,callStartedAt=0,callSessionToken=null,callSessionUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 function message(t,error=false){$('message').textContent=t;$('message').classList.toggle('error',error)}
 async function api(body){const s=session();if(!s?.access_token)throw Error('Sign in to your Master account in the portal and complete two-step verification first.');if(owner&&owner!==s.user?.id)throw Error('Account changed. Reload this page.');const ticket=epoch,r=await fetch('/api/dialer/workspace',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(30000)});let d;try{d=await r.json()}catch{throw Error('Workspace unavailable. Refresh after deployment finishes.')}if(ticket!==epoch||session()?.user?.id!==s.user?.id)throw Error('Account changed. Reload this page.');if(!r.ok)throw Error(d.error||'Request failed.');owner=s.user?.id;return d}
@@ -47,7 +47,7 @@ async function save(next){
 }
 $('save').onclick=()=>save(false);$('savenext').onclick=()=>save(true);
 function finishCall(text,needsOutcome=true){
- callEpoch++;activeCall=null;callStarting=false;callSessionToken=null;callStartedAt=0;
+ callEpoch++;activeCall=null;callStarting=false;callSessionToken=null;callSessionUser=null;callStartedAt=0;
  const d=callDevice;callDevice=null;if(d)d.destroy();pendingOutcome=needsOutcome;$('callmute').textContent='Mute';
  if(needsOutcome)$('outcome').value='';
  $('callstatus').textContent=text;message(needsOutcome?text+' Choose an outcome and save it before continuing.':text);controls();
@@ -56,13 +56,13 @@ async function startCall(){
  if(busy||callStarting||activeCall||pendingOutcome||!current)return;
  if(!current.phone||current.agent_status==='dead_number'){queueRunning=false;message('This lead needs a valid Phone Number field and must not be marked Dead Number.',true);controls();return}
  const l=current,s=session(),ticket=++callEpoch;let attempted=false;
- callStarting=true;callSessionToken=s?.access_token;controls();$('callstatus').textContent='Checking call authorization…';
+ callStarting=true;callSessionToken=s?.access_token;callSessionUser=s?.user?.id;controls();$('callstatus').textContent='Checking call authorization…';
  try{
  if(!window.Twilio?.Device)throw Error('Calling support did not load. Refresh the page.');
  if(!s?.access_token)throw Error('Sign in to the portal and complete two-step verification.');
  const r=await fetch('/api/dialer/lead-token',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({leadId:l.id}),cache:'no-store',signal:AbortSignal.timeout(30000)}),d=await r.json();
  if(ticket!==callEpoch)return;if(!r.ok)throw Error(d.error||'Call authorization failed.');
- if(session()?.access_token!==s.access_token)throw Error('Your portal session changed. Reload before calling.');
+ if(!session()?.access_token||session()?.user?.id!==s.user?.id)throw Error('Your portal session changed. Reload before calling.');
  $('callingnumber').textContent=d.callerId;$('phone').textContent=d.destination;$('callstatus').textContent='Calling '+d.destination+'…';
  callDevice=new Twilio.Device(d.token,{logLevel:0,closeProtection:true,enableImprovedSignalingErrorPrecision:true});
  callDevice.on('error',e=>{if(ticket===callEpoch){queueRunning=false;finishCall('Call error '+(e.code||'')+': '+e.message,attempted)}});
@@ -75,13 +75,13 @@ async function startCall(){
  }catch(e){if(ticket===callEpoch){queueRunning=false;finishCall(e.message||'Could not place call.',attempted)}}
 }
 $('calllead').onclick=()=>{queueRunning=false;startCall()};
-$('startqueue').onclick=()=>{if(!allowChange()||!selected.size)return;reviewing=true;queueRunning=true;render();show([...selected.values()][0]);startCall()};
+$('startqueue').onclick=()=>{if(!allowChange()||!selected.size)return;const next=reviewing&&current&&selected.has(current.id)?current:[...selected.values()][0];reviewing=true;queueRunning=true;render();show(next);startCall()};
 $('pausequeue').onclick=()=>{queueRunning=false;message('Queue paused. Finish this call and save its outcome. The next call will wait for you.');controls()};
 $('callmute').onclick=()=>{if(activeCall){const muted=!activeCall.isMuted();activeCall.mute(muted);$('callmute').textContent=muted?'Unmute':'Mute'}};
 $('callhangup').onclick=()=>{const ticket=callEpoch,attempted=!!activeCall||!!callDevice;if(activeCall)activeCall.disconnect();else if(callDevice)callDevice.disconnectAll();if(ticket===callEpoch)finishCall('Call ended.',attempted)};
 for(const digit of ['1','2','3','4','5','6','7','8','9','*','0','#']){const b=document.createElement('button');b.textContent=digit;b.setAttribute('aria-label','Dial '+digit);b.onclick=()=>{if(activeCall?.status()==='open')activeCall.sendDigits(digit)};$('keypad').append(b)}
 setInterval(()=>{if(callStartedAt){const sec=Math.floor((Date.now()-callStartedAt)/1000);$('calltimer').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
- if(callSessionToken&&session()?.access_token!==callSessionToken){queueRunning=false;if(activeCall)activeCall.disconnect();finishCall('Your session changed. Sign in again.',false)}
+ if(callSessionToken&&(!session()?.access_token||session()?.user?.id!==callSessionUser)){queueRunning=false;if(activeCall)activeCall.disconnect();finishCall('Your session changed. Sign in again.',false)}
 },1000);
 window.addEventListener('pagehide',()=>{queueRunning=false;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy()});
 let billingBusy=false,billingOwner=null,billingRequest=crypto.randomUUID();
