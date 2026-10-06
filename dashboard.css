@@ -17,3 +17,70 @@
 .dashboard .dash-quick-actions h2{margin-bottom:14px}
 .dash-quick-buttons{gap:8px}
 .dash-quick-actions .dash-request-action{margin-top:14px;padding:12px 14px}
+
+/* Master dashboard — approved production layout B. */
+.dash-b{color:#122343}
+.dash-b .dash-head{align-items:center;margin-bottom:20px}
+.dash-b .dash-head h1{font-size:34px;letter-spacing:-1px;margin:0}
+.dash-b .dash-head p{font-size:14px;color:#64748b;margin:6px 0 0}
+.dash-b .dash-tools .btn{display:flex;align-items:center;gap:9px;min-height:44px;font-size:14px;border-radius:7px}
+.dash-b .dash-tools .btn svg{height:19px;width:19px}
+.dash-b .dash-upper{display:block;margin:0}
+.dash-b .dash-metrics{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:0 0 18px}
+.dash-b .dash-metric{padding:23px 20px;align-items:center;border:1px solid #dce5f1;border-radius:8px;box-shadow:none;gap:18px}
+.dash-b .dash-metric .dash-icon{width:54px;height:54px;background:#e2f1ff;color:#0869e8}
+.dash-b .dash-metric:nth-child(2) .dash-icon{background:#e0f8f0;color:#159a76}
+.dash-b .dash-metric:nth-child(3) .dash-icon{background:#fff5dc;color:#a67510}
+.dash-b .dash-metric:nth-child(4) .dash-icon{background:#efebff;color:#3459e6}
+.dash-b .dash-label{font-size:15px;font-weight:500}
+.dash-b .dash-metric strong{font-size:29px;letter-spacing:-.5px;color:#0c1837;margin-top:5px}
+.dash-b .dash-metric small{font-size:12px;color:#718096;margin-top:8px}
+.dash-b .db-content{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:22px;align-items:start}
+.dash-b .dash-panel{padding:18px;border:1px solid #dce5f1;border-radius:8px;box-shadow:none}
+.dash-b .dash-panel h2{font-size:18px;color:#112344}
+.dash-b .dash-link{font-size:13px}
+.dash-b .db-closings{padding:0;overflow:hidden}
+.dash-b .db-closings .dash-panel-head{padding:19px 20px}
+.dash-b .dash-leader-table table{min-width:510px}
+.dash-b .dash-leader-table th{background:#f6f8fc;text-align:left;font-size:13px;font-weight:600;padding:15px 20px;border-top:1px solid #e9edf5}
+.dash-b .dash-leader-table td{font-size:14px;padding:15px 20px;border-bottom:1px solid #edf1f6;white-space:nowrap}
+.dash-b .dash-leader-table tbody tr:first-child{background:white}
+.dash-b .db-agent{display:flex;align-items:center;gap:12px}
+.dash-b .db-agent strong{font-weight:500}
+.db-avatar{display:grid;place-items:center;flex-shrink:0;width:37px;height:37px;border-radius:50%;background:#e5efff;color:#173b74;font-size:12px;font-weight:600}
+.dash-b .db-money{font-variant-numeric:tabular-nums}
+.dash-b .dash-aside{gap:14px}
+.db-requests{display:flex;align-items:center;gap:16px;width:100%;padding:16px 0 0;border:0;background:transparent;text-align:left;color:#112344;cursor:pointer}
+.db-requests>span:nth-child(2){flex:1}
+.db-requests strong{font-size:29px;display:block}
+.db-requests small{font-size:13px;color:#65758b}
+.db-requests>b{font-size:25px;color:#8798ad}
+.db-production{display:grid;gap:13px;margin-top:19px}
+.db-producer{display:grid;grid-template-columns:minmax(85px,1fr) minmax(65px,1.3fr) auto;align-items:center;gap:12px;font-size:13px}
+.db-producer>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.db-producer strong{font-size:13px;font-weight:500;min-width:78px;text-align:right;font-variant-numeric:tabular-nums}
+.db-bar{height:9px;background:#e7edf5;border-radius:5px;overflow:hidden}
+.db-bar i{display:block;height:100%;background:#318dfa;border-radius:5px}
+.db-announcement-title{font-size:15px;margin:18px 0 8px}
+.db-announcement-body{font-size:14px;line-height:1.6;color:#526782;margin:0;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.dash-b .db-goal{background:#112d51;color:white;border:0;border-radius:9px;padding:25px 30px;margin-bottom:16px;box-shadow:none}
+.dash-b .db-goal h2{color:#fff;font-size:17px;margin-bottom:7px}
+.db-goal h2 span{font-size:16px;font-weight:400;border-left:1px solid #8295ac;padding-left:16px;margin-left:12px}
+.dash-b .db-goal .pc-goal-head p{color:#bdcee2;font-size:12px}
+.db-goal .pc-goal-head input{background:#1c3e64;border:1px solid #5d7695;color:#fff;color-scheme:dark}
+.db-goal #pcSetGoal{color:#fff;background:#1c3e64;border:1px solid #5d7695;font-size:13px}
+.db-goal-values{display:grid;grid-template-columns:1.15fr 1fr;margin:22px 0 20px;gap:35px;align-items:center}
+.db-goal-values>div{display:flex;flex-direction:column;gap:8px}
+.db-goal-values>div:last-child{border-left:1px solid #647d9c;padding-left:40px}
+.db-goal-values span{color:#c1d1e4;font-size:18px}
+.db-goal-values strong{font-size:45px;font-weight:750;line-height:1.15;letter-spacing:-1px;color:#fff;font-variant-numeric:tabular-nums}
+.db-goal-values>div:last-child strong{font-size:36px}
+.db-goal-values small{color:#bfd0e4;font-size:16px}
+.db-goal-values b{color:#47adff}
+.db-goal .pc-progress-track{background:#385373;height:16px}
+.db-goal .pc-progress-track span{background:#359cfa}
+@media(max-width:1300px){.dash-b .dash-metric{padding:18px 14px;gap:10px}.dash-b .dash-metric strong{font-size:24px}.dash-b .dash-metric .dash-icon{width:42px;height:42px}.dash-b .db-content{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}}
+@media(max-width:1000px){.dash-b .dash-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-b .db-content{grid-template-columns:1fr}.dash-b .dash-head{align-items:flex-start}.db-goal-values strong{font-size:36px}.db-goal-values>div:last-child strong{font-size:30px}}
+@media(max-width:600px){.dash-b .dash-head h1{font-size:28px}.dash-b .db-goal{padding:20px}.db-goal-values{grid-template-columns:1fr;gap:22px}.db-goal-values>div:last-child{border-left:0;border-top:1px solid #647d9c;padding:18px 0 0}.db-goal h2 span{display:block;margin:8px 0 0;padding:0;border:0}.dash-b .dash-metric{padding:15px 12px}.dash-b .dash-metric .dash-icon{display:none}.dash-b .dash-label{font-size:13px}.dash-b .dash-metric strong{font-size:24px}.dash-b .db-goal .pc-goal-head .row{flex-wrap:wrap}.db-producer{font-size:12px;gap:8px}}
+
+.db-carrier{display:flex;align-items:center;min-height:32px}.dash-b .db-carrier .carrier-brand-logo{height:32px;width:140px;margin:0;background:transparent;padding:0;display:flex;align-items:center}.dash-b .db-carrier .carrier-brand-logo img{max-width:140px;max-height:30px;width:auto;height:auto;object-fit:contain!important}.dash-b .db-carrier .carrier-brand-dark{background:#142a46;padding:4px 8px;border-radius:4px}.deal-carrier-preview{margin-top:9px}.deal-carrier-preview:empty{display:none}.deal-carrier-preview .carrier-brand-logo{max-width:160px;height:38px;margin:0}.deal-carrier-preview img{max-height:34px;max-width:155px;object-fit:contain!important}
