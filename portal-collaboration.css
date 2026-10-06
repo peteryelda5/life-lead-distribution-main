@@ -34,3 +34,13 @@
 .pc-member-chips{display:flex;gap:7px;flex-wrap:wrap}.pc-member-chips:empty{display:none}.pc-member-chips>span{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid #dce5f0;background:#f2f6fc;border-radius:7px;font-size:12px;color:#294366}.pc-member-chips button{border:0;background:transparent;color:#73849b;padding:0;font-size:17px;cursor:pointer}
 #modal:has(#pcCreateForm) .pc-member-list{max-height:180px}#modal:has(#pcCreateForm) #pcCreateSave{flex:1;width:100%;background:#0878f9}#modal:has(#pcCreateForm) #pcCancel{font-size:12px}
 .chat-head #pcPrefs{display:flex;align-items:center;justify-content:center;border-radius:50%;background:#f0f5fc;border-color:transparent;min-width:34px;min-height:34px;padding:7px}
+
+/* Keep create-chat fields full width, with labels above controls. */
+#pcCreateForm{display:flex;flex-direction:column;gap:18px}
+#pcCreateForm>label{display:flex;flex-direction:column;gap:8px;line-height:1.4}
+#pcCreateForm>label[hidden]{display:none}
+#pcCreateForm #pcName,#pcCreateForm #pcMemberSearch,#pcCreateForm #pcKind{display:block;width:100%;box-sizing:border-box;min-height:44px;padding:11px 12px;background:#fff;border:1px solid #d5e0ee;border-radius:8px;font:inherit;color:#243b5b}
+#pcCreateForm #pcName:focus,#pcCreateForm #pcMemberSearch:focus,#pcCreateForm #pcKind:focus{outline:2px solid #a8cfff;outline-offset:1px;border-color:#3187ed}
+#pcCreateForm #pcCreateError:empty{display:none}
+#pcCreateForm>.row{display:flex;gap:10px;margin-top:8px}
+#pcCreateForm .pc-member-list label{display:flex;flex-direction:row;align-items:center}
