@@ -1,6 +1,6 @@
 'use strict';
 const {displayLead}=require('../../lib/lead-calling');
-const {authenticate,failure}=require('../../lib/dialer-full');
+const {authenticate,failure,database}=require('../../lib/dialer-full');
 const BASE='https://yfuuigykpihoetgaefmu.supabase.co';
 const KEY='sb_publishable_6O3XhhYJrjhN_5U1cFxz2g_fYI-3uE6';
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -19,6 +19,8 @@ module.exports=async function(req,res){
  try{
   const u=await authenticate(req);const b=req.body;
   if(!b||typeof b!=='object'||Array.isArray(b))throw failure(400,'Invalid request.');
+  if(b.action==='profile'){const profiles=await data(req,'profiles?id=eq.'+u.id+'&select=full_name,division');const profile=profiles[0]||{},division=profile.division==='owner'?'vivid_life':profile.division;const p=new URLSearchParams({select:'id,title,lead_type,body,division',division:'eq.'+division,order:'created_at.desc',limit:'100'});return res.status(200).json({profile,scripts:division?await data(req,'sales_scripts?'+p):[]});}
+  if(b.action==='history'){if(!Number.isInteger(b.offset)||b.offset<0||b.offset>1000000)throw failure(400,'Invalid history page.');return res.status(200).json({calls:await database('dialer_calls?'+new URLSearchParams({select:'id,created_at,phone,duration_seconds,used_minutes,finished,call_status,lead_id',user_id:'eq.'+u.id,livemode:'eq.'+u.live,parent_sid:'not.is.null',order:'created_at.desc,id.desc',limit:'50',offset:String(b.offset)}))});}
   if(b.action==='folders')return res.status(200).json({folders:await data(req,'rpc/my_lead_folders',{})});
   if(b.action==='leads'){
    if(!Number.isInteger(b.offset)||b.offset<0||b.offset>1000000)throw failure(400,'Invalid lead page.');
