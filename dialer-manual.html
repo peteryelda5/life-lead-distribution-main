@@ -6,7 +6,7 @@ main{max-width:680px;margin:26px auto}h1{font-size:28px}.card{margin-top:18px;pa
 <script src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.5/dist/twilio.min.js" integrity="sha384-LUG7DmzDPWNKRYoqyGpV4d/IByMLiya/oUhMSc/4/6hi0wbzO/8PffM4lzeFEYS8" crossorigin="anonymous"></script>
 <script>
 'use strict';
-const $=id=>document.getElementById(id);
+const $=id=>document.getElementById(id);if(new URLSearchParams(location.search).get('embedded')==='1'){document.querySelector('header').hidden=true;document.querySelector('.tag').hidden=true;document.querySelector('h1').textContent='Manual dial pad';document.body.style.background='transparent';}window.manualCalling=()=>busy||!!activeCall;
 let connectedAt=0;
 let device=null,activeCall=null,busy=false,ready=false,callEpoch=0,startingToken=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
