@@ -1,0 +1,5 @@
+'use strict';
+const {endpoint,rpc,MASTER,failure}=require('../../lib/dialer-full');
+const {args,sync,checkout,portal,reconcile,webhookSetup}=require('../../lib/dialer-full-billing');
+const {activate,search}=require('../../lib/dialer-full-numbers');
+module.exports=endpoint(async(req,u)=>{const b=req.body;if(b.action==='checkout')return checkout(u);if(b.action==='manage')return portal(u);if(b.action==='setup'){if(u.id!==MASTER)throw failure(403,'Master access required.');return webhookSetup();}if(b.action==='limit'){await rpc('dialer_set_limit',{...args(u),p_limit:b.limitCents});}else if(b.action==='search')return search(u,b.areaCode);else if(b.action==='select'){await sync(u);await rpc('dialer_select_number',{...args(u),p_slot:b.slot,p_phone:b.phoneNumber});}else if(b.action==='activate')return activate(u,b);else if(!['state','limit'].includes(b.action))throw failure(400,'Unknown account action.');await sync(u);await reconcile(u);return {...await rpc('dialer_summary',args(u)),livemode:u.live,realCallingAllowed:u.live||u.id===MASTER};});
