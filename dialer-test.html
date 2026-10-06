@@ -27,7 +27,7 @@ $('call').onclick=async()=>{
   busy=true;controls();const epoch=++callEpoch;
   try{
     status('Preparing your test call…');const data=await authorization();if(epoch!==callEpoch)return;display(data);startingToken=data.sessionToken;
-    device=new Twilio.Device(data.token,{logLevel:0,closeProtection:true});
+    device=new Twilio.Device(data.token,{logLevel:0,closeProtection:true,enableImprovedSignalingErrorPrecision:true});
     device.on('error',e=>{if(epoch!==callEpoch)return;status('Calling error '+(e.code||'')+': '+(e.message||'Check your Twilio settings.'),true);cleanup()});
     const call=await device.connect({params:{CallGrant:data.callGrant}});
     if(epoch!==callEpoch){call.disconnect();return}
