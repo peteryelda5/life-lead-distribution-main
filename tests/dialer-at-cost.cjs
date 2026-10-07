@@ -2,12 +2,16 @@
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 function moduleFrom(path,modules,extra={}){const module={exports:{}};vm.runInNewContext(fs.readFileSync(path,'utf8'),{module,exports:module.exports,require:n=>{if(n in modules)return modules[n];if(n.startsWith('node:'))return require(n);throw Error('Unexpected import '+n)},Buffer,URLSearchParams,AbortSignal,Date,console,...extra},{filename:path});return module.exports;}
 (async()=>{
- const ids=['6b2007a4-8bd8-4b4c-b65c-6d4a28dce4b3','7b5e5b17-766f-4e49-9cf5-2e57f33575eb','4733ed70-f774-4209-a8b5-fd233d0bb638','5893f335-aad3-4079-ad95-77eaf1347ac6'];
+ const ids=['6b2007a4-8bd8-4b4c-b65c-6d4a28dce4b3','7b5e5b17-766f-4e49-9cf5-2e57f33575eb','4733ed70-f774-4209-a8b5-fd233d0bb638','5893f335-aad3-4079-ad95-77eaf1347ac6','144fb019-c861-4ca5-87cb-0bd7d928b49e'];
  const fail=(s,m)=>Object.assign(Error(m),{status:s}),cfg={TWILIO_AUTH_TOKEN:'testonly',TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32)};
  const p=moduleFrom('lib/dialer-at-cost-provider.js',{'./dialer-full':{config:()=>cfg,failure:fail,database:async()=>[],rpc:async()=>true,ORIGIN:'https://www.lldportal.com'}});
  ids.forEach(id=>assert.equal(p.eligible({id,live:true}),true));
  assert.equal(p.eligible({id:'62036f10-8243-4f16-aa09-8785b07e405a',live:true}),false);
  assert.equal(p.eligible({id:ids[0],live:false}),false);
+ const usageProvider=moduleFrom('lib/dialer-at-cost-provider.js',{'./dialer-full':{config:()=>cfg,failure:fail,database:async()=>[{required_role:'admin',provider_sid:'AC'+'b'.repeat(32)}]}},{fetch:async url=>{const q=new URL(url);assert.equal(q.searchParams.get('Category'),'totalprice');assert.equal(q.searchParams.get('IncludeSubaccounts'),'false');return {ok:true,status:200,json:async()=>({usage_records:[{category:'totalprice',price_unit:'usd',price:'1.235'}]})};},URL});
+ assert.equal(await usageProvider.usage({id:ids[0],live:true},'2026-10-01','2026-10-07'),1.235);
+ const lead=moduleFrom('lib/lead-calling.js',{'./dialer':{failure:fail}},{process:{env:{SUPABASE_SECRET_KEY:'sb_secret_unit'}},fetch:async()=>({status:204,ok:true,json:async()=>{throw Error('Empty success must not parse JSON');}})});
+ assert.equal(await lead.rpc('dialer_select_number',{}),null);
  const sealed=p.seal('secretForTest',ids[0]);assert.equal(p.unseal(sealed,ids[0]),'secretForTest');assert.throws(()=>p.unseal(sealed,ids[1]));
  assert.equal(p.amountCents('1.235'),124);assert.throws(()=>p.amountCents(null));assert.throws(()=>p.amountCents('-1'));
  const customer='cus_unit',calls=[],a={customer_id:customer,subscription_id:null},user={id:ids[0],live:true};
@@ -27,6 +31,6 @@ function moduleFrom(path,modules,extra={}){const module={exports:{}};vm.runInNew
  records.payment_session=null;cost=.49;await b.settle(user,a,new Date('2026-11-03T10:00:00Z'));assert.equal(saved,undefined);
  cost=1.235;await b.settle(user,a,new Date('2026-11-03T10:00:00Z'));assert.equal(saved.amount_cents,124);assert.equal(saved.state,'attached');assert.equal(records.billed_through,'2026-11-01');const invoiceCount=calls.filter(c=>c.path==='invoices').length;await b.settle(user,a,new Date('2026-11-03T10:00:00Z'));assert.equal(calls.filter(c=>c.path==='invoices').length,invoiceCount);
  assert.equal(calls.some(c=>c.path?.startsWith('subscriptions')),false);
- console.log('PASS: exact four live accounts; Nick agent excluded; encrypted provider credentials tied to user; no $250 charge; card setup mode; missing card/unpaid invoice denied; exact provider cents; small balances carried; no duplicate period invoice.');
+ console.log('PASS: exact five live accounts; Nick agent excluded; encrypted provider credentials tied to user; no $250 charge; card setup mode; missing card/unpaid invoice denied; exact provider cents; small balances carried; no duplicate period invoice.');
 })().catch(e=>{console.error(e);process.exitCode=1});
 
