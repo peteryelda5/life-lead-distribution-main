@@ -1,7 +1,7 @@
 'use strict';
 const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
 class Node{constructor(){this.dataset={};this.value='';this.children=[];this.hidden=false;this.disabled=false;this.textContent='';this.style={};this.classList={toggle(){}};}append(...n){this.children.push(...n);}replaceChildren(...n){this.children=n;}setAttribute(k,v){(this.attrs??={})[k]=v;}getAttribute(k){return this.attrs?.[k];}addEventListener(){}click(){return this.onclick?.();}focus(){}get options(){return this.children;}}
-const html=fs.readFileSync(__dirname+'/../dialer.html','utf8');const nodes=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Node()]));
+const nativeSource=fs.readFileSync(__dirname+'/../portal-dialer.js','utf8');const html=JSON.parse(nativeSource.match(/root\.innerHTML=("(?:\\.|[^"\\])*");/)[1]);const nodes=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],new Node()]));
 const views=['workspace','history','billing','manual'].map(v=>{const n=new Node();n.dataset.view=v;return n;});const root={isConnected:true,querySelector:s=>nodes.get(s.match(/\[id="([^"]+)"\]/)?.[1]),querySelectorAll:s=>s==='[data-view]'?views:[]};
 let placed=0,lastCall,activeTimers=new Set(),timerId=0,events=new Set(),discard=true;const rows=[{id:'one',first_name:'One',phone:'2485550124',agent_status:null,call_notes:null,lead_type:'Pro5'}];
 class Call{constructor(){this.handlers={};this.state='open';}on(e,f){this.handlers[e]=f;}status(){return this.state;}disconnect(){this.state='closed';this.handlers.disconnect?.();}mute(){}isMuted(){return false;}sendDigits(){}}
