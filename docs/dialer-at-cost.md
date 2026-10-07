@@ -1,0 +1,13 @@
+# Actual-cost dialer billing
+
+Only Nick Garmo's admin account (6b2007a4-8bd8-4b4c-b65c-6d4a28dce4b3), Dominic Ibrahim (7b5e5b17-766f-4e49-9cf5-2e57f33575eb), and Jonah Dabesh (4733ed70-f774-4209-a8b5-fd233d0bb638) qualify in live mode. Nick's agent account and all other accounts keep existing billing. Master remains free.
+
+Users open Numbers & billing and save a card through Stripe Checkout setup mode. This does not create a $250 subscription. Checkout states consent to recurring actual-cost charges. Calling and number activation require a verified card, an isolated Twilio subaccount, an active matching profile, and no unpaid actual-cost invoice. MFA and session checks remain in place.
+
+An isolated Twilio subaccount provides account-level Usage Records for each user's numbers and both voice call legs. The parent Twilio balance pays the provider initially. Daily maintenance invoices unbilled usage through the previous calendar month from the 3rd onward. Category total is read once for the entire unbilled date range, avoiding double counting child categories. Only provider-reported USD cost is invoiced; no subscription, markup, or Stripe processing fee is added. Values are rounded to cents; amounts below $0.50 carry forward. Usage reporting can lag; the UI marks provider cost as current reported cost.
+
+Invoice rows and Stripe idempotency keys bind each user and billing boundary. Draft retries inspect invoice lines before adding anything, preventing duplicates even after an idempotency key expires. Failures pause calling rather than grant free use. Numbers continue incurring rental until released.
+
+Provider API key secrets are AES-256-GCM encrypted, with per-user authenticated data and a key derived from the server's Twilio auth token. Provider tables and setup RPCs are service-role-only; client roles have no access. Rotate/re-encrypt these ciphertexts before changing the parent auth token. Provider setup claims fail closed after an ambiguous provisioning failure: inspect the tagged subaccount/application/key before resetting the provisioning claim; never blindly recreate resources.
+
+Verification: transaction rollback tests covered all three account/role mappings, Nick agent exclusion, test-mode exclusion, pending access denial, entitlement, and client privilege denial. Node tests cover card-only checkout, missing-card and unpaid-invoice denial, cost rounding, carry-forward, encrypted credentials, repeated settlement, existing paid subscriptions, Master free access, signed calling and native dialer lifecycle. Live card setup, subaccount creation, first call, and first monthly invoice require the users' own saved cards and remain to be verified after rollout.
