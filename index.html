@@ -232,8 +232,8 @@ async function mountPortalDialer(){
  if(portalDialerInstance&&portalDialerOwner!==owner)resetPortalDialer();const epoch=++portalDialerMountEpoch;
  if(portalDialerInstance){mount.replaceChildren(portalDialerInstance.root);return;}
  try{
-  if(!portalDialerLoad){if(!document.getElementById('portalDialerStyles')){const link=document.createElement('link');link.id='portalDialerStyles';link.rel='stylesheet';link.href='/portal-dialer.css?v=20261006-native';document.head.append(link);}
-   portalDialerLoad=(async()=>{if(!window.Twilio?.Device)await loadPortalDialerScript('https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.5/dist/twilio.min.js','sha384-LUG7DmzDPWNKRYoqyGpV4d/IByMLiya/oUhMSc/4/6hi0wbzO/8PffM4lzeFEYS8');if(!window.createPortalDialer)await loadPortalDialerScript('/portal-dialer.js?v=20261006-native');})().catch(e=>{portalDialerLoad=null;throw e;});}
+  if(!portalDialerLoad){if(!document.getElementById('portalDialerStyles')){const link=document.createElement('link');link.id='portalDialerStyles';link.rel='stylesheet';link.href='/portal-dialer.css?v=20261007-cost-billing-2';document.head.append(link);}
+   portalDialerLoad=(async()=>{if(!window.Twilio?.Device)await loadPortalDialerScript('https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.5/dist/twilio.min.js','sha384-LUG7DmzDPWNKRYoqyGpV4d/IByMLiya/oUhMSc/4/6hi0wbzO/8PffM4lzeFEYS8');if(!window.createPortalDialer)await loadPortalDialerScript('/portal-dialer.js?v=20261007-cost-billing-2');})().catch(e=>{portalDialerLoad=null;throw e;});}
   await portalDialerLoad;if(epoch!==portalDialerMountEpoch||S.tab!=='power-dialer'||owner!==S.profile?.id||!mount.isConnected)return;
   const root=document.createElement('div');root.id='portalDialer';mount.replaceChildren(root);portalDialerInstance=window.createPortalDialer(root);portalDialerOwner=owner;root.querySelector('.script-link').onclick=e=>{e.preventDefault();navigatePortalTab('sales-scripts');};
  }catch(e){if(mount.isConnected)mount.textContent=e.message;}
