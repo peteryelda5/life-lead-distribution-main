@@ -51,3 +51,53 @@
 .onboard-card-detail>p{font-size:12px;color:#64748b}
 @media(max-width:1150px){.onboard-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:720px){.onboard-team-grid{grid-template-columns:1fr}.onboard-team-heading{gap:12px}.onboard-team-heading>.btn{margin-left:0}.onboard-card-overview{padding:14px}.onboard-team-filters{width:100%}}
+
+/* Master onboarding: agent list with persistent details panel */
+.onboard-split-overview{padding:20px;margin-bottom:24px}
+.onboard-split{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(330px,1fr);gap:0;align-items:start}
+.onboard-agent-list{padding-right:22px;min-width:0}
+.onboard-agent-table{border:1px solid #dce4ee;border-radius:8px;overflow:auto}
+.onboard-agent-table table{width:100%;border-collapse:collapse;font-size:13px}
+.onboard-agent-table th{padding:12px 10px;background:#f8fafc;text-align:left;color:#334155;font-size:12px;white-space:nowrap}
+.onboard-agent-table td{padding:11px 10px;border-top:1px solid #e2e8f0;vertical-align:middle}
+.onboard-agent-table tbody tr{cursor:pointer}.onboard-agent-table tbody tr:hover{background:#f8fafc}
+.onboard-agent-table tbody tr.selected{background:#eaf2ff}
+.onboard-agent-select{display:flex;gap:9px;align-items:center;border:0;background:transparent;color:#0f172a;text-align:left;padding:0;cursor:pointer;font:inherit;min-width:140px}
+.onboard-agent-select strong{font-size:13px;line-height:1.4}
+.onboard-agent-select .onboard-person-avatar{width:30px;height:30px;flex-basis:30px;font-size:11px}
+.onboard-agent-select:focus-visible{outline:2px solid #2563eb;outline-offset:4px;border-radius:4px}
+.onboard-list-progress{display:flex;gap:8px;align-items:center;min-width:120px;white-space:nowrap}
+.onboard-list-progress progress{height:7px;width:80px;accent-color:#2563eb;border:0;border-radius:6px;overflow:hidden}
+.onboard-list-progress progress.complete{accent-color:#16a34a}
+.onboard-list-progress progress::-webkit-progress-bar{background:#e2e8f0;border-radius:6px}
+.onboard-list-progress progress::-webkit-progress-value{background:#2563eb;border-radius:6px}
+.onboard-list-progress progress.complete::-webkit-progress-value{background:#16a34a}
+.onboard-list-status{font-size:12px;color:#475569;line-height:1.5}
+.onboard-list-status.complete{color:#15803d}.onboard-list-status.waiting{color:#92400e}
+.onboard-agent-detail{border-left:1px solid #dce4ee;padding:0 0 0 22px;min-width:0;position:sticky;top:90px}
+.onboard-detail-top{display:flex;gap:10px;align-items:center}
+.onboard-detail-top .onboard-person-avatar{width:42px;height:42px;flex-basis:42px}
+.onboard-detail-top .onboard-card-person strong{font-size:18px}
+.onboard-detail-status{display:inline-block;background:#f1f5f9;color:#475569;border-radius:20px;padding:6px 10px;font-size:12px;margin:12px 0}
+.onboard-detail-status.complete{background:#dcfce7;color:#15803d}
+.onboard-detail-status.waiting{background:#fef3c7;color:#92400e}
+.onboard-detail-licensing{display:grid;grid-template-columns:100px minmax(0,1fr);gap:12px;margin:4px 0 20px}
+.onboard-detail-licensing>div+div{border-left:1px solid #e2e8f0;padding-left:12px}
+.onboard-detail-licensing small{display:block;font-size:12px;color:#64748b;margin-bottom:7px}
+.onboard-detail-licensing strong{font-size:16px;color:#0f172a}
+.onboard-detail-licensing .onboard-state-chip{font-size:12px;padding:5px 6px}
+.onboard-detail-check-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.onboard-detail-check-heading h3{font-size:15px;margin:0}
+.onboard-detail-check-heading>span{font-size:12px;color:#64748b}
+.onboard-detail-checklist{list-style:none;padding:0;margin:8px 0 16px}
+.onboard-detail-checklist li{display:flex;align-items:center;gap:9px;border-bottom:1px solid #edf2f7;padding:9px 0;font-size:13px}
+.onboard-detail-checklist strong{flex:1;font-weight:400}
+.onboard-detail-checklist small{color:#b45309;font-size:11px;text-align:right}
+.onboard-detail-checklist small.complete{color:#64748b}
+.onboard-check-icon{color:#94a3b8;font-size:18px;line-height:1}
+.onboard-check-icon.complete{background:#16a34a;color:white;width:18px;height:18px;text-align:center;border-radius:50%;font-size:13px;padding-top:2px}
+.onboard-detail-actions{display:flex;gap:8px;flex-wrap:wrap}
+.onboard-detail-actions .btn{font-size:12px;padding:8px 12px}
+.onboard-detail-note{font-size:11px;color:#64748b;margin-top:15px;line-height:1.5}
+@media(max-width:1100px){.onboard-split{grid-template-columns:minmax(0,1fr)}.onboard-agent-list{padding-right:0}.onboard-agent-detail{position:static;border-left:0;border-top:1px solid #e2e8f0;margin-top:20px;padding:20px 0 0}.onboard-agent-table table{min-width:650px}}
+@media(max-width:720px){.onboard-split-overview{padding:14px}.onboard-detail-checklist strong{font-size:12px}}
