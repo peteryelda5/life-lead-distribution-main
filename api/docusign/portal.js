@@ -1,0 +1,3 @@
+'use strict';
+const {authenticate,action,ORIGIN}=require('../../lib/docusign');
+module.exports=async(req,res)=>{res.setHeader('Cache-Control','no-store');if(req.method!=='POST')return res.status(405).json({error:'Use POST.'});if(req.headers.origin!==ORIGIN)return res.status(403).json({error:'Open onboarding from the portal.'});try{if(!req.body||typeof req.body!=='object'||Array.isArray(req.body))return res.status(400).json({error:'Invalid request.'});return res.status(200).json(await action(req,res,await authenticate(req)));}catch(e){console.error('onboarding_request_failed',{action:req.body?.action,status:e.status||503});return res.status(e.status||503).json({error:e.status?e.message:'Onboarding is temporarily unavailable. Please retry.'});}};
