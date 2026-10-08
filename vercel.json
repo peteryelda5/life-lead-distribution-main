@@ -30,6 +30,10 @@
     {
       "path": "/api/docusign/reconcile",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/signwell/reconcile",
+      "schedule": "0 8 * * *"
     }
   ],
   "redirects": [
