@@ -1,0 +1,3 @@
+'use strict';
+const {callback,ORIGIN}=require('../../lib/docusign');
+module.exports=async(req,res)=>{res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');if(req.method!=='GET')return res.status(405).send('Use GET.');try{await callback(req);res.setHeader('Set-Cookie','__Host-vivid_ds_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');return res.redirect(303,ORIGIN+'/#onboarding');}catch(e){console.error('docusign_callback_failed',{status:e.status||503});res.setHeader('Content-Type','text/plain; charset=utf-8');return res.status(e.status||503).send(e.status?e.message:'DocuSign connection failed. Return to portal onboarding and reconnect.');}};
