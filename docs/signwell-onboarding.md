@@ -13,3 +13,7 @@ Status refresh reads the authoritative provider document; completed records requ
 User refresh and daily authenticated reconciliation update status and retry archival. No unauthenticated signing webhook is exposed. Overview shows stored status; Master Refresh status checks provider status.
 
 Run node tests/signwell.test.cjs for mocked validation, signing and duplicate guards. Real provider/template validation and a full two-signer test are still required before live enablement.
+
+## Controlled live verification
+
+Set `SIGNWELL_MASTER_LIVE_TEST_ENABLED=true` in Production while leaving `SIGNWELL_LIVE_SIGNING_ENABLED` unset/false. This uses real SignWell email delivery (`test_mode=false`) but only the authenticated Master can create an agreement. Agent/admin signing stays disabled in both the UI and server. The Master enters a separate Agent email they control, then countersigns at their agency email. Live records are separate from sandbox records. Review the completed PDF and audit before setting the full rollout flag.
