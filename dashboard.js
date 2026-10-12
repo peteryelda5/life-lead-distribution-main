@@ -52,7 +52,7 @@ function bindDashboard(){
  if(q('#dashboardDivision'))q('#dashboardDivision').onchange=e=>{dashboardDivision=e.target.value;reloadDashboard();};
  if(q('#dashboardDays'))q('#dashboardDays').onchange=e=>{dashboardDays=Number(e.target.value);reloadDashboard();};
  if(q('#dashboardRetry'))q('#dashboardRetry').onclick=reloadDashboard;
- async function go(tab,upload=false){try{S.divisionFilter=dashboardDivision==='all'?(S.profile.is_super_admin?'vivid_life':S.profile.division):dashboardDivision;S.tab=tab;S.selected.clear();S.filter='';S.leadTypeFilter='';S.stateFilter='';S.poolPage=1;await refreshLeadFilterCounts();await loadTabData();render();if(upload)importCsvModal();}catch(e){flash(e.message,true);}}
+ async function go(tab,upload=false){try{S.divisionFilter=dashboardDivision==='all'?(S.profile.is_super_admin?'vivid_life':S.profile.division):dashboardDivision;S.tab=tab;S.selected.clear();S.filter='';S.leadTypeFilter='';S.stateFilter='';S.poolPage=1;await loadTabData();render();if(upload)importCsvModal();}catch(e){flash(e.message,true);}}
  qa('[data-dashboard-go]').forEach(b=>b.onclick=()=>go(b.dataset.dashboardGo));
  if(q('#dashboardUpload'))q('#dashboardUpload').onclick=()=>go('leads',true);
  if(q('#dashboardQuickImport'))q('#dashboardQuickImport').onclick=()=>go('leads',true);

@@ -18,7 +18,7 @@ const ctx=vm.createContext({S,document,console,q,qa,URLSearchParams,Map,Set,
 });
 vm.runInContext(fs.readFileSync('team-leaders.js','utf8'),ctx);
 // The badge refresh uses other portal globals; it is not part of this form test.
-vm.runInContext('refreshRequestBadge=async()=>{}',ctx);
+vm.runInContext('refreshRequestBadge=async()=>{};reloadLeadRequests=reload',ctx);
 vm.runInContext(fs.readFileSync('request-fulfillment.js','utf8'),ctx);
 const run=s=>vm.runInContext(s,ctx),event={preventDefault(){}};
 (async()=>{
@@ -26,7 +26,7 @@ const run=s=>vm.runInContext(s,ctx),event={preventDefault(){}};
   S.profile.role='agent';S.profile.is_team_leader=true;assert(!run('leadRequestsPage()').includes('fulfillRequest'));S.profile.role='admin';
   await run("fulfillLeadRequestModal('request-1')");
   assert.equal(q('#deliverySource').value,'owner');assert.equal(q('#deliveryBatch').selectedOptions[0].textContent,'PRO9 (140)');assert.equal(q('#deliveryQuantity').value,'100');assert(!q('#deliverySend').disabled);
-  assert(!q('#modal script'));assert(!q('#modal img'));assert(q('#modal').textContent.includes('TX preferred <img src=x>'));
+  assert.equal(q('#modal').getAttribute('role'),'dialog');assert.equal(document.activeElement,q('#deliveryQuantity'));assert(q('#deliveryClose'));assert(!q('#modal script'));assert(!q('#modal img'));assert(q('#modal').textContent.includes('TX preferred <img src=x>'));
   await run("fulfillLeadRequestModal('request-1')");assert.equal(openCount,1,'double-click must not open a second dialog');
   q('.deliveryState[value="TX"]').checked=true;q('.deliveryState[value="TX"]').onchange();
   assert(!q('#deliveryAllStates').checked);assert(q('#deliverySend').disabled);assert(q('#deliveryAvailability').textContent.includes('80 leads available'));
