@@ -1,3 +1,29 @@
+const REQUEST_AVAILABILITY={owner:null,epoch:null,sequence:0,status:'idle',rows:{}};
+const requestAvailabilityEpoch=()=>typeof portalSessionEpoch==='undefined'?0:portalSessionEpoch;
+async function loadLeadRequestAvailability(){
+  const state=REQUEST_AVAILABILITY,owner=S.profile?.id,epoch=requestAvailabilityEpoch(),sequence=++state.sequence;
+  Object.assign(state,{owner,epoch,status:'loading',rows:{}});
+  const ids=S.profile?.role==='admin'?S.requests.filter(r=>r.status==='pending').map(r=>r.id):[];
+  if(!ids.length){state.status='ready';return;}
+  const current=()=>state.sequence===sequence&&S.profile?.id===owner&&requestAvailabilityEpoch()===epoch;
+  try{
+    const rows=await api('/rest/v1/rpc/lead_request_availability',{method:'POST',body:{p_request_ids:ids}});
+    if(!current())return;
+    state.rows=Object.fromEntries((rows||[]).map(r=>[r.request_id,r]));state.status='ready';
+  }catch{if(!current())return;state.status='error';}
+  if(S.tab==='lead-requests')qa('[data-request-availability]').forEach(cell=>{const r=S.requests.find(r=>r.id===cell.dataset.requestAvailability);if(r)cell.innerHTML=requestAvailabilityHtml(r);});
+}
+function requestAvailabilityHtml(r){
+  if(r.status!=='pending')return '<span class="muted">—</span>';
+  const state=REQUEST_AVAILABILITY,current=state.owner===S.profile?.id&&state.epoch===requestAvailabilityEpoch();
+  if(!current||state.status==='loading'||state.status==='idle')return '<span class="request-stock-checking">Checking stock…</span>';
+  const match=state.rows[r.id];
+  if(state.status==='error'||!match)return '<span class="request-stock-checking">Check in Add leads</span>';
+  if(!match.can_deliver)return '<div class="request-stock warn"><strong>Review agent</strong><span>Inactive or moved agencies</span></div>';
+  const available=Number(match.available),remaining=Number(match.remaining),shortage=Math.max(0,remaining-available),sources=match.sources||[];
+  const title=available===0?'No batch match':shortage?'Short by '+shortage.toLocaleString():'Available';
+  return '<div class="request-stock '+(shortage?'warn':'ready')+'"><strong>'+title+'</strong><span>'+available.toLocaleString()+' matching · '+remaining.toLocaleString()+' needed</span>'+(sources.length?'<small>'+esc(sources.length===1?sources[0].source_name:sources.length+' source agencies')+'</small>':'')+'</div>';
+}
 function requestDeliveryBatches(inventory,source){
   const batches=[];
   for(const row of inventory.filter(x=>x.source===source)){
@@ -6,6 +32,12 @@ function requestDeliveryBatches(inventory,source){
     batch.count+=Number(row.lead_count);batch.states.push({state:row.state,count:Number(row.lead_count)});
   }
   return batches.sort((a,b)=>(a.lead_type??'Unlabeled').localeCompare(b.lead_type??'Unlabeled'));
+}
+function requestDeliveryRecommendation(inventory,request,needed){
+  const key=request.lead_type.trim().toLowerCase(),priority=source=>source===request.division?0:source==='owner'?1:2;
+  const matches=[...new Set(inventory.map(r=>r.source))].flatMap(source=>requestDeliveryBatches(inventory,source).filter(b=>String(b.lead_type??'').trim().toLowerCase()===key).map(b=>({...b,source})));
+  matches.sort((a,b)=>Number(b.count>=needed)-Number(a.count>=needed)||(a.count<needed&&b.count<needed?b.count-a.count:0)||priority(a.source)-priority(b.source)||b.count-a.count||a.source.localeCompare(b.source));
+  return matches[0]||null;
 }
 async function fulfillLeadRequestModal(id){
   if(S.profile?.role!=='admin'||q('#modal'))return;
@@ -17,8 +49,8 @@ async function fulfillLeadRequestModal(id){
     if(!panel.isConnected||S.profile?.id!==user)return;
     const r=data.request,inventory=data.inventory||[],remaining=Number(r.quantity)-Number(r.fulfilled_quantity||0);
     const sources=[...new Map(inventory.map(x=>[x.source,{id:x.source,name:x.source_name}])).values()];
-    const matching=inventory.filter(x=>String(x.lead_type??'').trim().toLowerCase()===r.lead_type.trim().toLowerCase());
-    const initialSource=matching.find(x=>x.source===r.division)?.source||matching.find(x=>x.source==='owner')?.source||matching[0]?.source||sources.find(x=>x.id===r.division)?.id||sources[0]?.id||'';
+    const recommendation=requestDeliveryRecommendation(inventory,r,Math.min(1000,remaining));
+    const initialSource=recommendation?.source||sources.find(x=>x.id===r.division)?.id||sources[0]?.id||'';
     const initials=r.agent_name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('');
     panel.querySelector('.modalbox').innerHTML=`
       <header class="request-delivery-header"><div><h2 id="deliveryTitle">Add leads</h2><p>Review and send this request.</p></div><button type="button" id="deliveryClose" class="request-delivery-close" aria-label="Close">×</button></header>
@@ -29,13 +61,14 @@ async function fulfillLeadRequestModal(id){
           ${r.note?'<p class="request-delivery-note"><strong>Agent’s note</strong>'+esc(r.note)+'</p>':''}
           <div class="request-delivery-fields"><div class="field"><label for="deliverySource">Send from</label><select id="deliverySource" required>${sources.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')}</select></div><div class="field"><label for="deliveryBatch">Lead type / batch</label><select id="deliveryBatch" required></select></div></div>
           <fieldset><legend>States <span>Choose one or more</span></legend><div id="deliveryStates" class="request-delivery-states"></div></fieldset>
-          <div class="request-delivery-quantity-row"><div class="field"><label for="deliveryQuantity">Quantity to send</label><input id="deliveryQuantity" type="number" required min="1" max="${Math.min(1000,remaining)}" step="1" value="${Math.min(1000,remaining)}" aria-describedby="deliveryAvailability"></div><div id="deliveryAvailability" class="request-delivery-availability" role="status"></div></div>
+          <div id="deliveryStock" class="request-delivery-stock" role="status"></div>
+          <div class="request-delivery-quantity-row"><div class="field"><label for="deliveryQuantity">Quantity to send</label><input id="deliveryQuantity" type="number" required min="1" max="${Math.min(1000,remaining)}" step="1" value="${Math.min(1000,remaining)}" aria-describedby="deliveryAvailability deliveryStock"></div><div><div id="deliveryAvailability" class="request-delivery-availability" role="status"></div><button type="button" id="deliveryUseAvailable" class="request-use-available" hidden></button></div></div>
           <div class="request-delivery-destination"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h6l2 2h8v11H4z"/><path d="M9 13h6m-3-3 3 3-3 3"/></svg><span>Delivered directly to <strong>${esc(r.agent_name.split(' ')[0])}’s My Leads</strong>.<small>${remaining>1000?'Send up to 1,000 at a time. ':''}Full delivery automatically marks this request handled.</small></span></div>
           <div id="deliveryError" role="alert"></div>
         </div><footer class="request-delivery-footer"><button type="button" id="deliveryCancel" class="btn secondary">Cancel</button><button type="submit" id="deliverySend" class="btn primary" disabled>Send leads</button></footer>
       </form>`;
     panel.setAttribute('aria-labelledby','deliveryTitle');panel.removeAttribute('aria-label');
-    const source=q('#deliverySource'),batchSelect=q('#deliveryBatch'),quantity=q('#deliveryQuantity'),send=q('#deliverySend'),availability=q('#deliveryAvailability'),error=q('#deliveryError');
+    const source=q('#deliverySource'),batchSelect=q('#deliveryBatch'),quantity=q('#deliveryQuantity'),send=q('#deliverySend'),availability=q('#deliveryAvailability'),error=q('#deliveryError'),stock=q('#deliveryStock'),useAvailable=q('#deliveryUseAvailable');
     let batches=[],busy=false,needsRefresh=false;
     const batch=()=>batchSelect.value===''?null:batches[Number(batchSelect.value)];
     const selectedStates=()=>qa('.deliveryState:checked').map(x=>x.value);
@@ -44,7 +77,14 @@ async function fulfillLeadRequestModal(id){
       const n=Number(quantity.value),valid=!!chosen&&Number.isInteger(n)&&n>0&&n<=Math.min(1000,remaining)&&n<=available;
       send.disabled=busy||needsRefresh||!valid;send.textContent=busy?'Sending…':'Send '+(Number.isInteger(n)&&n>0?n.toLocaleString():'')+' leads';
       availability.className='request-delivery-availability'+(chosen&&n>available?' error':'');
-      availability.textContent=!sources.length?'No unassigned leads are available in an agency you can use.':!chosen?'Choose the batch you want to send.':available.toLocaleString()+' leads available'+(n>available?' — lower the quantity or choose another batch/state.':'.');
+      availability.textContent=!sources.length?'No unassigned leads are available in an agency you can use.':!chosen?'Choose the batch you want to send.':available.toLocaleString()+' leads available'+(n>available?' — '+(n-available).toLocaleString()+' short for this send.':'.');
+      const different=chosen&&String(chosen.lead_type??'').trim().toLowerCase()!==r.lead_type.trim().toLowerCase(),shortage=Math.max(0,remaining-available);
+      stock.className='request-delivery-stock '+(different||shortage?'warn':'ready');
+      const title=!chosen?'Choose a batch to check stock':different?'Different batch selected':shortage?'Short by '+shortage.toLocaleString():'Enough available';
+      const detail=!chosen?'Requested: '+r.lead_type+'.':available.toLocaleString()+' available for this batch and states · '+remaining.toLocaleString()+' still requested.'+(different?' The request is for '+r.lead_type+'. Confirm the replacement batch with the agent.':'')+(chosen&&shortage?' A partial delivery keeps the remainder pending.':'');
+      stock.innerHTML='<strong>'+esc(title)+'</strong><span>'+esc(detail)+'</span>';
+      const usable=Math.min(available,remaining,1000);useAvailable.hidden=!chosen||usable<=0||n<=available;useAvailable.disabled=busy||needsRefresh;useAvailable.textContent='Use '+usable.toLocaleString()+' available';
+      useAvailable.onclick=()=>{if(busy||needsRefresh)return;quantity.value=String(usable);update();quantity.focus();};
     };
     const drawStates=()=>{
       const states=batch()?.states||[];
@@ -55,7 +95,8 @@ async function fulfillLeadRequestModal(id){
     const drawBatches=()=>{
       batches=requestDeliveryBatches(inventory,source.value);
       batchSelect.innerHTML='<option value="">Choose a batch</option>'+batches.map((x,i)=>'<option value="'+i+'">'+esc(x.lead_type??'Unlabeled')+' ('+x.count.toLocaleString()+')</option>').join('');
-      const match=batches.findIndex(x=>String(x.lead_type??'').trim().toLowerCase()===r.lead_type.trim().toLowerCase());
+      const recommended=requestDeliveryRecommendation(inventory.filter(x=>x.source===source.value),r,Math.min(1000,remaining));
+      const match=recommended?batches.findIndex(x=>x.lead_type===recommended.lead_type):-1;
       batchSelect.value=match<0?'':String(match);drawStates();
     };
     source.value=initialSource;source.onchange=drawBatches;batchSelect.onchange=drawStates;quantity.oninput=update;
