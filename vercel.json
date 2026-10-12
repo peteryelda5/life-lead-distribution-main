@@ -20,20 +20,15 @@
           "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"
         }
       ]
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/dialer/maintenance",
-      "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/docusign/reconcile",
-      "schedule": "0 7 * * *"
-    },
-    {
-      "path": "/api/signwell/reconcile",
-      "schedule": "0 8 * * *"
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        }
+      ]
     }
   ],
   "redirects": [
