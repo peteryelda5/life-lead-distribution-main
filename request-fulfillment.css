@@ -1,0 +1,13 @@
+.request-delivery-summary{padding:14px 16px;border:1px solid #dce5f2;background:#f4f8ff;border-radius:10px;display:grid;gap:5px}
+.request-delivery-summary p{margin:0;overflow-wrap:anywhere}
+.request-delivery-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.request-delivery-states{border:1px solid #dce5f2;border-radius:8px;padding:12px;max-height:180px;overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.request-delivery-states label{display:flex;gap:7px;align-items:center;font-size:13px}
+.request-delivery-states input{width:auto;margin:0}
+.request-delivery-states small{color:#64748b}
+.request-delivery-form fieldset{border:0;padding:0;margin:0;min-width:0}
+.request-delivery-form legend{font-weight:600;margin-bottom:8px}
+.request-delivery-availability{color:#334155;font-size:14px;min-height:20px}
+.request-delivery-availability.error{color:#b91c1c}
+.request-delivery-progress{display:block;color:#475569;font-size:12px;margin-top:4px}
+@media(max-width:600px){.request-delivery-fields{grid-template-columns:1fr}.request-delivery-states{grid-template-columns:repeat(2,minmax(0,1fr))}}
