@@ -1,5 +1,5 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8');for(const s of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(s[1]);
+const html=require('./portal-document.cjs')();for(const s of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))new vm.Script(s[1]);
 const code=fs.readFileSync('supabase/functions/create-agent/index.ts','utf8').replace(/^import .*;\n/gm,'').replace(':unknown','').replace(':Request','').replace(/\)!/g,')');
 async function run(cp,existing,body={},authFail=false){let handler;const writes=[];
 function from(table){let op='read';const chain={select(){return this},eq(){return this},update(v){op='update';writes.push(v);return this},async maybeSingle(){return {data:op==='update'?{...existing,active:true,archived:false}:existing}},async insert(v){writes.push(v);return {}},async single(){return {data:cp}}};return chain}

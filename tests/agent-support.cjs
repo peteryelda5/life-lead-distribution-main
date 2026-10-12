@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm');
 const client={auth:{}};
 const ctx=vm.createContext({URLSearchParams,Intl,Set,Map,Date,Number,String,JSON,localStorage:{getItem:()=>null},window:{supabase:{createClient:()=>client}},document:{getElementById:()=>({}),querySelector:()=>null,querySelectorAll:()=>[],addEventListener:()=>{}},setInterval:()=>{}});
 vm.runInContext(fs.readFileSync('agent-support.js','utf8'),ctx);
-const main=[...fs.readFileSync('index.html','utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));
+const main=[...require('./portal-document.cjs')().matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));
 vm.runInContext(main.slice(0,main.lastIndexOf('(async()=>{if(S.session)')),ctx);
 vm.runInContext("S.profile={id:'master',role:'admin',is_super_admin:true,full_name:'Peter Yelda'};S.agents=[{id:'agent',full_name:'Agent One',active:true,archived:false,division:'owner'}];S.divisions=[{id:'owner',name:'Master'}];currentAal=()=> 'aal2';operatingDivision=()=> 'owner';hasMultipleAdminDivisions=()=>false;canManageTeam=()=>false;let paths=[],audits=0;api=async(path)=>{paths.push(path);if(path.includes('open_agent_support')){audits++;return true}return [{lead_type:'Final expense',lead_count:1}]};apiPage=async(path)=>{paths.push(path);return {data:[{id:'lead',lead_type:'Final expense',agent_status:'call_back',csv_headers:['Name'],csv_values:['Test']}],count:1}};render=()=>{};",ctx);
 (async()=>{

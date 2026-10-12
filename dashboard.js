@@ -1,11 +1,11 @@
 /* Aggregate dashboard: no lead records are downloaded to draw charts. */
-let dashboardData=null,dashboardDays=30,dashboardDivision=null,dashboardError='',dashboardRequest=0,dashboardOwner=null,dashboardClosings=[],dashboardClosingsError='',dashboardMonthly=null,dashboardMonthlyError='';
-function resetDashboard(){dashboardRequest++;dashboardData=null;dashboardDivision=null;dashboardError='';dashboardOwner=null;dashboardClosings=[];dashboardClosingsError='';dashboardMonthly=null;dashboardMonthlyError='';}
+let dashboardBusy=false,dashboardData=null,dashboardDays=30,dashboardDivision=null,dashboardError='',dashboardRequest=0,dashboardOwner=null,dashboardClosings=[],dashboardClosingsError='',dashboardMonthly=null,dashboardMonthlyError='';
+function resetDashboard(){dashboardBusy=false;dashboardRequest++;dashboardData=null;dashboardDivision=null;dashboardError='';dashboardOwner=null;dashboardClosings=[];dashboardClosingsError='';dashboardMonthly=null;dashboardMonthlyError='';}
 async function loadDashboard(){
  if(dashboardOwner!==S.profile?.id){resetDashboard();dashboardOwner=S.profile?.id;}
  const request=++dashboardRequest,owner=S.profile?.id;
  const division=dashboardDivision||(S.profile?.is_super_admin?'all':S.profile?.division);
- dashboardDivision=division;dashboardError='';dashboardClosings=[];dashboardClosingsError='';
+ dashboardBusy=true;dashboardDivision=division;dashboardError='';dashboardClosings=[];dashboardClosingsError='';
  const p=new URLSearchParams({select:'id,carrier,annual_premium,application_date,created_at,profiles!inner(full_name,division)',order:'created_at.desc,id.desc',limit:'8'});
  if(division!=='all')p.set('profiles.division','eq.'+division);
  const [overview,closings,monthly]=await Promise.allSettled([
@@ -15,6 +15,7 @@ async function loadDashboard(){
   loadCarrierLogos()
  ]);
  if(request!==dashboardRequest||owner!==S.profile?.id)return;
+ dashboardBusy=false;
  if(overview.status==='fulfilled')dashboardData=overview.value;else{dashboardData=null;dashboardError=overview.reason?.message||'Dashboard could not load';}
  if(monthly.status==='fulfilled'){dashboardMonthly=monthly.value;dashboardMonthlyError='';}else{dashboardMonthly=null;dashboardMonthlyError='Monthly production could not load.';}
  if(closings.status==='fulfilled')dashboardClosings=closings.value||[];else dashboardClosingsError='Recent closings could not load.';

@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const path=require('path'),root=path.resolve(__dirname,'..');
-const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const html=require('./portal-document.cjs')();
 function line(name){const m=html.match(new RegExp('(?:async )?function '+name+'\\([^\\n]*'));assert(m,name);return m[0]}
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject}};
 async function testNavigation(){

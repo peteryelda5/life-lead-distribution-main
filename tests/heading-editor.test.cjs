@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
-const html=fs.readFileSync(__dirname+'/../index.html','utf8');
+const html=require('./portal-document.cjs')();
 const code=html.slice(html.indexOf('function headingSaveKey()'),html.indexOf('function bindLeadColumnLayout'));
 const values=new Map(),requests=[];let mode='fail',failures=0,nodes,inputs,closed=false;
 const submit={disabled:false,textContent:'Save headings'},select={value:'0',disabled:false,focus(){}},error={className:'error',textContent:'',setAttribute(){}};

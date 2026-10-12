@@ -1,6 +1,6 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
-const source=fs.readFileSync(__dirname+'/../index.html','utf8');const calls=[],nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{isConnected:true,disabled:false,value:'',querySelectorAll:()=>[]});return nodes.get(id)};
+const source=require('./portal-document.cjs')();const calls=[],nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{isConnected:true,disabled:false,value:'',querySelectorAll:()=>[]});return nodes.get(id)};
 let checks=[{value:'TX',checked:true},{value:'FL',checked:true}];const folderButtons=[{dataset:{folder:'0'}},{dataset:{folder:'1'}}];
 const S={myPage:4,myFolder:{type:'Pro5'},myFolders:[{lead_type:'Other'}],myStates:[],myStateOptions:[],mySearch:'Alice',pageSize:500,tab:'my-leads'};
 const ctx=vm.createContext({S,api:async(url,{body})=>{calls.push({url,body:JSON.parse(JSON.stringify(body))});return{data:[{id:'lead'}],count:501,states:[{state:'TX',lead_count:500},{state:'FL',lead_count:1}]}},pageCount:n=>Math.max(1,Math.ceil(n/500)),q:node,qa:s=>s==='.my-lead-folder'?folderButtons:s==='#myLeadStatesForm input:checked'?checks:[],render(){},flash(){},esc:s=>String(s),console});

@@ -1,5 +1,5 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert/strict');
-const html=fs.readFileSync('index.html','utf8'),source=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));
+const html=require('./portal-document.cjs')(),source=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));
 const ctx=vm.createContext({location:{hash:""},URLSearchParams,Intl,Set,Map,Date,Number,String,JSON,localStorage:{getItem:()=>null},window:{supabase:{createClient:()=>({})}},document:{getElementById:()=>({}),querySelector:()=>({}),querySelectorAll:()=>[],addEventListener:()=>{}},setInterval:()=>{}});
 vm.runInContext(fs.readFileSync('team-leaders.js','utf8'),ctx);vm.runInContext(source.slice(0,source.lastIndexOf('(async()=>{if(S.session)')),ctx);
 vm.runInContext(fs.readFileSync('divisions.js','utf8'),ctx);

@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
 const elements=new Map();const box={innerHTML:'',isConnected:true};
 const fakeQuery=s=>s==='#modal .modalbox'?box:elements.get(s)||null;
 const ctx=vm.createContext({URLSearchParams,Intl,Set,Map,Date,Number,String,JSON,localStorage:{getItem:()=>null},window:{supabase:{createClient:()=>({auth:{}})}},document:{getElementById:()=>({}),querySelector:fakeQuery,querySelectorAll:()=>[],addEventListener:()=>{}},setInterval:()=>{}});
-const source=[...fs.readFileSync('index.html','utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));vm.runInContext(source.slice(0,source.lastIndexOf('(async()=>{if(S.session)')),ctx);
+const source=[...require('./portal-document.cjs')().matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));vm.runInContext(source.slice(0,source.lastIndexOf('(async()=>{if(S.session)')),ctx);
 vm.runInContext(fs.readFileSync('closed-lead-corrections.js','utf8'),ctx);
 const deal={id:'deal-1',leads:{id:'lead-1',updated_at:'2026-09-29T11:01:02.123456+00:00',first_name:'Old',last_name:'Name',phone:'111',email:'old@example.com',division:'owner',csv_headers:['Name','Phone'],csv_values:['Old Name','111']}};
 vm.runInContext("S.profile={id:'master',role:'admin',full_name:'Peter Yelda'}",ctx);

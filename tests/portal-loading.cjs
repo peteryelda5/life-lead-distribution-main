@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const html=fs.readFileSync('index.html','utf8');
+const html=require('./portal-document.cjs')();
 const line=name=>html.split('\n').find(x=>x.startsWith('async function '+name+'('));
 const core=html.slice(html.indexOf('async function loadCore()'),html.indexOf('async function loadPoolPage()'));
 const ticks=()=>new Promise(resolve=>setImmediate(resolve));
