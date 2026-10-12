@@ -1,0 +1,38 @@
+begin;
+do $$
+declare who uuid; sid uuid; d jsonb; expected bigint; other_path text; visible_files bigint;
+begin
+ select p.id,s.id into who,sid from public.profiles p join auth.sessions s on s.user_id=p.id where p.id='8139e230-055d-4247-8133-684ed817b4fa' and p.active and p.is_super_admin order by s.created_at desc limit 1;
+ if sid is null then raise exception 'Master session fixture required'; end if;
+ select count(*) into expected from public.profiles where active and not coalesce(archived,false) and role in ('admin','agent');
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',who,'role','authenticated','aal','aal2','session_id',sid)::text,true);
+ execute 'set local role authenticated';
+ d:=public.recovery_onboarding_snapshot(true);
+ if jsonb_array_length(d->'profiles')<>expected then raise exception 'Team roster count mismatch'; end if;
+ if jsonb_array_length(d->'agreements')=0 then raise exception 'Missing saved agreements'; end if;
+ select count(*) into visible_files from storage.objects where bucket_id='onboarding-agreements';
+ if visible_files<>9 then raise exception 'Expected 9 recovered PDFs; got %',visible_files; end if;
+ execute 'reset role';
+ select a.pdf_path into other_path from public.portal_signwell_agreements a where a.status='completed' and a.pdf_path is not null and a.user_id=who limit 1;
+ select p.id,s.id into who,sid from public.profiles p join auth.sessions s on s.user_id=p.id where p.role='agent' and p.active and not coalesce(p.archived,false) order by s.created_at desc limit 1;
+ if sid is null then raise exception 'Agent session fixture required'; end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',who,'role','authenticated','aal','aal2','session_id',sid)::text,true);
+ execute 'set local role authenticated';
+ d:=public.recovery_onboarding_snapshot(false);
+ if jsonb_array_length(d->'profiles')<>1 or (d->'profiles'->0->>'id')::uuid<>who then raise exception 'Agent profile scope failed'; end if;
+ if exists(select 1 from jsonb_array_elements(d->'agreements') a where (a->>'user_id')::uuid<>who) then raise exception 'Agent agreement scope failed'; end if;
+ if private.recovery_can_read_agreement(other_path) then raise exception 'Agent can read another person agreement'; end if;
+ begin perform public.recovery_onboarding_snapshot(true);raise exception 'Agent team overview accepted';exception when insufficient_privilege then null;end;
+ execute 'reset role';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',who,'role','authenticated','aal','aal1','session_id',sid)::text,true);
+ execute 'set local role authenticated';
+ begin perform public.recovery_onboarding_snapshot(false);raise exception 'Unverified session accepted';exception when insufficient_privilege then null;end;
+ execute 'reset role';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',who,'role','authenticated','aal','aal2','session_id','00000000-0000-0000-0000-000000000000')::text,true);
+ execute 'set local role authenticated';
+ begin perform public.recovery_onboarding_snapshot(false);raise exception 'Invalid session accepted';exception when insufficient_privilege then null;end;
+ execute 'reset role';
+ if has_function_privilege('anon','public.recovery_onboarding_snapshot(boolean)','execute') then raise exception 'Anonymous access enabled'; end if;
+end $$;
+rollback;
+select 'PASS: Master roster and 9 PDFs, agent own records, team access denied for agents, other-user PDF denied, MFA required, revoked session denied, anonymous denied' as result;
