@@ -25,9 +25,12 @@ module.exports=async function(req,res){
   if(b.action==='folders')return res.status(200).json({folders:await data(req,'rpc/my_lead_folders',{})});
   if(b.action==='leads'){
    if(!Number.isInteger(b.offset)||b.offset<0||b.offset>1000000)throw failure(400,'Invalid lead page.');
-   const p=params(u.id);p.set('limit','500');p.set('offset',String(b.offset));
-   if(b.folder!==undefined){if(b.folder!==null&&(typeof b.folder!=='string'||b.folder.length>1000))throw failure(400,'Invalid folder.');p.set('lead_type',b.folder===null?'is.null':'eq.'+b.folder);}
-   return res.status(200).json({leads:(await data(req,'leads?'+p)).map(clientLead)});
+   if(b.offset%500!==0)throw failure(400,'Invalid lead page.');
+   if(b.folder!==undefined&&b.folder!==null&&(typeof b.folder!=='string'||b.folder.length>1000))throw failure(400,'Invalid folder.');
+   const states=b.states===undefined?[]:b.states;
+   if(!Array.isArray(states)||states.length>100||states.some(s=>typeof s!=='string'||s.length>100))throw failure(400,'Invalid state selection.');
+   const result=await data(req,'rpc/my_assigned_leads_filtered',{p_folder:b.folder!==undefined,p_lead_type:b.folder??null,p_page:b.offset/500+1,p_limit:500,p_states:states});
+   return res.status(200).json({leads:(result.data||[]).map(clientLead),count:result.count,states:result.states||[]});
   }
   if(b.action==='save'){
    if(!UUID.test(b.leadId||'')||!['appointment_follow_up','call_back','not_interested','dead_number'].includes(b.status)||typeof b.notes!=='string'||b.notes.length>10000)throw failure(400,'Choose a valid lead outcome and notes under 10,000 characters.');
