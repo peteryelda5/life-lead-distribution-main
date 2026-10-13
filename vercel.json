@@ -34,6 +34,10 @@
     {
       "path": "/api/signwell/reconcile",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/dialer/callback-maintenance",
+      "schedule": "*/5 * * * *"
     }
   ],
   "redirects": [
@@ -41,6 +45,12 @@
       "source": "/dialer.html",
       "destination": "/#power-dialer",
       "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/dialer-inbound.xml",
+      "destination": "/api/dialer/incoming"
     }
   ]
 }
