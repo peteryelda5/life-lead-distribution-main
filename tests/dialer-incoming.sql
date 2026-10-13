@@ -1,7 +1,7 @@
 -- Recovery database only. All fixtures roll back, including billing and session metadata.
 begin;
 do $$
-declare u uuid; other_user uuid; session_id uuid; browser_id uuid:=gen_random_uuid(); lead_one uuid; lead_two uuid;
+declare u uuid; other_user uuid; session_id uuid; browser_id uuid:=gen_random_uuid(); lead_one uuid; lead_two uuid; lead_csv uuid;
  account_sid text:='AC'||repeat('a',32); first_sid text:='CA'||replace(gen_random_uuid()::text,'-',''); second_sid text:='CA'||replace(gen_random_uuid()::text,'-','');
  destination text:='+12025550123'; caller text:='+12025550124'; result jsonb; first_call jsonb; listed jsonb; original_seen timestamptz;
 begin
@@ -20,6 +20,9 @@ begin
  insert into public.leads(division,status,assigned_to,phone,first_name) select division,'assigned',u,'(202) 555-0124','Match one' from public.profiles where id=u returning id into lead_one;
  insert into public.leads(division,status,assigned_to,phone,first_name) select division,'assigned',u,caller,'Match two' from public.profiles where id=u returning id into lead_two;
  insert into public.leads(division,status,assigned_to,phone,first_name) select division,'assigned',other_user,caller,'Not this agent' from public.profiles where id=other_user;
+ insert into public.leads(division,status,assigned_to,phone,first_name,csv_headers,csv_values,email,state,call_notes)
+ select division,'assigned',u,null,'Imported caller','["Mobile phone","DOB","Coverage"]'::jsonb,'["1 (202) 555-0124","1980-01-02","50000"]'::jsonb,'caller@example.test','MI','Prior notes' from public.profiles where id=u returning id into lead_csv;
+ if private.dialer_callback_phone('+44 20 2555 0124',null,null) is not null or private.dialer_callback_phone('2025550124 ext 7',null,null) is not null or private.dialer_callback_phone(null,'["Phone","Mobile"]','["2025550124","2025550124"]') is not null then raise exception 'Invalid or ambiguous number matched';end if;
  perform set_config('request.jwt.claims','{"role":"service_role"}',true);execute 'set local role service_role';
  result:=public.dialer_callback_presence(u,true,session_id,browser_id,true,false);
  first_call:=public.dialer_callback_start(u,true,account_sid,first_sid,caller,destination);
@@ -31,7 +34,8 @@ begin
  result:=public.dialer_callback_start(u,true,account_sid,second_sid,caller,destination);
  if result->>'identity' is not null then raise exception 'Two callbacks rang simultaneously';end if;
  listed:=public.dialer_callback_list(u,true,0,(first_call->>'id')::uuid);
- if jsonb_array_length(listed->'calls')<>1 or jsonb_array_length(listed->'calls'->0->'matches')<>2 then raise exception 'Matching or owner isolation failed';end if;
+ if jsonb_array_length(listed->'calls')<>1 or jsonb_array_length(listed->'calls'->0->'matches')<>3 then raise exception 'Matching or owner isolation failed';end if;
+ if not exists(select 1 from jsonb_array_elements(listed->'calls'->0->'matches') x where (x->>'id')::uuid=lead_csv and x->>'phone'=caller and x->>'call_notes'='Prior notes' and x->'csv_headers'->>1='DOB') then raise exception 'Imported card details missing';end if;
  if jsonb_array_length(public.dialer_callback_list(other_user,true,0,(first_call->>'id')::uuid)->'calls')<>0 then raise exception 'Other account read callback';end if;
  perform public.dialer_callback_event(account_sid,first_sid,'answered',0);
  perform public.dialer_callback_event(account_sid,first_sid,'completed',42);
@@ -53,7 +57,7 @@ begin
  execute 'reset role';
  update public.leads set assigned_to=null,status='unassigned' where id=lead_one;
  execute 'set local role service_role';listed:=public.dialer_callback_list(u,true,0,(first_call->>'id')::uuid);
- if jsonb_array_length(listed->'calls'->0->'matches')<>1 then raise exception 'Transferred lead leaked';end if;
+ if jsonb_array_length(listed->'calls'->0->'matches')<>2 then raise exception 'Transferred lead leaked';end if;
  execute 'reset role';
  perform set_config('request.jwt.claims',jsonb_build_object('sub',u,'role','authenticated','aal','aal2')::text,true);execute 'set local role authenticated';
  if public.my_dialer_callback_unread()<1 then raise exception 'Missing callback notification';end if;

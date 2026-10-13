@@ -1,17 +1,17 @@
 # Power dialer
 
-## Owner-only parallel pilot (October 13, 2026)
+## Parallel pilot for Master and existing $0 accounts (October 13, 2026)
 
-The **3-line pilot** tab is visible only to Master. It calls one to three distinct,
+The **3-line pilot** tab is visible to Master and the five existing enabled actual-cost exemptions, subject to current profile role and account access. It calls one to three distinct,
 consenting test phones; it is not yet a lead-list campaign mode. The browser joins
 a two-participant conference first. A signed provider join event must confirm the
-owner's audio connection before the UI can launch the outbound calls. Each call
+agent's audio connection before the UI can launch the outbound calls. Each call
 uses synchronous Twilio AMD. A database row lock chooses exactly one human winner;
 voicemail/fax/unknown end the test leg, and a second detected human receives an
 explicit test-complete message. Live lead campaigns and automatic pacing require
 an overflow/abandonment design and measured audio/detection results before rollout.
 
-The server checks MFA, active session and owner identity, active caller-ID ownership,
+The server checks MFA, active session and eligible account identity, active caller-ID ownership,
 distinct destinations, and current Twilio Voice Pricing for standard-rate US
 destinations at no more than $0.014/minute. Test consent and provider-charge
 acknowledgements are required. No call, number purchase, subscription change or
@@ -23,8 +23,13 @@ maximum of ten tests. Reservations are not refunded or collected as charges. Pho
 legs have a 20-second ringing timeout and a 90-second time limit; the browser Dial
 has a 120-second time limit. The allowance is a test-volume control, not a guaranteed
 tax-inclusive provider bill cap. Every call leg is tracked separately, and the UI
-labels its duration-based cost as an estimate. No agent pricing, included minutes,
-Stripe invoice logic or normal outgoing call ledger is changed.
+labels its duration-based cost as an estimate. The $0 accounts still pay no monthly subscription fee. Their browser tokens,
+pricing checks, outbound calls, conferences and cleanup use their own existing
+Twilio subaccount. Existing actual-cost monthly invoices collect that subaccount's
+total provider usage, including pilot usage, without markup. Payment and provider
+setup must be complete before starting; opening the tab does not perform setup.
+Cleanup remains pinned to the account that started the call even after access is
+revoked. Standard subscription accounts are not included.
 
 `dialer_parallel_sessions` and `dialer_parallel_legs` are service-only, with RLS and
 no anon/authenticated table or RPC privileges. Both existing incoming/outgoing busy
@@ -34,10 +39,10 @@ webhooks validate the full signed URL, account, call identifier and destination.
 The browser refreshes its lease, and the minute-based CRON_SECRET-protected
 `parallel-maintenance` job stops expired/disconnected sessions. Stop-all also stops
 the browser leg. Completed provider callbacks preserve terminal status across late
-events. Supabase migration: `add_owner_parallel_dialer_pilot`.
+events. Supabase migrations: `add_owner_parallel_dialer_pilot` and `extend_parallel_pilot_to_actual_cost_accounts`.
 
 Checks: `tests/dialer-parallel.cjs`, `tests/dialer-parallel-dom.cjs`, and the recovery
-rollback fixture `tests/dialer-parallel.sql`. Run DOM tests with the same JSDOM
+rollback fixtures `tests/dialer-parallel.sql` and `tests/dialer-parallel-at-cost.sql`. Run DOM tests with the same JSDOM
 runtime used by the other portal tests. No automated test makes a real phone call.
 
 Controlled acceptance test: refresh the portal as Master, open **Power Dialer →
@@ -79,7 +84,13 @@ Agents click **Go online** in Power Dialer and allow microphone access. A separa
 
 An available agent rings for 25 seconds. Declined, unanswered, busy and offline callbacks hear “Please leave your name, number, and a message after the tone,” followed by a beep and up to two minutes of voicemail. Answered live calls are capped at 30 minutes and are not recorded.
 
-**Callbacks & voicemail** lists incoming numbers, time, dialed number, answered/missed status, and all matching currently assigned leads (up to 20). A match is never drawn from another agent's leads. Duplicate matches require the agent to choose. A portal badge counts unreviewed callbacks; playing a voicemail or marking the callback reviewed clears it. No email, SMS or external notifications are sent.
+**Callbacks & voicemail** lists incoming numbers, time, dialed number, answered/missed status, and all matching currently assigned leads (up to 20). The matching name and phone are clickable, with a folder/state/email preview.
+**Open lead card** opens the existing calling workspace with contact details,
+all imported columns and saved notes. Matching supports valid formatted US numbers
+and the same unambiguous imported phone columns as outgoing calls. Assignment is
+rechecked when opening the card. No match shows an explicit message, and multiple
+matches show separate choices. Existing callbacks benefit immediately.
+A match is never drawn from another agent's leads. Duplicate matches require the agent to choose. A portal badge counts unreviewed callbacks; playing a voicemail or marking the callback reviewed clears it. No email, SMS or external notifications are sent.
 
 Voicemail webhooks validate the provider signature and recording ownership, download only a constructed Twilio recording endpoint, then copy the audio to the private `dialer-voicemails` bucket. The provider copy is removed only after the archive and database reference succeed. Playback requires the owning agent's active MFA session; no public recording URLs are exposed. A five-minute authenticated maintenance job retries incomplete recordings and provider-copy cleanup.
 

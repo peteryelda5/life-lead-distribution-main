@@ -40,7 +40,7 @@ begin
   test_id:=gen_random_uuid();perform public.dialer_parallel_prepare(u,sid,test_id,account,caller,phones,rates);perform public.dialer_parallel_event(test_id,'stop');perform public.dialer_parallel_event(test_id,'complete');
  end loop;
  begin perform public.dialer_parallel_prepare(u,sid,gen_random_uuid(),account,caller,phones,rates);raise exception 'TEST Allowance bypassed';exception when raise_exception then if sqlerrm<>'Pilot allowance reached: ten tests per rolling 24 hours.' then raise;end if;end;
- begin perform public.dialer_parallel_prepare(other_id,sid,gen_random_uuid(),account,caller,phones,rates);raise exception 'TEST Non-owner pilot';exception when raise_exception then if sqlerrm<>'Owner pilot access required.' then raise;end if;end;
+ begin perform public.dialer_parallel_prepare(other_id,sid,gen_random_uuid(),account,caller,phones,rates);raise exception 'TEST Non-owner pilot';exception when raise_exception then if sqlerrm<>'Active $0 calling access required. Complete Numbers & billing setup first.' then raise;end if;end;
  execute 'reset role';execute 'set local role authenticated';
  begin perform 1 from public.dialer_parallel_sessions;raise exception 'TEST Client read raw pilot sessions';exception when insufficient_privilege then null;end;
  begin perform public.dialer_parallel_event(test_id,'complete');raise exception 'TEST Client mutated pilot';exception when insufficient_privilege then null;end;
