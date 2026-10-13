@@ -26,7 +26,7 @@ global.fetch=async(url,opt={})=>{
   if(url.endsWith('.json'))return json({call_sid:wrongRecording?'CA'+'e'.repeat(32):parent,account_sid:account,source:'RecordVerb',status:'completed'});
   assert(url.endsWith(recording+'.mp3'));assert(opt.headers.Authorization.startsWith('Basic '));order.push('download');return new Response('test audio',{headers:{'content-type':'audio/mpeg'}});
  }
- if(url.includes('/storage/v1/object/dialer-voicemails/')){assert(opt.headers.apikey===process.env.SUPABASE_SECRET_KEY);if(opt.method==='POST'){order.push('private-upload');return new Response('{}',{status:storageFail?503:200});}return new Response('test audio',{headers:{'content-type':'audio/mpeg'}});}
+ if(url.includes('/storage/v1/object/')&&url.includes('/dialer-voicemails/')){assert(opt.headers.apikey===process.env.SUPABASE_SECRET_KEY);if(opt.method==='POST'){order.push('private-upload');return new Response('{}',{status:storageFail?503:200});}assert(url.includes('/object/authenticated/dialer-voicemails/'));return new Response('test audio',{headers:{'content-type':'audio/mpeg'}});}
  throw Error('Unexpected fetch '+url);
 };
 const response=()=>({headers:{},setHeader(k,v){this.headers[k]=v;},status(n){this.code=n;return this;},send(v){this.data=v;return this;},json(v){this.data=v;return this;},end(){return this;}});
