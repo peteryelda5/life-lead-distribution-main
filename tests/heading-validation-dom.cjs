@@ -1,0 +1,10 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+(async()=>{const dom=new JSDOM('<body><button id="editBatchHeadings"></button></body>',{url:'https://www.lldportal.com',runScripts:'outside-only'}),w=dom.window;try{
+ const calls=[];w.S={profile:{id:'owner'},poolLeads:[{id:'lead',csv_headers:['Phone',' phone ','','Name'],lead_type:'Batch',csv_filename:'batch.csv'}]};w.q=s=>w.document.querySelector(s);w.jsonArray=v=>v;w.esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));w.flash=()=>{};w.loadPoolPage=async()=>{};w.api=async(url,opt)=>{calls.push(opt.body);return {updated:1,done:true};};const source=fs.readFileSync(__dirname+'/../portal-app.js','utf8');w.eval(source.slice(source.indexOf('function closeHeadingPanel()'),source.indexOf('function bindLeadColumnLayout(')));
+ w.editBatchHeadings();assert.equal(w.q('#headingInput-0').getAttribute('aria-invalid'),'true');assert.match(w.q('#headingIssue-0').textContent,/column 2/);assert.match(w.q('#headingIssue-2').textContent,/Enter a heading/);assert.equal(w.q('#headingFix').hidden,false);
+ await w.q('#headingForm').onsubmit({preventDefault(){}});assert.equal(calls.length,0);assert.equal(w.document.activeElement.id,'headingInput-0');
+ w.q('#headingFix').click();assert.equal(w.q('#headingInput-1').value,'phone (2)');assert.equal(w.q('#headingInput-2').value,'Column 3');assert.equal(w.q('#headingInput-0').value,'Phone');assert.equal(calls.length,0,'Fix must not save without review');
+ await w.q('#headingForm').onsubmit({preventDefault(){}});assert.deepEqual(Array.from(calls[0].p_headers),['Phone','phone (2)','Column 3','Name']);assert.deepEqual(Array.from(calls[0].p_expected_headers),['Phone',' phone ','','Name']);assert.equal(w.q('#headingPanel'),null);
+ console.log('PASS: exact duplicate/blank column guidance, focus, explicit repair, review before saving, unchanged batch identity.');
+ }finally{dom.window.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

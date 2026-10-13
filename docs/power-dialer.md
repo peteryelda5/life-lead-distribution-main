@@ -1,5 +1,52 @@
 # Power dialer
 
+## Owner-only parallel pilot (October 13, 2026)
+
+The **3-line pilot** tab is visible only to Master. It calls one to three distinct,
+consenting test phones; it is not yet a lead-list campaign mode. The browser joins
+a two-participant conference first. A signed provider join event must confirm the
+owner's audio connection before the UI can launch the outbound calls. Each call
+uses synchronous Twilio AMD. A database row lock chooses exactly one human winner;
+voicemail/fax/unknown end the test leg, and a second detected human receives an
+explicit test-complete message. Live lead campaigns and automatic pacing require
+an overflow/abandonment design and measured audio/detection results before rollout.
+
+The server checks MFA, active session and owner identity, active caller-ID ownership,
+distinct destinations, and current Twilio Voice Pricing for standard-rate US
+destinations at no more than $0.014/minute. Test consent and provider-charge
+acknowledgements are required. No call, number purchase, subscription change or
+automatic repeat occurs merely by opening the tab. Provider calls are created only
+after **Start test** and a verified conference join.
+
+Each batch reserves $0.50 of a conservative $5 rolling 24-hour allowance, with a
+maximum of ten tests. Reservations are not refunded or collected as charges. Phone
+legs have a 20-second ringing timeout and a 90-second time limit; the browser Dial
+has a 120-second time limit. The allowance is a test-volume control, not a guaranteed
+tax-inclusive provider bill cap. Every call leg is tracked separately, and the UI
+labels its duration-based cost as an estimate. No agent pricing, included minutes,
+Stripe invoice logic or normal outgoing call ledger is changed.
+
+`dialer_parallel_sessions` and `dialer_parallel_legs` are service-only, with RLS and
+no anon/authenticated table or RPC privileges. Both existing incoming/outgoing busy
+guards share the pilot's per-user lock. Call creation is claimed once per leg; an
+ambiguous provider failure stops the batch without retrying call creation. Provider
+webhooks validate the full signed URL, account, call identifier and destination.
+The browser refreshes its lease, and the minute-based CRON_SECRET-protected
+`parallel-maintenance` job stops expired/disconnected sessions. Stop-all also stops
+the browser leg. Completed provider callbacks preserve terminal status across late
+events. Supabase migration: `add_owner_parallel_dialer_pilot`.
+
+Checks: `tests/dialer-parallel.cjs`, `tests/dialer-parallel-dom.cjs`, and the recovery
+rollback fixture `tests/dialer-parallel.sql`. Run DOM tests with the same JSDOM
+runtime used by the other portal tests. No automated test makes a real phone call.
+
+Controlled acceptance test: refresh the portal as Master, open **Power Dialer →
+3-line pilot**, select an active caller ID, enter three phones whose owners expect
+the test, and check both acknowledgements. Test one human plus two voicemails,
+two simultaneous human answers, Stop all calls while ringing, browser closure,
+audio both ways and displayed results. Actual provider AMD latency, classifications,
+webhook delivery, pricing API access and audio remain unverified until this test.
+
 The portal navigation mounts the Power Dialer inside the portal for the actual signed-in account. Support agent view never impersonates that agent's subscription or phone account. Agents see only their assigned leads and can select up to 1,000 across folders/pages of 500. Saving an outcome uses the existing atomic lead update and leaves assignment and folder unchanged.
 
 ## Plan and access

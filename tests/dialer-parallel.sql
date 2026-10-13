@@ -1,0 +1,50 @@
+-- Recovery only, rollback fixtures. No provider requests.
+begin;
+do $$
+declare u uuid; sid uuid; other_id uuid; test_id uuid:=gen_random_uuid(); lid uuid; lid2 uuid; result jsonb; count_before bigint; n integer;
+ caller text:='+12025550123'; phones text[]:=array['+12025550124','+12025550125','+12025550126']; rates numeric[]:=array[0.014,0.014,0.014]; account text:='AC'||repeat('a',32); agent text:='CA'||repeat('b',32);
+begin
+ select p.id,s.id into u,sid from public.profiles p join auth.sessions s on s.user_id=p.id where p.is_super_admin and p.active and not p.archived limit 1;
+ select id into other_id from public.profiles where id<>u and active and not archived limit 1;
+ if u is null then raise exception 'Missing recovery owner fixture.';end if;
+ update public.dialer_calls set finished=true where user_id=u;
+ update public.dialer_callbacks set completed_at=now() where user_id=u;
+ delete from public.dialer_parallel_legs where session_id in(select id from public.dialer_parallel_sessions where user_id=u);
+ delete from public.dialer_parallel_sessions where user_id=u;
+ insert into public.dialer_numbers(user_id,livemode,slot,phone,state) values(u,true,3,caller,'active') on conflict(user_id,livemode,slot) do update set phone=excluded.phone,state='active';
+ perform set_config('request.jwt.claims','{"role":"service_role"}',true);execute 'set local role service_role';
+ perform public.dialer_parallel_prepare(u,sid,test_id,account,caller,phones,rates);
+ perform public.dialer_parallel_prepare(u,sid,test_id,account,caller,phones,rates);
+ if (select count(*) from public.dialer_parallel_legs where session_id=test_id)<>3 then raise exception 'Duplicate prepare created extra calls.';end if;
+ begin perform public.dialer_create_call_with_incoming_guard(u,true,sid,gen_random_uuid(),3,null,phones[1]);raise exception 'TEST parallel busy guard bypassed';exception when raise_exception then if sqlerrm<>'Finish the parallel pilot first.' then raise;end if;end;
+ result:=public.dialer_callback_start(u,true,account,'CA'||repeat('c',32),phones[1],caller);
+ if result->>'identity' is not null then raise exception 'Callback rang during pilot.';end if;
+ result:=public.dialer_parallel_event(test_id,'agent',null,agent);if result->>'result'<>'agent' then raise exception 'Agent rejected';end if;
+ result:=public.dialer_parallel_event(test_id,'ready',null,agent,'CF'||repeat('d',32));
+ result:=public.dialer_parallel_event(test_id,'launch');if result->>'result'<>'launch' then raise exception 'Ready pilot failed';end if;
+ result:=public.dialer_parallel_event(test_id,'launch');if result->>'result'='launch' then raise exception 'Duplicate launch';end if;
+ select id into lid from public.dialer_parallel_legs where session_id=test_id and position=1;
+ select id into lid2 from public.dialer_parallel_legs where session_id=test_id and position=2;
+ perform public.dialer_parallel_event(test_id,'claim',lid);perform public.dialer_parallel_event(test_id,'claim',lid2);
+ result:=public.dialer_parallel_event(test_id,'claim',lid);if result->>'result'='create' then raise exception 'Duplicate line creation';end if;
+ result:=public.dialer_parallel_event(test_id,'answer',lid,'CA'||repeat('e',32),'human');if result->>'result'<>'winner' then raise exception 'First human not connected';end if;
+ result:=public.dialer_parallel_event(test_id,'answer',lid2,'CA'||repeat('f',32),'human');if result->>'result'<>'overflow' then raise exception 'Two winners';end if;
+ result:=public.dialer_parallel_event(test_id,'answer',lid,'CA'||repeat('e',32),'human');if result->>'result'<>'winner' then raise exception 'Winner retry changed';end if;
+ perform public.dialer_parallel_event(test_id,'status',lid,'CA'||repeat('e',32),'completed',20);
+ perform public.dialer_parallel_event(test_id,'status',lid,'CA'||repeat('e',32),'ringing',0);
+ if not exists(select 1 from public.dialer_parallel_legs where id=lid and terminal and state='completed' and duration_seconds=20) then raise exception 'Late status regressed call';end if;
+ perform public.dialer_parallel_event(test_id,'stop');
+ result:=public.dialer_parallel_event(test_id,'answer',lid2,'CA'||repeat('f',32),'human');if result->>'result'<>'stopped' then raise exception 'Human connected after stop';end if;
+ perform public.dialer_parallel_event(test_id,'complete');
+ for n in 2..10 loop
+  test_id:=gen_random_uuid();perform public.dialer_parallel_prepare(u,sid,test_id,account,caller,phones,rates);perform public.dialer_parallel_event(test_id,'stop');perform public.dialer_parallel_event(test_id,'complete');
+ end loop;
+ begin perform public.dialer_parallel_prepare(u,sid,gen_random_uuid(),account,caller,phones,rates);raise exception 'TEST Allowance bypassed';exception when raise_exception then if sqlerrm<>'Pilot allowance reached: ten tests per rolling 24 hours.' then raise;end if;end;
+ begin perform public.dialer_parallel_prepare(other_id,sid,gen_random_uuid(),account,caller,phones,rates);raise exception 'TEST Non-owner pilot';exception when raise_exception then if sqlerrm<>'Owner pilot access required.' then raise;end if;end;
+ execute 'reset role';execute 'set local role authenticated';
+ begin perform 1 from public.dialer_parallel_sessions;raise exception 'TEST Client read raw pilot sessions';exception when insufficient_privilege then null;end;
+ begin perform public.dialer_parallel_event(test_id,'complete');raise exception 'TEST Client mutated pilot';exception when insufficient_privilege then null;end;
+ execute 'reset role';
+end $$;
+select 'PASS: three lines, idempotent preparation/launch, single human winner, late events, owner/session isolation, incoming/outgoing locks, allowance enforcement, private tables/RPCs.' result;
+rollback;
