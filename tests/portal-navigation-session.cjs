@@ -21,7 +21,7 @@ async function testRawGuard(){
  const gate=deferred(),S={session:{access_token:'old'}},c={S,KEY:'public',BASE:'https://example.test',portalSessionEpoch:0,portalFetch:()=>gate.promise};
  vm.createContext(c);vm.runInContext(line('raw'),c);const task=c.raw('/rest/v1/leads');c.portalSessionEpoch++;gate.resolve({ok:true,text:async()=> '[]'});await assert.rejects(task,e=>e.status===409);
 }
-function testEpoch(){const S={session:{user:{id:'a'}},profile:{id:'a'}};const c={S,portalSessionEpoch:0,jwtPayload:()=>({sub:S.session?.user?.id}),localStorage:{setItem(){},removeItem(){}}};vm.createContext(c);vm.runInContext(line('saveSession'),c);c.saveSession({user:{id:'a'},access_token:'refreshed'});assert.equal(c.portalSessionEpoch,0);c.saveSession(null);assert.equal(c.portalSessionEpoch,1);c.saveSession({user:{id:'b'}});assert.equal(c.portalSessionEpoch,2);}
+function testEpoch(){const S={session:{user:{id:'a'}},profile:{id:'a'}};const c={S,window:{},portalSessionEpoch:0,jwtPayload:()=>({sub:S.session?.user?.id}),localStorage:{setItem(){},removeItem(){}}};vm.createContext(c);vm.runInContext(line('saveSession'),c);c.saveSession({user:{id:'a'},access_token:'refreshed'});assert.equal(c.portalSessionEpoch,0);c.saveSession(null);assert.equal(c.portalSessionEpoch,1);c.saveSession({user:{id:'b'}});assert.equal(c.portalSessionEpoch,2);}
 function testFeedback(){
  const tasks=[],S={profile:{id:'a'},msg:'first',err:''};let replacements=0;
  const c={S,feedbackVersion:0,setTimeout:f=>tasks.push(f),q:()=>({replaceChildren:()=>replacements++})};

@@ -1,0 +1,52 @@
+-- Recovery database only; all test notes, audit events and profile changes roll back.
+begin;
+do $$
+declare agent_id uuid; other_id uuid; lead_id uuid; r jsonb; total bigint;
+begin
+  select id into agent_id from public.profiles where role='agent' and active and not coalesce(archived,false) limit 1;
+  select id into other_id from public.profiles where role='agent' and active and not coalesce(archived,false) and id<>agent_id limit 1;
+  if agent_id is null or other_id is null then raise exception 'Missing test agents';end if;
+  insert into public.leads(division,lead_type,status,assigned_to)
+    select division,'__autosave_test','assigned',id from public.profiles where id=agent_id returning id into lead_id;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'role','authenticated','aal','aal2')::text,true);
+  execute 'set local role authenticated';
+  r:=public.save_lead_call_notes(lead_id,' first note ',null);
+  if r<>jsonb_build_object('saved',true,'notes','first note') then raise exception 'Initial save failed';end if;
+  r:=public.save_lead_call_notes(lead_id,'first note',null);
+  if not (r->>'saved')::boolean then raise exception 'Lost response retry failed';end if;
+  r:=public.save_lead_call_notes(lead_id,'overwrite',null);
+  if r<>jsonb_build_object('saved',false,'notes','first note') then raise exception 'Conflict not detected';end if;
+  r:=public.save_lead_call_notes(lead_id,'second note','first note');
+  if not (r->>'saved')::boolean then raise exception 'Valid next save failed';end if;
+  r:=public.save_lead_call_notes(lead_id,'   ','second note');
+  if r<>jsonb_build_object('saved',true,'notes',null) then raise exception 'Clear note failed';end if;
+  begin perform public.save_lead_call_notes(lead_id,repeat('x',10001),null);raise exception 'TEST Oversized note accepted';
+  exception when raise_exception then if sqlerrm like 'TEST%' then raise;end if;end;
+  execute 'reset role';
+  select count(*) into total from public.audit_logs where entity_id=lead_id::text and action='lead_call_notes_updated';
+  if total<>3 then raise exception 'Duplicate or missing audit: %',total;end if;
+  if exists(select 1 from public.audit_logs where entity_id=lead_id::text and action='lead_call_notes_updated' and details ? 'notes') then raise exception 'Note text in audit';end if;
+  if not exists(select 1 from public.leads where id=lead_id and assigned_to=agent_id and status='assigned' and agent_status='none' and call_notes is null) then raise exception 'Save changed outcome or assignment';end if;
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',other_id,'role','authenticated','aal','aal2')::text,true);
+  execute 'set local role authenticated';
+  begin perform public.save_lead_call_notes(lead_id,'unauthorized',null);raise exception 'TEST Other agent wrote notes';exception when insufficient_privilege then null;end;
+  execute 'reset role';
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'role','authenticated','aal','aal1')::text,true);
+  execute 'set local role authenticated';
+  begin perform public.save_lead_call_notes(lead_id,'no mfa',null);raise exception 'TEST AAL1 wrote notes';exception when insufficient_privilege then null;end;
+  execute 'reset role';
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agent_id,'role','authenticated','aal','aal2')::text,true);
+  update public.profiles set active=false where id=agent_id;
+  execute 'set local role authenticated';
+  begin perform public.save_lead_call_notes(lead_id,'inactive',null);raise exception 'TEST Inactive agent wrote notes';exception when insufficient_privilege then null;end;
+  execute 'reset role';update public.profiles set active=true where id=agent_id;
+  update public.leads set assigned_to=null,status='unassigned' where id=lead_id;
+  execute 'set local role authenticated';
+  begin perform public.save_lead_call_notes(lead_id,'reassigned',null);raise exception 'TEST Unassigned lead accepted notes';exception when insufficient_privilege then null;end;
+  execute 'reset role';execute 'set local role anon';
+  begin perform public.save_lead_call_notes(lead_id,'anonymous',null);raise exception 'TEST Anonymous note save';exception when insufficient_privilege then null;end;
+  execute 'reset role';
+end;
+$$;
+select 'PASS: notes, conflicts, idempotence, audit, outcome preservation, ownership, MFA, active accounts and anonymous denial' result;
+rollback;
