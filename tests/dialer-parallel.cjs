@@ -13,14 +13,14 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
  if(u.pathname.endsWith('/rpc/dialer_entitled'))return json(entitled);
  if(u.pathname.endsWith('/dialer_at_cost'))return json(exemption&&(!u.searchParams.has('user_id')||u.searchParams.get('user_id')==='eq.'+exempt)&&(!u.searchParams.has('provider_sid')||u.searchParams.get('provider_sid')==='eq.'+subaccount)&&(!u.searchParams.has('enabled')||exemption.enabled)?[exemption]:[]);
  if(u.hostname==='pricing.twilio.com')return json({destination_number:decodeURIComponent(u.pathname.split('/').at(-1)),iso_country:rateCountry,price_unit:'USD',outbound_call_prices:[{current_price:rate}]});
- if(u.pathname.endsWith('/rpc/dialer_parallel_prepare'))return json(id);
+ if(u.pathname.endsWith('/rpc/dialer_parallel_prepare_mode')){s.connect_mode=body.p_mode;return json(id);}
  if(u.pathname.endsWith('/rpc/dialer_parallel_event')){const l=legs.find(l=>l.id===body.p_leg);let result='ignored';
   if(body.p_event==='agent'){s.agent_sid=body.p_sid;result='agent';}
   if(body.p_event==='ready'){s.state='ready';result='ready';}
   if(body.p_event==='launch'&&s.state==='ready'){s.state='dialing';result='launch';}
   if(body.p_event==='claim'&&l.state==='prepared'&&s.state==='dialing'&&!winner){l.state='creating';result='create';}
   if(body.p_event==='bind'){l.provider_sid=body.p_sid;if(l.state==='creating')l.state='queued';result='bound';}
-  if(body.p_event==='answer'){l.provider_sid=body.p_sid;l.answer=body.p_value;if(s.state==='stopping'||s.state==='complete')result='stopped';else if(body.p_value==='human'){if(!winner||winner===l.id){s.winner_id=winner=l.id;s.state='connected';l.outcome='connected';result='winner';}else{l.outcome='second_answer';result='overflow';}}else{l.outcome=body.p_value;result='hangup';}}
+  if(body.p_event==='answer'){l.provider_sid=body.p_sid;l.answer=body.p_value;if(s.state==='stopping'||s.state==='complete')result='stopped';else if(['human','answered'].includes(body.p_value)){if(!winner||winner===l.id){s.winner_id=winner=l.id;s.state='connected';l.outcome='connected';result='winner';}else{l.outcome='second_answer';result='overflow';}}else{l.outcome=body.p_value;result='hangup';}}
   if(body.p_event==='status'){l.provider_sid=body.p_sid;l.state=body.p_value;l.duration_seconds=body.p_seconds;l.terminal=['completed','canceled','failed','no-answer','busy'].includes(body.p_value);result='status';}
   if(body.p_event==='stop'){s.state='stopping';for(const l of legs)if(l.state==='prepared'){l.state='canceled';l.terminal=true;}result='stopped';}
   if(body.p_event==='complete'){s.state='complete';result='complete';}
@@ -33,7 +33,7 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
  if(u.hostname==='api.twilio.com'){
   if(u.pathname.endsWith('/'+subaccount+'.json'))return json({sid:subaccount,owner_account_sid:account,status:'active',auth_token:'sub-secret'});
   assert(u.pathname.includes('/Accounts/'+s.provider_sid+'/'),'Wrong billing account');assert.equal(opt.headers.Authorization,'Basic '+Buffer.from(s.provider_sid+':'+(s.user_id===owner?'test-secret':'sub-secret')).toString('base64'));
-  if(u.pathname.endsWith('/Calls.json')&&opt.method==='POST'){creates++;const p=new URLSearchParams(opt.body);assert.deepEqual(p.getAll('StatusCallbackEvent'),['initiated','ringing','answered','completed']);assert.equal(p.get('MachineDetection'),'Enable');assert.equal(p.get('AsyncAmd'),'false');assert.equal(p.get('TimeLimit'),'90');assert.equal(p.get('Timeout'),'20');if(createUncertain)throw Error('Provider timeout');const sid='CA'+String(creates).padStart(32,'0'),d={sid,account_sid:s.provider_sid,to:p.get('To'),from:p.get('From'),status:'queued',duration:'0',price:null};records.set(sid,d);return json(d);}
+  if(u.pathname.endsWith('/Calls.json')&&opt.method==='POST'){creates++;const p=new URLSearchParams(opt.body);assert.deepEqual(p.getAll('StatusCallbackEvent'),['initiated','ringing','answered','completed']);assert.equal(p.get('MachineDetection'),s.connect_mode==='fast'?null:'Enable');assert.equal(p.get('AsyncAmd'),s.connect_mode==='fast'?null:'false');assert.equal(p.get('TimeLimit'),'90');assert.equal(p.get('Timeout'),'20');if(createUncertain)throw Error('Provider timeout');const sid='CA'+String(creates).padStart(32,'0'),d={sid,account_sid:s.provider_sid,to:p.get('To'),from:p.get('From'),status:'queued',duration:'0',price:null};records.set(sid,d);return json(d);}
   const sid=u.pathname.split('/').at(-1).replace('.json',''),d=records.get(sid);assert(d,'Unowned provider call read');if(opt.method==='POST'){const p=new URLSearchParams(opt.body);d.status=p.get('Status');}return json(d);
  }
  throw Error('Unexpected fetch '+url);
@@ -74,5 +74,14 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  access=false;exemption.enabled=false;await parallel.action({body:{action:'stop',id}},u);assert.equal(s.state,'complete');for(const call of records.values())assert(['completed','canceled'].includes(call.status));
  await assert.rejects(parallel.storedContext({...s,provider_sid:account}),/ownership mismatch/);
  exemption=null;await assert.rejects(parallel.storedContext({...s}),/ownership mismatch/);
- console.log('PASS: Master and $0 access; consent and price gates; own caller IDs, JWTs, webhooks and subaccount billing; cross-account denial; revoked-access cleanup; three bounded calls and single human winner.');
+ reset();const fastPrep={action:'prepare',id,callerId:s.caller_id,phones:legs.map(l=>l.phone),connectMode:'fast',testPhonesConfirmed:true,acceptCharges:true};
+ const fast=await parallel.action({body:fastPrep},{id:owner,sessionId:authSession,live:true});assert.equal(fast.session.connectMode,'fast');
+ s.state='ready';await parallel.launch(await parallel.get(id));assert.equal(creates,3);
+ // No human/machine classification is required to connect the first pickup.
+ res=response();await parallel.events(webhook('answer',legs[0]),res);assert.equal(res.code,200);assert.match(res.data,/<Conference/);assert.equal(legs[0].answer,'answered');
+ res=response();await parallel.events(webhook('answer',legs[1]),res);assert(!res.data.includes('<Conference'));assert.match(res.data,/Another test phone/);
+ const snapshot=await parallel.get(id),fastCost=parallel.publicState(snapshot).estimatedUsd,humanCost=parallel.publicState({...snapshot,connect_mode:'human'}).estimatedUsd;assert.equal(Number((humanCost-fastCost).toFixed(4)),.015,'Fast mode charged AMD');
+ await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
+ await assert.rejects(parallel.action({body:{...fastPrep,connectMode:'bad'}},{id:owner,sessionId:authSession,live:true}),/connection mode/);
+ console.log('PASS: fast first-pickup connection without AMD, one winner and bounded cleanup, human-filter compatibility, no fast-mode detection fee, Master/$0 ownership and billing isolation.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -2,13 +2,15 @@
 
 ## Parallel pilot for Master and existing $0 accounts (October 13, 2026)
 
-The **3-line pilot** tab is visible to Master and the five existing enabled actual-cost exemptions, subject to current profile role and account access. It calls one to three distinct,
+The **3-line dialer** tab is visible to Master and the five existing enabled actual-cost exemptions, subject to current profile role and account access. It calls one to three distinct,
 consenting test phones; it is not yet a lead-list campaign mode. The browser joins
 a two-participant conference first. A signed provider join event must confirm the
-agent's audio connection before the UI can launch the outbound calls. Each call
-uses synchronous Twilio AMD. A database row lock chooses exactly one human winner;
-voicemail/fax/unknown end the test leg, and a second detected human receives an
-explicit test-complete message. Live lead campaigns and automatic pacing require
+agent's audio connection before the UI can launch the outbound calls. New tests default to **Fast connect**: no AMD request or detection fee, and the first
+pickup connects directly. A pickup is not labeled a human; voicemail may answer
+first. **Filter voicemail** remains available and uses synchronous AMD, which adds
+several seconds before connecting. Existing sessions/older clients retain filtering.
+The stored mode cannot change on prepare retries. A row lock chooses exactly one
+winner; a second pickup receives the explicit test-complete message. Live lead campaigns and automatic pacing require
 an overflow/abandonment design and measured audio/detection results before rollout.
 
 The server checks MFA, active session and eligible account identity, active caller-ID ownership,
@@ -39,14 +41,14 @@ webhooks validate the full signed URL, account, call identifier and destination.
 The browser refreshes its lease, and the minute-based CRON_SECRET-protected
 `parallel-maintenance` job stops expired/disconnected sessions. Stop-all also stops
 the browser leg. Completed provider callbacks preserve terminal status across late
-events. Supabase migrations: `add_owner_parallel_dialer_pilot` and `extend_parallel_pilot_to_actual_cost_accounts`.
+events. Supabase migrations: `add_owner_parallel_dialer_pilot` and `extend_parallel_pilot_to_actual_cost_accounts`, and `add_parallel_fast_connect_mode`.
 
 Checks: `tests/dialer-parallel.cjs`, `tests/dialer-parallel-dom.cjs`, and the recovery
-rollback fixtures `tests/dialer-parallel.sql` and `tests/dialer-parallel-at-cost.sql`. Run DOM tests with the same JSDOM
+rollback fixtures `tests/dialer-parallel.sql` and `tests/dialer-parallel-at-cost.sql` and `tests/dialer-parallel-fast-connect.sql`. Run DOM tests with the same JSDOM
 runtime used by the other portal tests. No automated test makes a real phone call.
 
 Controlled acceptance test: refresh the portal as Master, open **Power Dialer →
-3-line pilot**, select an active caller ID, enter three phones whose owners expect
+3-line dialer**, select an active caller ID, enter three phones whose owners expect
 the test, and check both acknowledgements. Test one human plus two voicemails,
 two simultaneous human answers, Stop all calls while ringing, browser closure,
 audio both ways and displayed results. Actual provider AMD latency, classifications,
@@ -102,3 +104,16 @@ Incoming records use a separate callback ledger. This release does not change su
 - `NODE_PATH=/tmp/vivid-notes-tests/node_modules node tests/dialer-callbacks-dom.cjs`: real dialer DOM with simulated SDK calls; online controls, matched lead, answer/mute/hangup, busy/away handling, renewal and account cleanup.
 - `tests/dialer-incoming.sql`: recovery-only rollback fixtures for presence, callback replay, busy/offline routing, lead isolation and both outgoing grant paths. No real calls are placed.
 - Real microphone/audio and provider delivery still require a controlled phone test: go online, call the displayed caller ID from another phone, answer and verify both directions; then go offline, leave a message and play it from the callback inbox.
+
+### October 13 connection delay investigation
+
+The owner's screenshot corresponds to a test where the connected human leg reported
+6,226ms of provider machine detection before the answer webhook. The next test's
+connected leg reported 3,324ms. Fast connect removes that detection wait rather than
+claiming instant human classification. Provider dialing, network and conference
+setup latency still remain and require a fresh phone test. The answer webhook now
+saves filtered detection timing in its existing atomic event transaction rather
+than a separate blocking update; session and leg reads run concurrently. UI status
+refreshes every second while a test is active. Rates, limits and history are collapsed
+below a compact calling form and activity panel. No real calls were made by automated
+verification of this change.
