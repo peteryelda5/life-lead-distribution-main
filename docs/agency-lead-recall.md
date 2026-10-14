@@ -2,6 +2,8 @@
 
 Super Master accounts can open **Management → Agencies → Take back leads** and choose any agency, including archived agencies and Legacy Life. Active agency cards also have their own shortcut. Choose a folder and one or more states (or All states), include the agency pool and/or assigned leads, enter up to 1,000, preview, and confirm.
 
+The folder picker counts match the selected assignment scope and states. A separate summary shows the full folder total, the unassigned/assigned split, matching availability, and the preview quantity. Unassigned-only mode explains that assigned leads are excluded and offers an explicit Include assigned leads too button that preserves the selected states.
+
 The exact previewed records return to the unassigned Owner / Master pool. Notes, call notes, agent dispositions, imported fields, folder, original uploader and ownership provenance stay with the records. Closed lead status and any linked closed-business record exclude a lead. Former assignments are cleared, existing portable access is removed by its trigger, and existing row policies apply in the destination. Explicit separate grants to the Owner pool remain in force.
 
 Only an active, unarchived admin with `is_super_admin` and an AAL2 session may list agencies, preview, or recall. Ordinary admins, Jonah's cross-agency send rights, team leaders, and agents do not gain this capability. Generic Legacy send restrictions remain; the division trigger adds a narrowly scoped verified Master return to Owner for open, unassigned pool records.

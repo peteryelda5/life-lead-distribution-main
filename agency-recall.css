@@ -9,6 +9,7 @@
 .agency-recall-table td,.agency-recall-table th{padding:10px 12px;overflow-wrap:anywhere}.agency-recall-table td small{display:block;margin-top:4px;color:#718096}
 .agency-recall-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;position:sticky;bottom:-26px;background:#fff;padding:16px 0;border-top:1px solid #e7edf4}
 .agency-recall-modal [hidden]{display:none!important}
+.agency-recall-availability{display:grid;gap:7px;padding:14px;border:1px solid #d9e5f5;border-radius:9px;background:#f5f9ff;font-size:12px;color:#526985;line-height:1.5}.agency-recall-availability>strong:first-child{font-size:15px;color:#234d82}.agency-recall-availability .btn{justify-self:start;font-size:12px;padding:7px 11px}
 .agency-recall-state-field{border:0;padding:0;margin:0;min-width:0}.agency-recall-state-field legend{font-size:12px;font-weight:600;color:#425570}.agency-recall-state-field p{margin:7px 0 10px}
 .agency-recall-states{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto;padding:2px}
 .agency-recall-states label{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #dce4ee;border-radius:7px;font-size:12px;background:#fff;cursor:pointer}

@@ -6,11 +6,12 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
   w.S={profile:{id:'master',role:'admin',is_super_admin:true},divisionDirectory:[{id:'vivid_life',name:'Vivid <Life>',admins:[]}],selected:new Set(['old'])};w.portalSessionEpoch=1;
   w.q=s=>w.document.querySelector(s);w.qa=s=>Array.from(w.document.querySelectorAll(s));w.esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   w.closeModal=()=>w.q('#modal')?.remove();w.modal=html=>w.document.body.insertAdjacentHTML('beforeend','<div id="modal"><div class="modalbox">'+html+'</div></div>');
+  let inventory=[{type:'<Folder>',count:2,states:[{state:'MI',count:1,pool:1,assigned:0},{state:'TX',count:1,pool:0,assigned:1}]}];
   const calls=[];let previewWait,commitWait,failCommit=false,stale=false,reloaded='';
   w.flash=()=>{};w.reload=async text=>{reloaded=text;};
   w.api=async(url,opt)=>{calls.push({url,body:JSON.parse(JSON.stringify(opt.body))});
    if(url.endsWith('_agencies'))return [{id:'vivid_life',name:'Vivid Life',archived:false},{id:'legacy_life',name:'Legacy Life',archived:true}];
-   if(url.endsWith('_options'))return [{type:'<Folder>',count:2,states:[{state:'MI',count:1,pool:1,assigned:0},{state:'TX',count:1,pool:0,assigned:1}]}];
+   if(url.endsWith('_options'))return inventory;
    if(url.endsWith('_preview_states')){if(previewWait)await previewWait;const leads=[{id:'one',updated_at:'2026-10-14T12:00:00Z',state:'MI',first_name:'<img src=x onerror=alert(1)>',phone:'2025550101',lead_type:'<Folder>',assignee:'Agency lead pool'},{id:'two',updated_at:'2026-10-14T12:00:00Z',state:'TX',first_name:'Assigned',assigned_to:'agent',assignee:'Agent Name'}].filter(l=>opt.body.p_states===null||opt.body.p_states.includes(l.state));return {available:leads.length,leads};}
    if(commitWait)await commitWait;if(stale)throw Object.assign(Error('Some leads changed'),{code:'40001'});if(failCommit)throw Error('Network error');return 2;
   };
@@ -38,7 +39,13 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
   assert.deepEqual(calls.at(-1).body,first,'Retry must preserve request ID and exact lead versions');assert.equal(calls.filter(c=>c.url.endsWith('_commit')).length,2,'Busy click must not duplicate');assert.match(reloaded,/2 leads taken back/);assert.equal(w.S.selected.size,0);assert.equal(w.q('#modal'),null);
   await w.openAgencyRecall('vivid_life');await w.q('#agencyRecallForm').onsubmit({preventDefault(){}});stale=true;await w.q('#recallConfirm').onclick();assert.equal(w.q('#recallConfirm').hidden,true);assert.match(w.q('#recallMessage').textContent,/Some leads changed/);stale=false;
   await w.chooseAgencyRecall();assert.match(w.q('#recallAgency').textContent,/Legacy Life \(archived\)/);w.q('#recallAgency').value='1';w.q('#recallAgencyForm').onsubmit({preventDefault(){}});await new Promise(resolve=>setImmediate(resolve));assert.match(w.q('#agencyRecallTitle').parentElement.textContent,/Legacy Life/);assert.equal(calls.at(-1).body.p_source,'legacy_life');
+  inventory=[{type:'AIL6',count:1587,states:[{state:'OH',count:50,pool:50,assigned:0},{state:'TX',count:1537,pool:0,assigned:1537}]}];
+  await w.openAgencyRecall('vivid_life');w.q('#recallType').value='0';w.q('#recallScope').value='pool';w.q('#recallScope').onchange();
+  assert.match(w.q('#recallType').selectedOptions[0].textContent,/AIL6 \(50 matching\)/);assert.match(w.q('#recallFolderTotals').textContent,/1,587 open · 50 unassigned · 1,537 assigned/);assert.match(w.q('#recallAvailableTitle').textContent,/50 leads match/);assert.match(w.q('#recallQuantityHelp').textContent,/100, but only 50/);assert.match(w.q('#recallScopeHelp').textContent,/1,537 assigned leads.*excluded/);assert.doesNotMatch(w.q('#recallNote').textContent,/removed from/);
+  w.q('#recallAllStates').checked=false;w.q('#recallAllStates').onchange({target:w.q('#recallAllStates')});assert.match(w.q('#recallAvailableTitle').textContent,/Select a state/);assert.match(w.q('#recallQuantityHelp').textContent,/enable Preview/);
+  checkState('OH',true);w.q('#recallIncludeAssigned').onclick();assert.equal(w.q('#recallScope').value,'all');assert.equal(w.q('.recallState[value="OH"]').checked,true,'Include assigned must preserve chosen states');assert.match(w.q('#recallAvailableTitle').textContent,/50 leads match/);
+  w.q('#recallAllStates').checked=true;w.q('#recallAllStates').onchange({target:w.q('#recallAllStates')});assert.match(w.q('#recallAvailableTitle').textContent,/1,587 leads match/);assert.equal(w.q('#recallIncludeAssigned').hidden,true);
   let releasePreview;previewWait=new Promise(resolve=>releasePreview=resolve);const pendingPreview=w.q('#agencyRecallForm').onsubmit({preventDefault(){}});w.S.profile.id='another-user';w.portalSessionEpoch++;releasePreview();await pendingPreview;assert.equal(w.q('#recallConfirm').hidden,true,'Old account preview must not appear');
-  console.log('PASS: Master button, single/multiple/empty states, scoped counts, filter invalidation, folder/scope/quantity preview, escaped content, explicit commit, invalidation, exact retry, busy guards, stale/account changes.');
+  console.log('PASS: screenshot quantity/count regression, assigned inclusion, Master button, single/multiple/empty states, scoped counts, filter invalidation, folder/scope/quantity preview, escaped content, explicit commit, invalidation, exact retry, busy guards, stale/account changes.');
  }finally{dom.window.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
