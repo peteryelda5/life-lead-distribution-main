@@ -1,0 +1,13 @@
+# Agency lead recall
+
+Super Master accounts can open **Management → Agencies → Take back leads** and choose any agency, including archived agencies and Legacy Life. Active agency cards also have their own shortcut. Choose a folder, include the agency pool and/or assigned leads, enter up to 1,000, preview, and confirm.
+
+The exact previewed records return to the unassigned Owner / Master pool. Notes, call notes, agent dispositions, imported fields, folder, original uploader and ownership provenance stay with the records. Closed lead status and any linked closed-business record exclude a lead. Former assignments are cleared, existing portable access is removed by its trigger, and existing row policies apply in the destination. Explicit separate grants to the Owner pool remain in force.
+
+Only an active, unarchived admin with `is_super_admin` and an AAL2 session may list agencies, preview, or recall. Ordinary admins, Jonah's cross-agency send rights, team leaders, and agents do not gain this capability. Generic Legacy send restrictions remain; the division trigger adds a narrowly scoped verified Master return to Owner for open, unassigned pool records.
+
+Deployment: apply `database/agency-lead-recall.sql` followed by `database/agency-lead-recall-trigger.sql` together in one migration. Both assignment release and agency move occur in the same transaction, with ordered row locks and all-record version checks. The private, RLS-enabled request ledger makes a retry of the same payload idempotent. A changed preview aborts every change. The existing lead history and delivery receipt triggers record the move; `agency_leads_reclaimed` records the prior assignees.
+
+Verification: `database/verify-agency-lead-recall.sql` uses temporary fixtures inside a rollback block to check pool and assigned recall, Legacy/archived selection, closed business, permissions, provenance, history, receipts, retries, and atomic stale rejection. `tests/agency-recall-dom.cjs` checks the UI flow, exact request replay, busy state, escaping, and account changes. `tests/portal-startup.cjs` checks actual deferred asset loading. Run Node tests with JSDOM available through `NODE_PATH`.
+
+No customer leads are moved by the migration or verification fixtures. Live phone/browser sessions are not required for this feature's database and DOM checks.
