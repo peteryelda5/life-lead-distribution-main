@@ -33,6 +33,23 @@ begin
   insert into public.closed_business(lead_id,agent_id,carrier,policy_type,monthly_premium,application_date)
   values(business_id,agent,'Test carrier','Test policy',1,current_date);
   set local role authenticated;
+  update public.leads set state=case when id=l1 then ' mi ' when id=l2 then 'TN' when id=l3 then null else 'MI' end where id in(l1,l2,l3,closed_id,business_id,outsider);
+  if (public.agency_recall_preview_states('vivid_life',batch,'all',100,array['MI'])->>'available')::int<>1 then raise exception 'State filter leaked closed business or another agency';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch,'all',100,array[' mi ','tn'])->>'available')::int<>2 then raise exception 'Multiple normalized states failed';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch,'assigned',100,array['MI'])->>'available')::int<>0 then raise exception 'State plus assigned filter failed';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch,'assigned',100,array['TN'])->>'available')::int<>1 then raise exception 'Assigned state filter failed';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch||'-missing','all',100,array['MI'])->>'available')::int<>0 then raise exception 'State plus folder filter failed';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch,'all',100,null)->>'available')::int<>3 then raise exception 'All states failed';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch,'all',100,array[]::text[])->>'available')::int<>0 then raise exception 'Empty states broadened to all';end if;
+  if (public.agency_recall_preview_states('vivid_life',batch,'all',100,array[''])->>'available')::int<>1 then raise exception 'Unknown state filter failed';end if;
+  if not exists(select 1 from jsonb_array_elements(public.agency_recall_options('vivid_life')) f cross join lateral jsonb_array_elements(f->'states') st where f->>'type'=batch and st->>'state'='MI' and (st->>'pool')::int=1 and (st->>'assigned')::int=0) then raise exception 'State availability counts wrong';end if;
+  -- Exercise a real filtered recall in a nested rollback so the broader fixture remains unchanged.
+  begin
+   bad:=public.agency_recall_preview_states('vivid_life',batch,'all',100,array['MI'])->'leads';
+   if bad->0->>'state'<>'MI' or public.agency_recall_commit('vivid_life',bad,gen_random_uuid())<>1 then raise exception 'Filtered recall failed';end if;
+   if not exists(select 1 from public.leads where id=l1 and division='owner') or (select count(*) from public.leads where id in(l2,l3) and division='vivid_life')<>2 then raise exception 'Filtered recall moved another state';end if;
+   raise exception using errcode='ZX002',message='Rollback state-only recall';
+  exception when sqlstate 'ZX002' then null;end;
   preview:=public.agency_recall_preview('vivid_life',batch,'all',100);
   if (preview->>'available')::int<>3 or jsonb_array_length(preview->'leads')<>3 then raise exception 'Preview failed to exclude closed business'; end if;
   if (public.agency_recall_preview('vivid_life',batch,'pool',100)->>'available')::int<>1 then raise exception 'Pool filter failed'; end if;
@@ -77,6 +94,8 @@ begin
    if not denied then raise exception 'Options permission leak';end if;
    denied:=false;begin perform public.agency_recall_preview('vivid_life',null,'all',10);exception when insufficient_privilege then denied:=true;end;
    if not denied then raise exception 'Preview permission leak';end if;
+   denied:=false;begin perform public.agency_recall_preview_states('vivid_life',null,'all',10,array['MI']);exception when insufficient_privilege then denied:=true;end;
+   if not denied then raise exception 'State preview permission leak';end if;
    denied:=false;begin perform public.agency_recall_commit('vivid_life',payload,req);exception when insufficient_privilege then denied:=true;end;
    if not denied then raise exception 'Commit permission leak';end if;
    if actor=agent and exists(select 1 from public.leads where id=l2) then raise exception 'Former agent can still read recalled lead';end if;
@@ -87,5 +106,5 @@ begin
  exception when sqlstate 'ZX001' then null;end;
  reset role;
  if exists(select 1 from auth.users where id in(agent,admin_id)) or exists(select 1 from public.leads where lead_type=batch) or exists(select 1 from private.agency_lead_recalls where request_id=req) then raise exception 'Fixtures persisted';end if;
- if has_function_privilege('anon','public.agency_recall_commit(text,jsonb,uuid)','execute') or has_table_privilege('authenticated','private.agency_lead_recalls','select,insert,update,delete') then raise exception 'Private recall state exposed';end if;
+ if has_function_privilege('anon','public.agency_recall_preview_states(text,text,text,integer,text[])','execute') or has_function_privilege('anon','public.agency_recall_commit(text,jsonb,uuid)','execute') or has_table_privilege('authenticated','private.agency_lead_recalls','select,insert,update,delete') then raise exception 'Private recall state exposed';end if;
 end $$;
