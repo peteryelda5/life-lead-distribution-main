@@ -17,4 +17,8 @@ Deployment order:
 
 Local verification: run `tests/lead-return-dom.cjs` and `tests/portal-startup.cjs` with JSDOM 26.1.0; `tests/lead-return-sql.cjs` uses PGlite 0.5.10 with a minimal local schema and the actual existing lead-history/portable cleanup behavior. This checks function behavior, permissions and trigger compatibility, but does not replace recovery/production verification or a signed-in browser check.
 
-Access blocker observed on October 19, 2026: the connected Supabase account does not list either LLD project; reads of the LLD production project return permission denied. No production database changes or customer lead returns have been performed for this feature.
+Deployment verification on October 19, 2026: LLD access was restored. Migration `return_personal_leads_to_agency_pool` was applied in recovery and production; the complete rollback-only SQL fixture passed on both deployed schemas. Subsequent checks found zero persisted test leads or returns, no anonymous execute permission, and no direct authenticated ledger access. No real customer leads were returned during verification.
+
+Security advisor comparison introduced no warning or error. The sole new informational notice is the private ledger having RLS without policies, which is intentional: clients have no table grants and all access goes through the guarded function. Existing unrelated advisor findings were unchanged. [Supabase RLS notice reference](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy).
+
+The UI is ready for the production Git release. A signed-in visual check is still a manual follow-up; local DOM/startup tests and the deployed database checks passed.
