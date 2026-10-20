@@ -12,7 +12,7 @@ function recordSessionCall(){}
 const $=id=>document.getElementById(id),labels={appointment_follow_up:'Appointment / Follow Up',call_back:'Call Back / Voicemail',not_interested:'Not Interested',dead_number:'Dead Number'},colors={appointment_follow_up:'blue',call_back:'orange',not_interested:'red',dead_number:'red'};
 let states=[],stateOptions=[],filteredCount=0;
 let folders=[],rows=[],current=null,offset=0,folderIndex=0,busy=false,reviewing=false,selected=new Map(),owner=null,epoch=0;
-let callbacks=null,parallel=null,incomingBusy=false,parallelBusy=false;
+let callbacks=null,parallel=null,operations=null,incomingBusy=false,parallelBusy=false;
 let callDevice=null,activeCall=null,callStarting=false,pendingOutcome=false,queueRunning=false,callEpoch=0,callStartedAt=0,callSessionToken=null,callSessionUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 async function freshSession(){if(typeof realWindow.sessionExpiresWithin==='function'&&realWindow.sessionExpiresWithin(120)){if(typeof realWindow.refreshToken!=='function'||!await realWindow.refreshToken())throw Error('Your session expired. Sign in again.');}const s=session();if(!s?.access_token)throw Error('Sign in to the portal and complete two-step verification.');return s;}
@@ -20,9 +20,10 @@ function callError(e){return Number(e.code)===31005?'Twilio could not connect th
 function message(t,error=false){$('message').textContent=t;$('message').classList.toggle('error',error)}
 async function api(body){const s=await freshSession();if(!s?.access_token)throw Error('Sign in to your portal account in the portal and complete two-step verification first.');if(owner&&owner!==s.user?.id)throw Error('Account changed. Reload this page.');const ticket=epoch,r=await fetch('/api/dialer/workspace-v2',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(30000)});let d;try{d=await r.json()}catch{throw Error('Workspace unavailable. Refresh after deployment finishes.')}if(ticket!==epoch||session()?.user?.id!==s.user?.id)throw Error('Account changed. Reload this page.');if(!r.ok)throw Error(d.error||'Request failed.');owner=s.user?.id;return d}
 function controls(){
+ operations?.changed();
  callbacks?.changed();
  if(window.updateDialerDisplay)window.updateDialerDisplay();
- const locked=busy||callStarting||!!activeCall||incomingBusy||parallelBusy,pickLocked=locked||pendingOutcome,access=!!accountState?.entitled&&accountState.realCallingAllowed;
+ const locked=busy||callStarting||!!activeCall||incomingBusy||parallelBusy,pickLocked=locked||pendingOutcome,access=!!accountState?.entitled&&accountState.realCallingAllowed&&(!operations||operations.canDial());
  for(const id of ['applystates','allstates','load','folders','selectpage','clear','previous','nextpage','review','browse'])$(id).disabled=pickLocked;
  $('callerslot').disabled=locked||pendingOutcome;const ready=folders.length>0;$('folders').disabled=pickLocked||!ready;$('selectpage').disabled=pickLocked||!rows.length||reviewing;$('clear').disabled=pickLocked||!selected.size;$('review').disabled=pickLocked||!selected.size;
  $('previous').disabled=pickLocked||offset===0||reviewing;$('nextpage').disabled=pickLocked||offset+rows.length>=filteredCount||reviewing;
@@ -66,7 +67,7 @@ async function save(next){
  pendingOutcome=false;saved=true;render();show(l);message('Saved to the original lead: '+labels[l.agent_status]+'. Its folder and assignment are unchanged.');
  if(next){const list=visible(),i=list.findIndex(x=>x.id===l.id);if(i+1<list.length){nextLead=list[i+1];show(nextLead)}else{queueRunning=false;message('Saved. You have reached the end of this queue.');controls()}}
  });
- if(saved&&nextLead&&next&&queueRunning)await startCall();
+ if(saved&&nextLead&&next&&queueRunning&&(!operations||await operations.beforeNext()))await startCall();
 }
 $('save').onclick=()=>save(false);$('savenext').onclick=()=>save(true);
 function finishCall(text,needsOutcome=true){
@@ -77,6 +78,7 @@ function finishCall(text,needsOutcome=true){
 }
 async function startCall(){
  if(busy||callStarting||activeCall||pendingOutcome||incomingBusy||parallelBusy||!current)return;
+ if(operations&&!operations.canDial()){queueRunning=false;message('Set your agent status to Ready and wait for the connection before calling.',true);controls();return;}
  if(!current.phone||current.agent_status==='dead_number'){queueRunning=false;message('This lead needs a valid Phone Number field and must not be marked Dead Number.',true);controls();return}
  const l=current,ticket=++callEpoch;let s;let attempted=false;
  callStarting=true;callSessionToken=null;callSessionUser=null;controls();$('callstatus').textContent='Checking call authorization…';
@@ -142,7 +144,7 @@ function renderScript(){const s=agencyScripts.find(s=>s.id===$('scriptselect').v
 $('scriptselect').onchange=renderScript;
 async function loadDisplayProfile(){try{const d=await api({action:'profile'});callerName=d.profile?.full_name||'Your account';$('profilename').textContent=callerName;$('profileinitials').textContent=callerName.split(/\s+/).slice(0,2).map(n=>n[0]).join('').toUpperCase();$('profileagency').textContent=String(d.profile?.division||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())||'Agent portal';agencyScripts=d.scripts||[];const select=$('scriptselect');select.replaceChildren();if(!agencyScripts.length){const o=document.createElement('option');o.textContent='No agency scripts yet';select.append(o);}for(const s of agencyScripts){const o=document.createElement('option');o.value=s.id;o.textContent=s.title+(s.lead_type?' · '+s.lead_type:'');select.append(o);}renderScript();}catch(e){$('scriptbody').textContent=e.message;}}
 async function loadCallHistory(){if(historyLoading)return;historyLoading=true;$('refreshhistory').disabled=true;$('historymessage').textContent='Loading your calls…';try{const d=await api({action:'history',offset:historyOffset});const calls=d.calls||[],body=$('historyrows');body.replaceChildren();for(const c of calls){const tr=document.createElement('tr');const status=c.finished?(c.call_status||'Ended'):'Confirming call duration';for(const value of [new Date(c.created_at).toLocaleString(),c.phone,status,clock(c.duration_seconds),String(c.used_minutes)]){const td=document.createElement('td');td.textContent=value;tr.append(td);}body.append(tr);}$('historymessage').textContent=calls.length?'Showing your '+calls.length+' most recent calls on this page.':'No calls on this page yet.';$('historyprevious').disabled=historyOffset===0;$('historynext').disabled=calls.length<50;}catch(e){$('historymessage').textContent=e.message;}finally{historyLoading=false;$('refreshhistory').disabled=false;}}
-function displayView(name){if(parallelBusy&&name!=='parallel'){message('Finish your Power Dialer batch and save the outcome before changing tabs.',true);return;}if(!['workspace','history','billing','manual',...(callbacks?['callbacks']:[]),...(parallel?['parallel']:[])].includes(name))return;if(name!=='manual'&&window.manualCalling?.()){message('Finish the manual call before changing dialer tabs.',true);return;}if(name!=='workspace'&&(activeCall||callStarting)){message('Finish this call before changing dialer tabs.',true);return;}for(const view of ['workspace','history','billing','manual',...(callbacks?['callbacks']:[]),...(parallel?['parallel']:[])]){const panel=$(view);if(panel)panel.hidden=view!==name;}document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===name);b.setAttribute('aria-selected',String(b.dataset.view===name));});if(name==='parallel')parallel?.show();if(name==='callbacks')callbacks?.show();if(name==='history')loadCallHistory();if(name==='billing')refreshUsage();}
+function displayView(name){if(parallelBusy&&name!=='parallel'){message('Finish your Power Dialer batch and save the outcome before changing tabs.',true);return;}if(!['workspace','history','billing','manual',...(callbacks?['callbacks']:[]),...(parallel?['parallel']:[]),...(operations?['priority','supervisor']:[])].includes(name))return;if(name!=='manual'&&window.manualCalling?.()){message('Finish the manual call before changing dialer tabs.',true);return;}if(name!=='workspace'&&(activeCall||callStarting)){message('Finish this call before changing dialer tabs.',true);return;}for(const view of ['workspace','history','billing','manual',...(callbacks?['callbacks']:[]),...(parallel?['parallel']:[]),...(operations?['priority','supervisor']:[])]){const panel=$(view);if(panel)panel.hidden=view!==name;}document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===name);b.setAttribute('aria-selected',String(b.dataset.view===name));});operations?.show(name);if(name==='parallel')parallel?.show();if(name==='callbacks')callbacks?.show();if(name==='history')loadCallHistory();if(name==='billing')refreshUsage();}
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>displayView(b.dataset.view));$('refreshhistory').onclick=loadCallHistory;$('historyprevious').onclick=()=>{if(!historyLoading){historyOffset=Math.max(0,historyOffset-50);loadCallHistory();}};$('historynext').onclick=()=>{if(!historyLoading){historyOffset+=50;loadCallHistory();}};
 window.addEventListener('storage',e=>{if(e.key==='lld_session'&&session()?.user?.id!==accountOwner){agencyScripts=[];callerName='';$('scriptbody').textContent='Account changed. Reload the page.';$('historyrows').replaceChildren();$('profilename').textContent='Account changed';}});
 controls();if(session()?.access_token){loadDisplayProfile();$('load').click();}else message('Sign in to the portal and complete two-step verification first.',true);
@@ -155,7 +157,8 @@ let connectedAt=0;
 let device=null,activeCall=null,busy=false,ready=false,callEpoch=0,startingToken=null,startingUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
-function controls(){ $('check').disabled=busy||!!activeCall;$('call').disabled=busy||!!activeCall||!ready||!$('permission').checked||!$('destination').value.trim();$('destination').disabled=$('caller').disabled=busy||!!activeCall;$('mute').disabled=!activeCall;$('hangup').disabled=!activeCall;}
+window.updateManualControls=controls;
+function controls(){ operations?.changed();$('check').disabled=busy||!!activeCall;$('call').disabled=busy||!!activeCall||!ready||!$('permission').checked||!$('destination').value.trim()||(operations&&!operations.canDial());$('destination').disabled=$('caller').disabled=busy||!!activeCall;$('mute').disabled=!activeCall;$('hangup').disabled=!activeCall;}
 async function authorization(){
  const sess=await freshSession();if(!sess?.access_token)throw Error('Sign in to the portal and complete two-step verification.');
  const response=await fetch('/api/dialer/token-v2',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sess.access_token},body:JSON.stringify({phoneNumber:$('destination').value,callerSlot:Number($('caller').value),permission:$('permission').checked}),cache:'no-store',signal:AbortSignal.timeout(60000)});
@@ -168,6 +171,7 @@ function cleanup(){connectedAt=0;callEpoch++;activeCall=null;busy=false;starting
 $('check').onclick=async()=>{busy=true;ready=false;controls();status('Checking your portal login and calling setup…');try{if(!window.Twilio?.Device)throw new Error('Calling support did not load. Check your internet connection and refresh.');await checkSetup();ready=true;status('Setup is ready. Click Call now and allow microphone access.');}catch(e){status(e.message,true)}finally{busy=false;controls()}};
 $('call').onclick=async()=>{
   if(busy||activeCall||incomingBusy||parallelBusy||!ready||!$('permission').checked)return;
+  if(operations&&!operations.canDial())return status('Set your agent status to Ready before calling.',true);
   busy=true;controls();const epoch=++callEpoch;
   try{
     $('test-timer').textContent='00:00';status('Preparing your call…');const data=await authorization();if(epoch!==callEpoch)return;display(data);startingToken=data.sessionToken;startingUser=session()?.user?.id;
@@ -194,10 +198,15 @@ $('sdk-note').textContent=window.Twilio?.Device?'Calling support loaded.':'Calli
 })();
 
 
-callbacks=window.createDialerCallbacks?.(root,{isBusy:()=>parallelBusy||busy||callStarting||!!activeCall||pendingOutcome||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{incomingBusy=value;queueRunning=false;controls();},openView:displayView,showIncomingLead:l=>{if(!busy&&!activeCall&&!callStarting&&!pendingOutcome){show(l);displayView('workspace');}},openLead:l=>{if(!allowChange())return false;show(l);displayView('workspace');return true;}})||null;
-parallel=window.createParallelPilot?.(root,{getSession:freshSession,isBusy:()=>busy||callStarting||!!activeCall||pendingOutcome||incomingBusy||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{parallelBusy=value;queueRunning=false;controls();},openView:displayView})||null;
-function dispose(){if(disposed)return;parallel?.dispose();callbacks?.dispose();noteBindings.forEach(fn=>fn());noteBindings=[];disposed=true;epoch++;queueRunning=false;callEpoch++;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy();window.disposeManual?.();for(const id of intervals)realWindow.clearInterval(id);for(const id of timeouts)realWindow.clearTimeout(id);for(const [name,fn] of listeners)realWindow.removeEventListener(name,fn);}
-return {root,dispose,setVisible(value){callbacks?.setVisible(value);},canLeave(){if(parallelBusy||incomingBusy||busy||accountBusy||callStarting||activeCall||window.manualCalling?.()){message('Finish the current call or request before changing portal tabs.',true);return false;}if(!allowChange())return false;queueRunning=false;return true;}};
+callbacks=window.createDialerCallbacks?.(root,{isBusy:()=>(operations&&!operations.canDial())||parallelBusy||busy||callStarting||!!activeCall||pendingOutcome||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{incomingBusy=value;queueRunning=false;controls();},openView:displayView,showIncomingLead:l=>{if(!busy&&!activeCall&&!callStarting&&!pendingOutcome){show(l);displayView('workspace');}},openLead:l=>{if(!allowChange())return false;show(l);displayView('workspace');return true;}})||null;
+parallel=window.createParallelPilot?.(root,{getSession:freshSession,canDial:()=>!operations||operations.canDial(),beforeNext:()=>operations?operations.beforeNext():true,isBusy:()=>busy||callStarting||!!activeCall||pendingOutcome||incomingBusy||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{parallelBusy=value;queueRunning=false;controls();},openView:displayView})||null;
+operations=window.createDialerOperations?.(root,{owner:session()?.user?.id,getSession:freshSession,
+ getActivity:()=>incomingBusy?'on_call':activeCall?(activeCall.status()==='open'?'on_call':'dialing'):callStarting?'dialing':window.manualCalling?.()?'on_call':parallel?.activity()||((pendingOutcome||dirty())?'wrap':'idle'),
+ getLead:()=>!$('parallel')?.hidden?parallel?.lead():current,
+ onChange:()=>{if(operations&&!operations.canDial())queueRunning=false;controls();parallel?.changed();window.updateManualControls?.();},openView:displayView,
+ openLead:l=>{if(!allowChange())return false;queueRunning=false;show(l);displayView('workspace');return true;}})||null;
+function dispose(){if(disposed)return;operations?.dispose();parallel?.dispose();callbacks?.dispose();noteBindings.forEach(fn=>fn());noteBindings=[];disposed=true;epoch++;queueRunning=false;callEpoch++;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy();window.disposeManual?.();for(const id of intervals)realWindow.clearInterval(id);for(const id of timeouts)realWindow.clearTimeout(id);for(const [name,fn] of listeners)realWindow.removeEventListener(name,fn);}
+return {root,dispose,setVisible(value){operations?.setVisible(value);callbacks?.setVisible(value);},canLeave(){if(parallelBusy||incomingBusy||busy||accountBusy||callStarting||activeCall||window.manualCalling?.()){message('Finish the current call or request before changing portal tabs.',true);return false;}if(!allowChange())return false;queueRunning=false;return true;}};
 };
 
 
