@@ -3,7 +3,7 @@
  'use strict';
  window.createDialerOperations=function(root,options){
   const browserId=crypto.randomUUID(),owner=options.owner;
-  let disposed=false,visible=true,mode='ready',verifiedAt=0,supervisor=false,changing=false,flight=null,again=false,lastActivity='',activeView='',priorityFlight=null,supervisorFlight=null,scheduleLead=null,scheduleId=null,latestTasks=[];
+  let disposed=false,visible=true,mode='ready',pendingMode=null,modeRevision=0,renderedMode='ready',statusError='',verifiedAt=0,supervisor=false,changing=false,flight=null,again=false,lastActivity='',activeView='',priorityFlight=null,supervisorFlight=null,scheduleLead=null,scheduleId=null,latestTasks=[];
   const labels={ready:'Ready',dialing:'Dialing',on_call:'On call',wrap:'Finishing notes',break:'Break',offline:'Offline'};
   const $=id=>root.querySelector('#'+id),sameOwner=()=>{try{return !disposed&&JSON.parse(localStorage.getItem('lld_session')||'null')?.user?.id===owner;}catch{return false;}};
   const bar=document.createElement('section');bar.className='agent-status-bar';bar.setAttribute('aria-label','Agent availability');
@@ -27,20 +27,27 @@
   function canDial(){return sameOwner()&&!changing&&verifiedAt>Date.now()-45000&&mode==='ready';}
   function draw(){
    if(disposed)return;const current=activity(),fresh=verifiedAt>Date.now()-45000;
-   const status=current==='idle'?mode:current;
+   const chosen=pendingMode??mode,status=current==='idle'?chosen:current;
    $('agentState').textContent=fresh?labels[status]:'Connection interrupted';bar.dataset.state=fresh?status:'offline';
-   $('agentMode').value=mode;$('agentMode').disabled=changing;
-   $('agentStateHint').textContent=!fresh?'New calls paused. Reconnecting…':current!=='idle'&&mode!=='ready'?labels[mode]+' after this call':mode==='ready'?'Ready for outgoing calls • use Go online for incoming calls':mode==='break'?'New calls paused • callers go to voicemail':'New calls paused • callers go to voicemail';
+   // Reassigning a native select on every refresh cancels an open popup / keyboard choice.
+   if(renderedMode!==chosen){$('agentMode').value=chosen;renderedMode=chosen;}
+   $('agentMode').disabled=false;
+   $('agentStateHint').textContent=statusError?'Could not save status. New calls paused; retrying…':changing?'Saving '+labels[chosen]+'…':!fresh?'New calls paused. Reconnecting…':current!=='idle'&&chosen!=='ready'?labels[chosen]+' after this call':chosen==='ready'?'Ready for outgoing calls • use Go online for incoming calls':'New calls paused • callers go to voicemail';
    $('agentTeam').hidden=!supervisor;$('agentSchedule').disabled=!options.getLead()||changing;
   }
-  async function presence(nextMode){
-   if(!sameOwner())return;if(flight){again=true;await flight;if(nextMode!==undefined)return presence(nextMode);return;}
-   changing=nextMode!==undefined;draw();
+  function presence(nextMode){
+   if(!sameOwner())return Promise.resolve();
+   if(nextMode!==undefined){pendingMode=nextMode;modeRevision++;changing=true;statusError='';draw();options.onChange();}
+   if(flight){again=true;return flight;}
+   const sentMode=pendingMode,revision=modeRevision,sentActivity=activity();
    flight=(async()=>{try{
-    const d=await request('presence',{browserId,activity:activity(),visible, ...(nextMode===undefined?{}:{mode:nextMode})});
-    mode=d.mode;supervisor=d.supervisor;verifiedAt=Date.now();lastActivity=activity();
-   }catch(e){verifiedAt=0;$('priorityMessage').textContent=e.message;}
-   finally{changing=false;flight=null;draw();options.onChange();if(again){again=false;presence();}}})();await flight;
+    const d=await request('presence',{browserId,activity:sentActivity,visible, ...(sentMode===null?{}:{mode:sentMode})});
+    if(!sameOwner())return;
+    if(!Object.hasOwn(labels,d.mode)||!['ready','break','offline'].includes(d.mode))throw Error('Invalid availability response.');
+    mode=d.mode;supervisor=d.supervisor;verifiedAt=Date.now();lastActivity=sentActivity;statusError='';
+    if(sentMode!==null&&revision===modeRevision)pendingMode=null;
+   }catch(e){verifiedAt=0;statusError=e.message;}
+   finally{changing=pendingMode!==null;flight=null;if(sameOwner()){draw();options.onChange();if(again){again=false;presence();}}}})();return flight;
   }
   function changed(){draw();const current=activity();if(current!==lastActivity){lastActivity=current;presence();}}
   function textElement(tag,text,className){const el=document.createElement(tag);el.textContent=text;if(className)el.className=className;return el;}
