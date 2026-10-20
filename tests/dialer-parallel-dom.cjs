@@ -6,7 +6,7 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
 (async()=>{
  const dom=new JSDOM('<body><div id="root"></div></body>',{url:'https://www.lldportal.com',runScripts:'outside-only'}),w=dom.window;let instance;
  try{
- const owner='77777777-7777-4777-8777-777777777777',session={user:{id:owner},access_token:'test'};w.localStorage.setItem('lld_session',JSON.stringify(session));w.AbortSignal=AbortSignal;w.confirm=()=>false;w.sessionExpiresWithin=()=>false;w.S={session,profile:{id:owner}};w.portalSessionEpoch=0;
+ const owner='77777777-7777-4777-8777-777777777777',session={user:{id:owner},access_token:'test'};w.localStorage.setItem('lld_session',JSON.stringify(session));Object.defineProperty(w.document,'hidden',{value:false});w.AbortSignal=AbortSignal;w.confirm=()=>false;w.sessionExpiresWithin=()=>false;w.S={session,profile:{id:owner}};w.portalSessionEpoch=0;
  let dialogOpens=0;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;dialogOpens++;};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
  const timers=[];w.setInterval=(fn,ms)=>{timers.push({fn,ms});return timers.length;};w.clearInterval=()=>{};
  let microphoneError=false,stopError=false,access=true,agentMode='ready',saveError=false;let priorityTasks=[];Object.defineProperty(w.navigator,'mediaDevices',{value:{getUserMedia:async()=>{if(microphoneError)throw Object.assign(Error('Denied'),{name:'NotAllowedError'});return{getTracks:()=>[{stop(){}}]};}}});
@@ -14,7 +14,8 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
  let state=null,activeCall,starts=0,prepareGate=null;const requests=[];
  class Device extends Events{async connect(){state.state='ready';return activeCall=new Call();}destroy(){}}
  w.Twilio={Device};w.fetch=async(url,opt)=>{const b=JSON.parse(opt.body);requests.push({url,...b});let data;
- if(url==='/api/dialer/operations'){
+ if(url==='/api/dialer/conversations'){data={conversation:null,lines:[]};}
+ else if(url==='/api/dialer/operations'){
   if(b.action==='presence'){agentMode=b.mode||agentMode;data={mode:agentMode,supervisor:true};}
   else if(b.action==='priority')data={due:priorityTasks.length,total:priorityTasks.length,tasks:priorityTasks};
   else if(b.action==='supervisor')data={updatedAt:new Date().toISOString(),agents:[]};
@@ -35,7 +36,7 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
  else if(b.action==='save'){if(saveError)return{ok:false,status:409,json:async()=>({error:'Lead changed in another window'})};const l=leads.find(l=>l.id===b.leadId);assert.equal(b.expectedNotes,l.call_notes);assert.equal(b.expectedStatus,l.agent_status);l.call_notes=b.notes;l.agent_status=b.status;data={lead:{...l}};}
  else throw Error('Unexpected API '+url+' '+b.action);
  return {ok:true,status:200,json:async()=>data};};
- w.eval(fs.readFileSync(__dirname+'/../dialer-operations.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-parallel.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../portal-dialer.js','utf8'));
+ w.eval(fs.readFileSync(__dirname+'/../dialer-conversations.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-operations.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-parallel.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../portal-dialer.js','utf8'));
  const root=w.document.querySelector('#root'),$=id=>root.querySelector('#'+id);instance=w.createPortalDialer(root);await flush();
  assert.equal(root.querySelector('[data-view="parallel"]').textContent,'Power Dialer');root.querySelector('[data-view="parallel"]').click();await flush();
  assert.equal($('parallel').hidden,false);assert.equal($('powerMode').value,'human','Voicemail detection must be the default');assert.equal($('powerMode').options.length,1,'Unsafe fast connection is still offered');assert.equal($('powerSetup').hidden,true);assert.equal($('powerRows').querySelectorAll('input').length,4);assert.equal($('powerRows').querySelectorAll('input')[3].disabled,true);assert.equal(root.querySelector('img[src=x]'),null,'Lead data became HTML');
@@ -51,7 +52,7 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
  root.querySelector('[data-view="manual"]').click();assert.equal($('parallel').hidden,false);$('powerMute').click();assert.equal(activeCall.muted,true);
  state.legs[0].state='in-progress';await timers.find(t=>t.ms===1200).fn();await flush();assert.match(firstCard.textContent,/Checking answer/);assert.equal(dialogOpens,0);
  state.legs[0].outcome='machine';state.legs[0].answer='machine';state.legs[0].state='completed';await timers.find(t=>t.ms===1200).fn();await flush();assert.match(firstCard.textContent,/Machine \/ screening/);assert.equal(dialogOpens,0,'A machine must not open a connected-lead popup');
- state.state='connected';state.winnerId='leg1';state.legs[1].outcome='connected';await timers.find(t=>t.ms===1200).fn();await flush();assert.equal($('powerCards').firstChild,firstCard,'Polling replaced live cards');assert.match($('powerName').textContent,/Lead 2/);assert.match($('powerDetails').textContent,/61/);assert.equal($('powerSave').disabled,true);assert.equal($('powerConnectedDialog').open,true);assert.equal(dialogOpens,1);assert.equal($('powerDialogBody').querySelector('#powerName'),$('powerName'),'Popup must contain the real lead editor');assert.equal($('powerDialogStop').disabled,false);
+ state.state='connected';state.winnerId='leg1';state.legs[1].outcome='connected';await timers.find(t=>t.ms===1200).fn();await flush();assert.equal($('powerCards').firstChild,firstCard,'Polling replaced live cards');assert.match($('powerName').textContent,/Lead 2/);assert.match($('powerDetails').textContent,/61/);assert.equal($('powerSave').disabled,true);assert.equal($('powerConnectedDialog').open,true);assert.equal(dialogOpens,1);assert.equal($('powerDialogBody').querySelector('#powerName'),$('powerName'),'Popup must contain the real lead editor');assert.equal($('powerDialogStop').disabled,false);await timers.find(t=>t.ms===1500).fn();await flush();assert.equal($('powerDialogBody').querySelector('.conversation-panel'),root.querySelector('.conversation-panel'));const conversationRequest=requests.filter(r=>r.url==='/api/dialer/conversations').at(-1);assert.equal(conversationRequest?.kind,'power');assert.equal(conversationRequest?.id,state.id);
  $('powerDialogMute').click();assert.equal(activeCall.muted,false);assert.equal($('powerMute').textContent,'Mute');
  $('powerDialogMinimize').click();assert.equal($('powerConnectedDialog').open,false);assert.equal($('powerReopen').hidden,false);await timers.find(t=>t.ms===1200).fn();await flush();assert.equal(dialogOpens,1,'Polling reopened a minimized card');$('powerReopen').click();assert.equal(dialogOpens,2);
  $('powerNotes').value='Customer asked for a callback tomorrow';$('powerNotes').dispatchEvent(new w.Event('input'));
