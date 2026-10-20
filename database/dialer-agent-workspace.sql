@@ -138,7 +138,7 @@ declare result jsonb; day_start timestamptz:=(date_trunc('day',now() at time zon
 begin
  if not exists(select 1 from public.profiles where id=p_user and active and not coalesce(archived,false) and (role='admin' or (role='agent' and is_team_leader))) then raise exception 'Supervisor access required' using errcode='42501';end if;
  select jsonb_build_object('updatedAt',now(),'dayStart',day_start,'agents',coalesce(jsonb_agg(to_jsonb(x) order by x.full_name,x.id),'[]'::jsonb)) into result from (
-  select p.id,p.full_name,p.division,
+  select p.id,p.full_name,coalesce(agency.name,'Unknown agency') as division,
    case when coalesce(live_power.state,'')='connected' or inbound.active then 'on_call'
     when live_power.state is not null or calls.active then 'dialing'
     when presence.browser_id is null then 'offline'
@@ -148,6 +148,7 @@ begin
    coalesce(calls.attempts,0) attempts,coalesce(calls.seconds,0) call_seconds,coalesce(calls.errors,0) errors,
    coalesce(power.conversations,0) power_conversations,coalesce(inbound.missed,0) missed_callbacks
   from private.dialer_workspace_scope(p_user) scoped(id) join public.profiles p on p.id=scoped.id
+  left join public.divisions agency on agency.id=p.division
   left join public.dialer_agent_preferences prefs on prefs.user_id=p.id and prefs.livemode=p_live
   left join lateral (select a.* from public.dialer_agent_presence a where a.user_id=p.id and a.livemode=p_live and a.visible
    and a.updated_at>now()-interval '50 seconds' and private.dialer_session_active(a.user_id,a.session_id)
