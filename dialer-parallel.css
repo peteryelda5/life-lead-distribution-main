@@ -4,14 +4,66 @@
 .power-lines{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:20px}.power-lines:empty{display:none}.power-workspace .power-line{display:flex;flex-direction:column;text-align:left;gap:7px;background:#fff;padding:17px;min-height:142px;border:1px solid var(--power-line);border-radius:12px}.power-line-number{font-size:10px;font-weight:800;letter-spacing:1.4px;color:var(--power-muted)}.power-line strong{font-size:17px;overflow-wrap:anywhere}.power-line-phone{font-size:13px;color:var(--power-muted)}.power-line-state{font-size:12px;font-weight:700;color:#38738b;margin-top:3px}.power-workspace .power-line.connected{border:2px solid #1c8c70;background:#eaf8f1}.power-workspace .power-line.follow-up{border-color:#e4b957;background:#fffaec}.power-columns{display:grid;grid-template-columns:minmax(330px,1.05fr) minmax(330px,1fr);gap:20px;align-items:start}.power-panel{background:#fff;border:1px solid var(--power-line);border-radius:15px;padding:20px}.power-section-title{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:17px}.power-section-title h3{font-size:16px;margin:0}.power-section-title p{font-size:12px}.power-section-title button{font-size:12px;padding:8px 10px}.power-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,.65fr);gap:12px;align-items:end;margin-bottom:12px}.power-filters details{border:1px solid #cdd8e1;border-radius:8px;padding:11px;position:relative;font-size:13px}.power-filters summary{cursor:pointer}.power-filters details[open]{grid-column:1/-1}.power-filters details[open] #powerStateChoices{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:15px 0;max-height:200px;overflow:auto}.power-filters #powerStateChoices label{flex-direction:row;align-items:center}.power-workspace input[type=checkbox]{width:17px;height:17px;accent-color:#177c67;flex-shrink:0}.power-queue-actions{display:flex;gap:8px;align-items:center;margin:13px 0}.power-queue-actions button{font-size:11px;padding:6px 9px;min-height:32px}.power-queue-actions span{font-size:11px;color:var(--power-muted);margin-left:auto}.power-rows{max-height:480px;overflow:auto;border-top:1px solid var(--power-line)}.power-workspace .power-row{display:flex;flex-direction:row;gap:12px;align-items:center;border-bottom:1px solid #edf1f5;padding:14px 2px}.power-row>span{min-width:0;flex:1}.power-row strong{display:block;font-size:14px;overflow-wrap:anywhere}.power-row small{display:block;font-size:12px;color:var(--power-muted);font-weight:400;margin-top:5px}.power-row button{font-size:12px;padding:6px 10px;min-height:32px}.power-pagination{display:flex;justify-content:space-between;margin-top:14px}.power-pagination button{font-size:12px}.power-empty{text-align:center;padding:70px 24px;color:var(--power-muted)}.power-empty-icon{display:inline-grid;place-items:center;border-radius:50%;width:62px;height:62px;background:#edf5f3;font-size:26px;color:#27836f}.power-empty h3{font-size:17px;color:var(--power-ink);margin-top:20px}.power-empty p{font-size:14px;line-height:1.7}.power-lead h2{font-size:24px;margin:15px 0 6px}.power-lead #powerContact{font-size:16px;color:#217963}.power-lead dl{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-height:260px;overflow:auto;padding:14px;background:#f5f8fa;border-radius:9px}.power-lead dt{font-size:11px;color:var(--power-muted);margin-bottom:4px}.power-lead dd{font-size:13px;margin:0;overflow-wrap:anywhere}.power-lead label{margin:16px 0}.power-lead textarea{min-height:130px;resize:vertical}.power-lead #powerSaveMessage{font-size:13px;line-height:1.5}.power-history{margin-top:20px}.power-history summary{cursor:pointer;font-size:14px;font-weight:700}.power-history>button{margin-top:15px}.power-history-row{display:flex;align-items:center;gap:10px;border-bottom:1px solid #edf1f5;padding:12px 0;font-size:13px}.power-history-row span{flex:1}.power-history-row button{font-size:12px}.power-footnote{margin:18px 3px 0}.power-workspace [hidden]{display:none!important}
 @media(max-width:1000px){.power-columns{grid-template-columns:1fr}.power-toolbar label{min-width:130px}.power-actions{width:100%}.power-rows{max-height:350px}.power-empty{padding:35px 18px}}
 @media(max-width:600px){.power-workspace{padding:14px!important}.power-heading{align-items:start}.power-heading h2{font-size:25px}.power-heading p{font-size:12px}.power-lines{grid-template-columns:1fr}.power-workspace .power-line{min-height:100px}.power-panel{padding:14px}.power-filters{grid-template-columns:1fr}.power-filters details[open] #powerStateChoices{grid-template-columns:repeat(2,1fr)}.power-history-row{flex-wrap:wrap}.power-history-row span{flex-basis:100%}.power-queue-actions{flex-wrap:wrap}.power-queue-actions span{margin-left:0}}
-.power-workspace .power-reopen{margin:0 0 18px}
-.power-workspace .power-connected-dialog{box-sizing:border-box;width:min(920px,calc(100vw - 32px));max-width:none;max-height:calc(100dvh - 32px);padding:0;border:1px solid #cdd8e1;border-radius:18px;color:var(--power-ink);background:#f4f7fa;box-shadow:0 25px 85px #092b4955;overflow:auto}
-.power-connected-dialog::backdrop{background:#102a4380}
-.power-dialog-header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 24px;background:#fff;border-bottom:1px solid var(--power-line)}
-.power-dialog-header h2{font-size:24px;margin:4px 0}.power-dialog-header p{font-size:13px;margin:6px 0 0;color:var(--power-muted)}
-.power-dialog-actions{display:flex;gap:8px;flex-wrap:wrap}.power-dialog-actions button{white-space:nowrap}
-.power-workspace .power-connected-dialog>.power-message{margin:14px 24px 0}.power-workspace .power-connected-dialog>.power-message:empty{display:none}
-#powerDialogBody{padding:18px 24px 24px}.power-connected-dialog .power-lead{border-radius:12px}.power-connected-dialog .power-lead dl{max-height:none}.power-connected-dialog .power-lead h2{font-size:28px}
-@media(max-width:600px){.power-workspace .power-connected-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:12px}.power-dialog-header{padding:14px;align-items:start;flex-direction:column;gap:10px}.power-dialog-header h2{font-size:21px}.power-dialog-actions{width:100%}.power-dialog-actions button{flex:1;padding:8px;font-size:12px}.power-workspace .power-connected-dialog>.power-message{margin:12px 14px 0}#powerDialogBody{padding:12px 14px 14px}.power-connected-dialog .power-lead h2{font-size:23px}.power-connected-dialog .power-lead dl{grid-template-columns:1fr}}
-
-.power-workspace .power-row .power-returned{color:#177c67;font-weight:700}
+/* The connected lead is a non-modal drawer: the queue stays visible and usable. */
+#portalDialer{--power-sidebar-width:clamp(400px,36vw,560px)}
+#portalDialer.power-sidebar-open{padding-right:calc(var(--power-sidebar-width) + 16px)}
+#portalDialer.power-sidebar-open #parallel{max-width:none}
+#portalDialer.power-sidebar-open .power-columns{grid-template-columns:minmax(0,1fr)}
+#portalDialer.power-sidebar-open .power-workspace{padding:18px!important}
+#portalDialer.power-sidebar-open .power-heading{margin-bottom:14px}
+#portalDialer.power-sidebar-open .power-heading h2{font-size:25px}
+#portalDialer.power-sidebar-open .power-heading p{font-size:13px}
+#portalDialer.power-sidebar-open .power-toolbar{gap:10px;padding:12px}
+#portalDialer.power-sidebar-open .power-toolbar label{min-width:130px}
+#portalDialer.power-sidebar-open .power-toolbar label:nth-child(3){flex:1 1 100%}
+#portalDialer.power-sidebar-open .power-actions{width:100%}
+#portalDialer.power-sidebar-open .power-line{padding:12px;min-height:120px}
+#portalDialer.power-sidebar-open .power-line strong{font-size:14px}
+#portalDialer.power-sidebar-open .power-queue{padding:16px}
+#portalDialer .power-reopen{margin:0 0 18px}
+#portalDialer .power-connected-dialog{position:fixed;inset:80px 16px 16px auto;box-sizing:border-box;width:var(--power-sidebar-width);max-width:calc(100vw - 24px);height:auto;max-height:none;margin:0;padding:0;border:1px solid #dce5f0;border-radius:12px;color:#173047;background:#fff;box-shadow:-8px 8px 32px #10233f14;overflow:hidden;z-index:60}
+#portalDialer .power-connected-dialog[open]{display:flex;flex-direction:column}
+#portalDialer .power-connected-dialog.is-expanded{width:min(820px,calc(100vw - 32px))}
+#portalDialer .power-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:#f4f8fd;border-bottom:1px solid #dce5f0;flex-shrink:0}
+#portalDialer .power-dialog-header h2{font-size:17px;line-height:1.3;margin:0}
+#portalDialer .power-dialog-actions{display:flex;gap:6px;flex-shrink:0}
+#portalDialer .power-dialog-actions button{font-size:12px;padding:6px 9px;min-height:32px;white-space:nowrap}
+#portalDialer #powerDialogBody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:0 16px}
+#portalDialer .power-dialog-footer{flex-shrink:0;padding:12px 16px;background:#fff;border-top:1px solid #dce5f0}
+#portalDialer .power-dialog-controls{display:grid;grid-template-columns:.8fr 1fr 1.1fr;gap:8px}
+#portalDialer .power-dialog-controls button{font-size:13px;padding:10px 6px;min-height:42px}
+#portalDialer .power-dialog-controls .danger{background:#e52c43;border-color:#e52c43;color:#fff}
+#portalDialer .power-dialog-controls .primary{background:#2563eb;border-color:#2563eb;color:#fff}
+#portalDialer .power-dialog-footer .power-message{font-size:12px;line-height:1.4;margin:0 0 10px;min-height:0}
+#portalDialer .power-dialog-footer .power-message:empty,#portalDialer .power-dialog-footer .power-message:not(.error){display:none}
+#portalDialer .power-connected-dialog .power-lead{border:0;border-radius:0;padding:0}
+#portalDialer .power-connected-dialog .power-lead-section-title,#portalDialer .power-connected-dialog #powerSave{display:none}
+#portalDialer .power-lead-heading{display:flex;align-items:center;gap:10px;padding:16px 0 10px}
+#portalDialer .power-avatar{display:grid;place-items:center;flex:0 0 40px;height:40px;border-radius:50%;background:#e2efff;color:#173e72;font-size:17px;font-weight:750}
+#portalDialer .power-lead-identity{min-width:0;flex:1}
+#portalDialer .power-lead-heading h2{font-size:19px;line-height:1.3;margin:0 0 3px;overflow-wrap:anywhere}
+#portalDialer .power-lead #powerContact{font-size:14px;margin:0;color:#48617d}
+#portalDialer .power-lead-connection{display:flex;flex-direction:column;align-items:end;gap:5px}
+#portalDialer .power-lead-connection .power-status{padding:4px 8px;font-size:11px}
+#portalDialer #powerCallTime{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+#portalDialer .power-connected-state{font-size:12px;color:#61738b;line-height:1.4;margin:0 0 10px}
+#portalDialer .power-lead .power-quick-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;padding:12px 0;margin:0;border-top:1px solid #e8edf4;border-radius:0;background:none;max-height:none}
+#portalDialer .power-quick-details dt{font-size:11px;margin-bottom:3px;color:#71829a}
+#portalDialer .power-quick-details dd{font-size:13px;margin:0;overflow-wrap:anywhere}
+#portalDialer .power-all-details>summary{font-size:12px;color:#2563eb;padding:8px 0;cursor:pointer}
+#portalDialer .power-all-details dl{max-height:240px;margin:6px 0 12px}
+#portalDialer .power-previous-notes{padding:10px 12px;margin:8px 0 12px;border:1px solid #f0d9a7;border-radius:7px;background:#fff9ed}
+#portalDialer .power-previous-notes summary{font-size:12px;font-weight:700;cursor:pointer}
+#portalDialer #powerPreviousText{max-height:150px;overflow:auto;font-size:13px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0 0}
+#portalDialer .power-note-editor{border-top:1px solid #e8edf4;padding-top:4px}
+#portalDialer .power-note-editor label{font-size:13px;margin:12px 0;gap:7px}
+#portalDialer .power-note-editor textarea{height:80px;min-height:70px;font-size:14px;line-height:1.4;resize:vertical}
+#portalDialer .power-note-editor select{font-size:14px;padding:9px;min-height:38px}
+#portalDialer .power-save-actions{display:flex;gap:8px;margin:12px 0}
+#portalDialer .power-save-actions:has(button:not([hidden])){min-height:0}
+#portalDialer .power-save-actions button{font-size:12px;flex:1}
+#portalDialer #powerSaveMessage{font-size:12px;color:#526b86;margin:8px 0}
+#portalDialer .power-row .power-returned{color:#177c67;font-weight:700}
+@media(max-width:1100px) and (min-width:801px){#portalDialer.power-sidebar-open .power-lines{grid-template-columns:1fr}#portalDialer.power-sidebar-open .power-line{min-height:0;display:grid;grid-template-columns:55px 1fr;gap:5px 10px}#portalDialer.power-sidebar-open .power-line-phone,#portalDialer.power-sidebar-open .power-line-state{grid-column:2}#portalDialer.power-sidebar-open .power-filters{grid-template-columns:1fr}#portalDialer.power-sidebar-open .session-stats{display:none}}
+@media(max-width:800px){#portalDialer.power-sidebar-open{padding-right:0}#portalDialer .power-connected-dialog{width:min(440px,calc(100vw - 24px));inset:72px 12px 12px auto}#portalDialer .power-connected-dialog.is-expanded{width:calc(100vw - 24px)}}
+@media(max-width:420px){#portalDialer .power-dialog-header{padding:10px 12px;flex-wrap:wrap}#portalDialer #powerDialogBody{padding:0 12px}#portalDialer .power-dialog-footer{padding:10px 12px}#portalDialer .power-lead-heading h2{font-size:17px}#portalDialer .power-avatar{display:none}}
