@@ -29,6 +29,7 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
  }
  if(u.pathname.endsWith('/dialer_parallel_sessions')){if(opt.method==='PATCH'){Object.assign(s,body);return json([s]);}if(u.searchParams.get('select')==='reserved_cents')return json([{reserved_cents:50}]);return json(!u.searchParams.has('user_id')||u.searchParams.get('user_id')==='eq.'+s.user_id?[{...s}]:[]);}
  if(u.pathname.endsWith('/dialer_parallel_legs')){if(opt.method==='PATCH'){const l=legs.find(l=>'eq.'+l.id===u.searchParams.get('id'));Object.assign(l,body);return json([l]);}return json(legs.map(l=>({...l})));}
+ if(u.pathname.endsWith('/leads')){assert.equal(u.searchParams.get('assigned_to'),'eq.'+s.user_id);assert.equal(u.searchParams.get('status'),'eq.assigned');return json(legs.filter(l=>u.searchParams.get('id').includes(l.lead_id)).map(l=>({id:l.lead_id,call_notes:'Existing notes\nAutomatic follow-up note',phone:l.phone})));}
  if(u.pathname.endsWith('/dialer_calls'))return json([]);
  if(u.pathname.endsWith('/dialer_numbers'))return json([{phone:s.caller_id}]);
  if(u.pathname.endsWith('/master_dialer_numbers'))return json([]);
@@ -88,11 +89,12 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  await assert.rejects(parallel.action({body:{...fastPrep,connectMode:'bad'}},{id:owner,sessionId:authSession,live:true}),/connection mode/);
 
  // Ordinary paid agents use the root provider account, with their own lead ledger.
- reset();s.kind='leads';s.user_id='77777777-7777-4777-8777-777777777777';s.max_seconds=1800;s.state='ready';s.connect_mode='fast';
+ reset();s.kind='leads';s.user_id='77777777-7777-4777-8777-777777777777';s.max_seconds=1800;s.state='ready';s.connect_mode='fast';legs.forEach((leg,i)=>leg.lead_id='55555555-5555-4555-8555-'+String(i+1).padStart(12,'0'));
  await parallel.launch(await parallel.get(id));assert.equal(creates,3);assert.equal(maxInFlight,3,'Power calls were launched serially');
  res=response();await parallel.events(webhook('answer',legs[0]),res);assert.match(res.data,/timeLimit="1860"/);
  res=response();await parallel.events(webhook('answer',legs[1]),res);assert.match(res.data,/Please call/);assert(!res.data.includes('dialer test'));
- await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
+ const paidUser={id:s.user_id,sessionId:authSession,live:true};const updated=await parallel.action({body:{action:'status',id}},paidUser);assert.equal(updated.leads.length,1);assert.equal(updated.leads[0].id,legs[1].lead_id);assert.match(updated.leads[0].call_notes,/Automatic follow-up note/);
+ const ended=await parallel.action({body:{action:'stop',id}},paidUser);assert.equal(s.state,'complete');assert.equal(ended.leads[0].id,legs[1].lead_id);assert.match(ended.leads[0].call_notes,/Automatic follow-up note/);
  // Lead batches keep ringing after a machine or unknown answer; only a human wins.
  reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';
  await parallel.launch(await parallel.get(id));assert.equal(creates,3);assert.equal(maxInFlight,3);

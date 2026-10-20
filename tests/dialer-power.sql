@@ -1,7 +1,7 @@
 -- Synthetic users, sessions, leads and billing rows; everything rolls back.
 do $$
 declare u uuid:=gen_random_uuid(); other_user uuid:=gen_random_uuid(); auth_session uuid:=gen_random_uuid(); batch uuid:=gen_random_uuid(); new_batch uuid;
- lead_ids uuid[]:='{}'; leg_ids uuid[]; l uuid; n integer; result jsonb; rejected boolean;
+ lead_ids uuid[]:='{}'; leg_ids uuid[]; l uuid; n integer; result jsonb; rejected boolean; overflow_notes text;
  phones text[]:=array['+12025550194','+12025550195','+12025550196']; caller text:='+12025550198'; account text:='AC'||repeat('a',32); agent text:='CA'||replace(gen_random_uuid()::text,'-','');
  call_one text:='CA'||replace(gen_random_uuid()::text,'-','');call_two text:='CA'||replace(gen_random_uuid()::text,'-','');
 begin
@@ -15,7 +15,7 @@ begin
   insert into public.dialer_periods(user_id,livemode,starts_at,ends_at,subscription_id,customer_id) select user_id,livemode,period_start,period_end,subscription_id,customer_id from public.dialer_accounts where user_id=u;
   insert into public.dialer_numbers(user_id,livemode,slot,phone,state) values(u,true,1,caller,'active');
   for n in 1..3 loop
-   insert into public.leads(first_name,phone,division,status,assigned_to,call_notes) values('Power lead '||n,phones[n],'vivid_life','assigned',u,'Preserve original notes') returning id into l;lead_ids:=array_append(lead_ids,l);
+   insert into public.leads(first_name,phone,division,status,assigned_to,call_notes,lead_type,agent_status) values('Power lead '||n,phones[n],'vivid_life','assigned',u,'Preserve original notes','Followup Fixture',case when n=2 then 'appointment_follow_up' else 'none' end) returning id into l;lead_ids:=array_append(lead_ids,l);
   end loop;
   perform set_config('request.jwt.claims','{"role":"service_role"}',true);set local role service_role;
   if not public.dialer_parallel_allowed(u) or not public.dialer_parallel_allowed(other_user) then raise exception 'Active agents/admins cannot see Power Dialer';end if;
@@ -35,6 +35,22 @@ begin
   perform public.dialer_parallel_event(batch,'bind',leg_ids[1],call_one);
   result:=public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'answered');if result->>'result'<>'winner' then raise exception 'First pickup did not connect';end if;
   result:=public.dialer_parallel_event(batch,'answer',leg_ids[2],call_two,'answered');if result->>'result'<>'overflow' then raise exception 'Second pickup stole connection';end if;
+  select call_notes into overflow_notes from public.leads where id=lead_ids[2];
+  if overflow_notes not like E'Preserve original notes\n\n[Power Dialer — % ET] Call answered while you were connected to another lead. This call was not connected to you. Follow-up needed.' then raise exception 'Missing overflow note or prior notes overwritten';end if;
+  if not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[2] and followup_noted_at is not null) then raise exception 'Note receipt missing';end if;
+  perform public.dialer_parallel_event(batch,'answer',leg_ids[2],call_two,'answered');
+  if (select call_notes from public.leads where id=lead_ids[2]) is distinct from overflow_notes then raise exception 'Duplicate provider event duplicated note';end if;
+  update public.leads set call_notes=call_notes||E'\nAgent added another note.' where id=lead_ids[2];
+  overflow_notes:=overflow_notes||E'\nAgent added another note.';
+  perform public.dialer_parallel_event(batch,'answer',leg_ids[2],call_two,'answered');
+  if (select call_notes from public.leads where id=lead_ids[2]) is distinct from overflow_notes then raise exception 'Repeat callback overwrote later edits';end if;
+  if not exists(select 1 from public.leads where id=lead_ids[2] and agent_status='appointment_follow_up' and lead_type='Followup Fixture' and assigned_to=u) then raise exception 'Overflow changed lead status, folder or owner';end if;
+  -- A reassignment racing a late overflow cannot write notes into another agent's lead.
+  update public.leads set assigned_to=other_user where id=lead_ids[3];
+  update public.dialer_parallel_legs set outcome='second_answer' where id=leg_ids[3];
+  if (select call_notes from public.leads where id=lead_ids[3])<>'Preserve original notes' or (select followup_noted_at from public.dialer_parallel_legs where id=leg_ids[3]) is not null then raise exception 'Reassigned lead received overflow note';end if;
+  update public.dialer_parallel_legs set outcome=null where id=leg_ids[3];
+  update public.leads set assigned_to=u where id=lead_ids[3];
   perform public.dialer_parallel_event(batch,'reject',leg_ids[3],null,null,21211);
   perform public.dialer_parallel_event(batch,'status',leg_ids[1],call_one,'completed',65);
   perform public.dialer_parallel_event(batch,'status',leg_ids[1],call_one,'completed',65);
@@ -58,7 +74,7 @@ begin
   perform public.dialer_parallel_event(new_batch,'stop');perform public.dialer_parallel_event(new_batch,'complete');
   update public.dialer_accounts set paid_invoice=false where user_id=u;
   rejected:=false;begin perform public.dialer_power_prepare(u,auth_session,gen_random_uuid(),account,caller,lead_ids,phones,array[.014,.014,.014],'fast');exception when others then rejected:=true;end;if not rejected then raise exception 'Unpaid account called';end if;
-  if exists(select 1 from public.leads where id=any(lead_ids) and call_notes<>'Preserve original notes') then raise exception 'Dialing overwrote notes';end if;
+  if exists(select 1 from public.leads where id=any(lead_ids) and call_notes is distinct from case when id=lead_ids[2] then overflow_notes else 'Preserve original notes' end) then raise exception 'Dialing changed unrelated notes';end if;
   reset role;set local role authenticated;
   rejected:=false;begin perform 1 from public.dialer_parallel_sessions;exception when insufficient_privilege then rejected:=true;end;if not rejected then raise exception 'Private sessions exposed';end if;
   rejected:=false;begin perform public.dialer_power_prepare(u,auth_session,gen_random_uuid(),account,caller,lead_ids,phones,array[.014,.014,.014],'fast');exception when insufficient_privilege then rejected:=true;end;if not rejected then raise exception 'Client bypassed orchestration';end if;
@@ -67,4 +83,4 @@ begin
  reset role;
  if exists(select 1 from auth.users where id in(u,other_user)) or exists(select 1 from public.dialer_parallel_sessions where user_id=u) then raise exception 'Fixtures persisted';end if;
 end $$;
-select 'PASS: all active roles, paid access, session/lead/caller isolation, idempotent batches, single winner, per-line usage, invalid number isolation, no test cap, reassignment protection, private permissions, full fixture rollback.' as result;
+select 'PASS: all active roles, paid access, session/lead/caller isolation, idempotent batches, single winner, durable overflow notes without duplicates, preserved agent edits/status/folder, per-line usage, invalid number isolation, no test cap, reassignment protection, private permissions, full fixture rollback.' as result;
