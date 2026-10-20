@@ -93,6 +93,13 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  res=response();await parallel.events(webhook('answer',legs[0]),res);assert.match(res.data,/timeLimit="1860"/);
  res=response();await parallel.events(webhook('answer',legs[1]),res);assert.match(res.data,/Please call/);assert(!res.data.includes('dialer test'));
  await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
+ // Lead batches keep ringing after a machine or unknown answer; only a human wins.
+ reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';
+ await parallel.launch(await parallel.get(id));assert.equal(creates,3);assert.equal(maxInFlight,3);
+ res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start',MachineDetectionDuration:'2100'}),res);assert.match(res.data,/<Hangup/);assert(!res.data.includes('<Conference'));assert.equal(winner,null);assert.equal(legs[0].outcome,'machine');assert.equal(s.state,'dialing');assert.equal(records.get(legs[1].provider_sid).status,'queued','Machine detection stopped another line');
+ res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Hangup/);assert.equal(winner,null);assert.equal(s.state,'dialing');
+ res=response();await parallel.events(webhook('answer',legs[2],{AnsweredBy:'human'}),res);assert.match(res.data,/<Conference/);assert.equal(s.winner_id,legs[2].id);
+ await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
  // A definitive invalid-number response must not stop the two other leads.
  reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='fast';rejectNumber=true;
  await parallel.launch(await parallel.get(id));assert.equal(creates,3);assert.equal(legs[0].outcome,'number_rejected');assert.equal(legs[0].error_code,21211);assert.equal(legs[1].state,'queued');assert.equal(legs[2].state,'queued');
