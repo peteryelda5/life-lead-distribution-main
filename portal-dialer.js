@@ -12,7 +12,7 @@ function recordSessionCall(){}
 const $=id=>document.getElementById(id),labels={appointment_follow_up:'Appointment / Follow Up',call_back:'Call Back / Voicemail',not_interested:'Not Interested',dead_number:'Dead Number'},colors={appointment_follow_up:'blue',call_back:'orange',not_interested:'red',dead_number:'red'};
 let states=[],stateOptions=[],filteredCount=0;
 let folders=[],rows=[],current=null,offset=0,folderIndex=0,busy=false,reviewing=false,selected=new Map(),owner=null,epoch=0;
-let callbacks=null,parallel=null,operations=null,incomingBusy=false,parallelBusy=false;
+let callbacks=null,parallel=null,operations=null,conversation=null,callRecordId=null,incomingBusy=false,parallelBusy=false;
 let callDevice=null,activeCall=null,callStarting=false,pendingOutcome=false,queueRunning=false,callEpoch=0,callStartedAt=0,callSessionToken=null,callSessionUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 async function freshSession(){if(typeof realWindow.sessionExpiresWithin==='function'&&realWindow.sessionExpiresWithin(120)){if(typeof realWindow.refreshToken!=='function'||!await realWindow.refreshToken())throw Error('Your session expired. Sign in again.');}const s=session();if(!s?.access_token)throw Error('Sign in to the portal and complete two-step verification.');return s;}
@@ -20,7 +20,7 @@ function callError(e){return Number(e.code)===31005?'Twilio could not connect th
 function message(t,error=false){$('message').textContent=t;$('message').classList.toggle('error',error)}
 async function api(body){const s=await freshSession();if(!s?.access_token)throw Error('Sign in to your portal account in the portal and complete two-step verification first.');if(owner&&owner!==s.user?.id)throw Error('Account changed. Reload this page.');const ticket=epoch,r=await fetch('/api/dialer/workspace-v2',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(30000)});let d;try{d=await r.json()}catch{throw Error('Workspace unavailable. Refresh after deployment finishes.')}if(ticket!==epoch||session()?.user?.id!==s.user?.id)throw Error('Account changed. Reload this page.');if(!r.ok)throw Error(d.error||'Request failed.');owner=s.user?.id;return d}
 function controls(){
- operations?.changed();
+ operations?.changed();conversation?.changed();
  callbacks?.changed();
  if(window.updateDialerDisplay)window.updateDialerDisplay();
  const locked=busy||callStarting||!!activeCall||incomingBusy||parallelBusy,pickLocked=locked||pendingOutcome,access=!!accountState?.entitled&&accountState.realCallingAllowed&&(!operations||operations.canDial());
@@ -89,7 +89,7 @@ async function startCall(){
  const r=await fetch('/api/dialer/token-v2',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify({leadId:l.id,callerSlot:$('callerslot').value?Number($('callerslot').value):null}),cache:'no-store',signal:AbortSignal.timeout(30000)}),d=await r.json();
  if(ticket!==callEpoch)return;if(!r.ok)throw Error(d.error||'Call authorization failed.');
  if(!session()?.access_token||session()?.user?.id!==s.user?.id)throw Error('Your portal session changed. Reload before calling.');
- $('callingnumber').textContent=d.callerId;$('phone').textContent=d.destination;$('callstatus').textContent='Calling '+d.destination+'…';
+ callRecordId=d.callId;$('callingnumber').textContent=d.callerId;$('phone').textContent=d.destination;$('callstatus').textContent='Calling '+d.destination+'…';
  callDevice=new Twilio.Device(d.token,{logLevel:0,closeProtection:true,enableImprovedSignalingErrorPrecision:true,maxCallSignalingTimeoutMs:30000});
  callDevice.on('error',e=>{if(ticket===callEpoch){queueRunning=false;finishCall(callError(e),attempted)}});
  attempted=true;const c=await callDevice.connect({params:{CallGrant:d.callGrant}});
@@ -153,12 +153,12 @@ controls();if(session()?.access_token){loadDisplayProfile();$('load').click();}e
 
 'use strict';
 const $=id=>document.getElementById('manual-'+id);window.manualCalling=()=>busy||!!activeCall;
-let connectedAt=0;
+let connectedAt=0,manualRecordId=null;window.manualConversation=()=>manualRecordId?{kind:'call',id:manualRecordId,active:!!activeCall&&activeCall.status()==='open',label:$('destination').value}:null;
 let device=null,activeCall=null,busy=false,ready=false,callEpoch=0,startingToken=null,startingUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
 window.updateManualControls=controls;
-function controls(){ operations?.changed();$('check').disabled=busy||!!activeCall;$('call').disabled=busy||!!activeCall||!ready||!$('permission').checked||!$('destination').value.trim()||(operations&&!operations.canDial());$('destination').disabled=$('caller').disabled=busy||!!activeCall;$('mute').disabled=!activeCall;$('hangup').disabled=!activeCall;}
+function controls(){ operations?.changed();conversation?.changed();$('check').disabled=busy||!!activeCall;$('call').disabled=busy||!!activeCall||!ready||!$('permission').checked||!$('destination').value.trim()||(operations&&!operations.canDial());$('destination').disabled=$('caller').disabled=busy||!!activeCall;$('mute').disabled=!activeCall;$('hangup').disabled=!activeCall;}
 async function authorization(){
  const sess=await freshSession();if(!sess?.access_token)throw Error('Sign in to the portal and complete two-step verification.');
  const response=await fetch('/api/dialer/token-v2',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sess.access_token},body:JSON.stringify({phoneNumber:$('destination').value,callerSlot:Number($('caller').value),permission:$('permission').checked}),cache:'no-store',signal:AbortSignal.timeout(60000)});
@@ -174,7 +174,7 @@ $('call').onclick=async()=>{
   if(operations&&!operations.canDial())return status('Set your agent status to Ready before calling.',true);
   busy=true;controls();const epoch=++callEpoch;
   try{
-    $('test-timer').textContent='00:00';status('Preparing your call…');const data=await authorization();if(epoch!==callEpoch)return;display(data);startingToken=data.sessionToken;startingUser=session()?.user?.id;
+    $('test-timer').textContent='00:00';status('Preparing your call…');const data=await authorization();if(epoch!==callEpoch)return;display(data);manualRecordId=data.callId;startingToken=data.sessionToken;startingUser=session()?.user?.id;
     device=new Twilio.Device(data.token,{logLevel:0,closeProtection:true,enableImprovedSignalingErrorPrecision:true,maxCallSignalingTimeoutMs:30000});
     device.on('error',e=>{if(epoch!==callEpoch)return;status('Calling error '+(e.code||'')+': '+(e.message||'Check your Twilio settings.'),true);cleanup()});
     const call=await device.connect({params:{CallGrant:data.callGrant}});
@@ -205,8 +205,12 @@ operations=window.createDialerOperations?.(root,{owner:session()?.user?.id,getSe
  getLead:()=>!$('parallel')?.hidden?parallel?.lead():current,
  onChange:()=>{if(operations&&!operations.canDial())queueRunning=false;controls();parallel?.changed();window.updateManualControls?.();},openView:displayView,
  openLead:l=>{if(!allowChange())return false;queueRunning=false;show(l);displayView('workspace');return true;}})||null;
-function dispose(){if(disposed)return;operations?.dispose();parallel?.dispose();callbacks?.dispose();noteBindings.forEach(fn=>fn());noteBindings=[];disposed=true;epoch++;queueRunning=false;callEpoch++;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy();window.disposeManual?.();for(const id of intervals)realWindow.clearInterval(id);for(const id of timeouts)realWindow.clearTimeout(id);for(const [name,fn] of listeners)realWindow.removeEventListener(name,fn);}
-return {root,dispose,setVisible(value){operations?.setVisible(value);callbacks?.setVisible(value);},canLeave(){if(parallelBusy||incomingBusy||busy||accountBusy||callStarting||activeCall||window.manualCalling?.()){message('Finish the current call or request before changing portal tabs.',true);return false;}if(!allowChange())return false;queueRunning=false;return true;}};
+conversation=window.createDialerConversations?.(root,{owner:session()?.user?.id,getSession:freshSession,
+ getCall:()=>[callbacks?.conversation?.(),parallel?.conversation?.(),window.manualConversation?.(),callRecordId?{kind:'call',id:callRecordId,active:!!activeCall&&activeCall.status()==='open',label:current?.phone}:null].find(c=>c?.active)||null,
+ canAddNotes:id=>parallel?.lead()?.id===id||current?.id===id,
+ addNotes(id,text){if(activeCall||incomingBusy||parallelBusy||window.manualCalling?.())return false;if(parallel?.lead()?.id===id){const n=$('powerNotes');if(n.value.length+text.length+2>10000)return false;n.value+=(n.value?'\n\n':'')+text;n.dispatchEvent(new Event('input',{bubbles:true}));return true;}if(current?.id===id){const n=$('notes');if(n.value.length+text.length+2>10000)return false;n.value+=(n.value?'\n\n':'')+text;n.dispatchEvent(new Event('input',{bubbles:true}));return true;}return false;}})||null;
+function dispose(){if(disposed)return;conversation?.dispose();operations?.dispose();parallel?.dispose();callbacks?.dispose();noteBindings.forEach(fn=>fn());noteBindings=[];disposed=true;epoch++;queueRunning=false;callEpoch++;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy();window.disposeManual?.();for(const id of intervals)realWindow.clearInterval(id);for(const id of timeouts)realWindow.clearTimeout(id);for(const [name,fn] of listeners)realWindow.removeEventListener(name,fn);}
+return {root,dispose,setVisible(value){conversation?.setVisible(value);operations?.setVisible(value);callbacks?.setVisible(value);},canLeave(){if(parallelBusy||incomingBusy||busy||accountBusy||callStarting||activeCall||window.manualCalling?.()){message('Finish the current call or request before changing portal tabs.',true);return false;}if(!allowChange())return false;queueRunning=false;return true;}};
 };
 
 
