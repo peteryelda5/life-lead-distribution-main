@@ -1,0 +1,81 @@
+-- Run only after portal-notifications.sql. All fixtures and receipts roll back.
+-- This exercises the actual authenticated role; no phone calls or committed messages.
+begin;
+set local statement_timeout='30s';
+do $$
+declare a public.profiles; peer public.profiles; other public.profiles; tested_profile public.profiles;
+ aid uuid; hidden_id uuid; chat_id uuid; hidden_chat uuid; task_id uuid; fixture_key text; at_time text;
+ outbox jsonb; item jsonb; counter integer:=0; original_at timestamptz;
+begin
+ if has_function_privilege('anon','public.portal_notifications(text,jsonb)','execute') then raise exception 'Anonymous RPC grant';end if;
+ if has_function_privilege('authenticated','private.portal_notification_items()','execute') then raise exception 'Raw source function exposed';end if;
+ if has_table_privilege('authenticated','private.portal_notification_receipts','select') or has_table_privilege('authenticated','private.portal_notification_preferences','update') then raise exception 'Private tables exposed';end if;
+ select * into a from profiles where role='agent' and active and not coalesce(archived,false) and exists(select 1 from profiles p where p.id<>profiles.id and p.division=profiles.division and p.active and not coalesce(p.archived,false)) limit 1;
+ select * into peer from profiles where id<>a.id and division=a.division and active and not coalesce(archived,false) limit 1;
+ select * into other from profiles where division<>a.division and active and not coalesce(archived,false) limit 1;
+ if a.id is null or peer.id is null or other.id is null then raise exception 'Need three existing active profiles across two divisions';end if;
+ insert into public.portal_announcements(title,body,division,created_by,created_at) values('Notification test fixture','Rolled back',a.division,peer.id,now()) returning id into aid;
+ insert into public.portal_announcements(title,body,division,created_by,created_at) values('Private division fixture','Rolled back',other.division,other.id,now()) returning id into hidden_id;
+ insert into private.portal_conversations(name,kind,owner_id,members) values('Notification test fixture','group',a.id,array[a.id,peer.id]) returning id into chat_id;
+ insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(chat_id,peer.id,'Notification test fixture',gen_random_uuid());
+ insert into private.portal_conversations(name,kind,owner_id,members) values('Private conversation fixture','group',other.id,array[other.id]) returning id into hidden_chat;
+ insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(hidden_chat,other.id,'Private fixture',gen_random_uuid());
+ fixture_key:='announcement:'||aid;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a.id,'aal','aal1','role','authenticated')::text,true);
+ set local role authenticated;
+ begin perform public.portal_notifications();raise exception 'AAL1 should have failed';exception when insufficient_privilege then null;end;
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',a.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;
+ outbox:=public.portal_notifications();
+ select value into item from jsonb_array_elements(outbox->'items') where value->>'key'=fixture_key;
+ if item is null or (item->>'read')::boolean then raise exception 'Own announcement missing/unexpectedly read';end if;
+ at_time:=item->>'at';
+ if exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key' in ('announcement:'||hidden_id,'group:'||hidden_chat)) then raise exception 'Foreign information leaked';end if;
+ if not exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'='group:'||chat_id) then raise exception 'Member conversation missing';end if;
+ perform public.portal_notifications('read',jsonb_build_object('user_id',other.id,'items',jsonb_build_array(jsonb_build_object('key',fixture_key,'at',at_time))));
+ outbox:=public.portal_notifications('list',jsonb_build_object('category','announcements'));
+ if not exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'=fixture_key and (value->>'read')::boolean) then raise exception 'Read not persisted';end if;
+ reset role;
+ if not exists(select 1 from private.portal_notification_receipts where user_id=a.id and portal_notification_receipts.event_key=fixture_key) then raise exception 'Receipt owner wrong';end if;
+ if exists(select 1 from private.portal_notification_receipts where user_id=other.id and portal_notification_receipts.event_key=fixture_key) then raise exception 'Client could change receipt owner';end if;
+ set local role authenticated;
+ perform public.portal_notifications('read',jsonb_build_object('items',jsonb_build_array(jsonb_build_object('key','announcement:'||hidden_id,'at',at_time))));
+ outbox:=public.portal_notifications('unread',jsonb_build_object('items',jsonb_build_array(jsonb_build_object('key',fixture_key,'at',at_time))));
+ if not exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'=fixture_key and not (value->>'read')::boolean) then raise exception 'Mark unread failed';end if;
+ outbox:=public.portal_notifications('archive',jsonb_build_object('items',jsonb_build_array(jsonb_build_object('key',fixture_key,'at',at_time))));
+ if exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'=fixture_key) then raise exception 'Archive failed';end if;
+ reset role;
+ if exists(select 1 from private.portal_notification_receipts where user_id=a.id and portal_notification_receipts.event_key='announcement:'||hidden_id) then raise exception 'Forbidden event acknowledged';end if;
+ -- A new version survives an acknowledgement of the old version.
+ update public.portal_announcements set created_at=now()+interval '1 second' where id=aid;
+ set local role authenticated;
+ outbox:=public.portal_notifications('read',jsonb_build_object('items',jsonb_build_array(jsonb_build_object('key',fixture_key,'at',at_time))));
+ if not exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'=fixture_key and not (value->>'read')::boolean) then raise exception 'New version incorrectly marked read';end if;
+ outbox:=public.portal_notifications('read_all',jsonb_build_object('before',at_time));
+ if not exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'=fixture_key and not (value->>'read')::boolean) then raise exception 'Mark-all consumed newer event';end if;
+ outbox:=public.portal_notifications('preferences','{"muted_categories":["announcements"],"toast_enabled":false}');
+ if exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'category'='announcements') or (outbox->'preferences'->>'toast_enabled')::boolean then raise exception 'Preferences failed';end if;
+ begin perform public.portal_notifications('preferences','{"muted_categories":["unknown"]}');raise exception 'Invalid category should fail' using errcode='XX000';exception when raise_exception then null;end;
+ begin perform public.portal_notifications('preferences','{}');raise exception 'Missing category should fail' using errcode='XX000';exception when raise_exception then null;end;
+ reset role;
+ insert into private.portal_chat_preferences(user_id,chat_key,mode) values(a.id,'group:'||chat_id,'muted') on conflict(user_id,chat_key) do update set mode='muted';
+ set local role authenticated;
+ outbox:=public.portal_notifications();
+ if exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'='group:'||chat_id) then raise exception 'Muted chat leaked into notifications';end if;
+ reset role;
+ -- Every active role can use the authenticated API; source rows stay scoped.
+ for tested_profile in select * from profiles where active and not coalesce(archived,false) and role in ('agent','admin') loop
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',tested_profile.id,'aal','aal2','role','authenticated')::text,true);
+  set local role authenticated;outbox:=public.portal_notifications();reset role;
+  if jsonb_typeof(outbox->'items')<>'array' then raise exception 'Role list failed';end if;
+  if exists(select 1 from private.portal_notification_items() n join private.portal_conversations c on n.event_key='group:'||c.id where not tested_profile.id=any(c.members)) then raise exception 'Non-member chat exposed';end if;
+  if exists(select 1 from private.portal_notification_items() n join public.dialer_callbacks c on n.event_key in ('callback:missed:'||c.id,'callback:voicemail:'||c.id) where c.user_id<>tested_profile.id) then raise exception 'Another agent callback exposed';end if;
+  if exists(select 1 from private.portal_notification_items() n join public.dialer_priority_tasks t on n.event_key='priority:'||t.id where t.user_id<>tested_profile.id) then raise exception 'Another agent follow-up exposed';end if;
+  if exists(select 1 from private.portal_notification_items() n join public.lead_requests r on n.event_key='request-in:'||r.id where not private.can_manage_lead_request(r.agent_id,r.division)) then raise exception 'Unmanaged request exposed';end if;
+  counter:=counter+1;
+ end loop;
+ if counter=0 then raise exception 'No active users tested';end if;
+ raise notice 'PASS: notification API, all % active roles, MFA, privacy, read/unread/archive, version races, preferences and muted chat; fixtures rolled back.',counter;
+end $$;
+rollback;
