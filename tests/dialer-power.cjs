@@ -12,7 +12,7 @@ const context={URLSearchParams,module:{exports:{}},require:n=>{if(n==='./dialer-
 vm.runInNewContext(fs.readFileSync(__dirname+'/../lib/dialer-power.js','utf8'),context);
 (async()=>{
  const prepare=context.module.exports.prepare,u={id:owner,live:true,sessionId:'session'},b={id:'22222222-2222-4222-8222-222222222222',leadIds,callerId:'+12025550198',connectMode:'human'};
- await assert.rejects(prepare(u,{...b,connectMode:'fast'}),/screening protection/);assert.equal(grants,0);
+ await assert.rejects(prepare(u,{...b,connectMode:'fast'}),/answering-machine detection/);assert.equal(grants,0);
  let r=await prepare(u,b);assert.equal(r.callGrant,'signed');assert.equal(prepared.p_leads.length,3);assert.equal(prepared.p_account,config.TWILIO_ACCOUNT_SID);assert.equal(prepared.p_session,'session');
  skips.add(leadIds[0]);r=await prepare(u,b);assert.equal(prepared.p_leads.length,2);assert.equal(r.skipped[0].leadId,leadIds[0]);skips.clear();
  const before=grants;numberValid=false;await assert.rejects(prepare(u,b),/valid US number/);assert.equal(grants,before);numberValid=true;lookupDown=true;await assert.rejects(prepare(u,b),/temporarily unavailable/);assert.equal(grants,before);lookupDown=false;

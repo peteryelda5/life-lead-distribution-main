@@ -18,31 +18,25 @@ begin
    insert into public.leads(first_name,phone,division,status,assigned_to,call_notes,lead_type,agent_status) values('Power lead '||n,phones[n],'vivid_life','assigned',u,'Preserve original notes','Followup Fixture',case when n=2 then 'appointment_follow_up' else 'none' end) returning id into l;lead_ids:=array_append(lead_ids,l);
   end loop;
   perform set_config('request.jwt.claims','{"role":"service_role"}',true);set local role service_role;
-  -- Screening never wins; a keypress can recover a false machine result.
+  -- Two human answers produce one winner and one durable follow-up without a keypress.
   perform public.dialer_power_prepare(u,auth_session,batch,account,caller,lead_ids,phones,array[.014,.014,.014],'human');
   select array_agg(id order by position) into leg_ids from public.dialer_parallel_legs where session_id=batch;
   perform public.dialer_parallel_event(batch,'agent',null,agent);
   perform public.dialer_parallel_event(batch,'ready',null,agent,'CF'||repeat('a',32));perform public.dialer_parallel_event(batch,'launch');
   foreach l in array leg_ids loop perform public.dialer_parallel_event(batch,'claim',l);end loop;
-  result:=public.dialer_parallel_event(batch,'confirm',leg_ids[1],call_one,'1');if result->>'result'<>'ignored' then raise exception 'Keypress accepted without screening';end if;
-  result:=public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'machine',2700);
-  if result->>'result'<>'confirm' or (select winner_id from public.dialer_parallel_sessions where id=batch) is not null then raise exception 'Screening won the headset';end if;
-  perform public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'machine',2700);
-  result:=public.dialer_parallel_event(batch,'confirm',leg_ids[1],call_one,'9');if result->>'result'<>'ignored' then raise exception 'Wrong digit connected';end if;
-  result:=public.dialer_parallel_event(batch,'answer',leg_ids[2],call_two,'human',2400);if result->>'result'<>'winner' then raise exception 'Human did not connect';end if;
-  result:=public.dialer_parallel_event(batch,'confirm',leg_ids[1],call_one,'1');if result->>'result'<>'overflow' then raise exception 'Confirmed second person lost';end if;
-  if not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[1] and answer='machine' and confirmed_at is not null and outcome='second_answer' and followup_noted_at is not null) then raise exception 'Confirmation evidence/note missing';end if;
+  result:=public.dialer_parallel_event(batch,'answer',leg_ids[2],call_two,'human',2400);if result->>'result'<>'winner' then raise exception 'Human did not connect automatically';end if;
+  result:=public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'human',2700);if result->>'result'<>'overflow' then raise exception 'Second person lost';end if;
+  if not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[1] and answer='human' and confirmed_at is null and outcome='second_answer' and followup_noted_at is not null) then raise exception 'Second answer evidence/note missing';end if;
   select call_notes into overflow_notes from public.leads where id=lead_ids[1];
-  if overflow_notes not like '%Call answered while you were connected to another lead.%' then raise exception 'Confirmed note missing';end if;
-  perform public.dialer_parallel_event(batch,'confirm',leg_ids[1],call_one,'1');
-  perform public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'machine',2700);
+  if overflow_notes not like '%Call answered while you were connected to another lead.%' then raise exception 'Second answer note missing';end if;
+  perform public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'human',2700);
   perform public.dialer_parallel_event(batch,'status',leg_ids[1],call_one,'completed',12);
-  perform public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'machine',2700);
-  if (select call_notes from public.leads where id=lead_ids[1])<>overflow_notes or (select outcome from public.dialer_parallel_legs where id=leg_ids[1])<>'second_answer' then raise exception 'Replay duplicated note or erased confirmation';end if;
+  perform public.dialer_parallel_event(batch,'answer',leg_ids[1],call_one,'human',2700);
+  if (select call_notes from public.leads where id=lead_ids[1])<>overflow_notes or (select outcome from public.dialer_parallel_legs where id=leg_ids[1])<>'second_answer' then raise exception 'Replay duplicated note or erased answer';end if;
   perform public.dialer_parallel_event(batch,'status',leg_ids[2],call_two,'completed',20);
   for l in select id from public.dialer_parallel_legs where session_id=batch and not terminal loop perform public.dialer_parallel_event(batch,'status',l,coalesce((select provider_sid from public.dialer_parallel_legs where id=l),'CA'||replace(gen_random_uuid()::text,'-','')),'canceled',0);end loop;
   perform public.dialer_parallel_event(batch,'stop');perform public.dialer_parallel_event(batch,'complete');
-  result:=public.dialer_parallel_event(batch,'confirm',leg_ids[1],call_one,'1');if result->>'result'<>'stopped' then raise exception 'Stopped batch reconnected';end if;
+  result:=public.dialer_parallel_event(batch,'confirm',leg_ids[1],call_one,'1');if result->>'result'<>'hangup' then raise exception 'Retired keypress reconnected a stopped batch';end if;
   -- Reproduce terminal status arriving before AMD. Capture the pickup without inventing a human.
   new_batch:=gen_random_uuid();perform public.dialer_power_prepare(u,auth_session,new_batch,account,caller,lead_ids,phones,array[.014,.014,.014],'human');
   select array_agg(id order by position) into leg_ids from public.dialer_parallel_legs where session_id=new_batch;
@@ -66,17 +60,19 @@ begin
   if result->>'result'<>'hangup' or (select outcome from public.dialer_parallel_legs where id=leg_ids[2])<>'answered_not_connected' then raise exception 'Late answer evidence discarded';end if;
   for l in select id from public.dialer_parallel_legs where session_id=new_batch and not terminal loop perform public.dialer_parallel_event(new_batch,'status',l,coalesce((select provider_sid from public.dialer_parallel_legs where id=l),'CA'||replace(gen_random_uuid()::text,'-','')),'canceled',0);end loop;
   perform public.dialer_parallel_event(new_batch,'stop');perform public.dialer_parallel_event(new_batch,'complete');
-  -- An unclear answer is never silently thrown away; prompt timeout gets an honest follow-up.
+  -- Machine and unclear answers hang up without a prompt; unclear pickups receive an honest follow-up.
   new_batch:=gen_random_uuid();perform public.dialer_power_prepare(u,auth_session,new_batch,account,caller,lead_ids,phones,array[.014,.014,.014],'human');
   select array_agg(id order by position) into leg_ids from public.dialer_parallel_legs where session_id=new_batch;
   agent:='CA'||replace(gen_random_uuid()::text,'-','');call_one:='CA'||replace(gen_random_uuid()::text,'-','');call_two:='CA'||replace(gen_random_uuid()::text,'-','');
   perform public.dialer_parallel_event(new_batch,'agent',null,agent);perform public.dialer_parallel_event(new_batch,'ready',null,agent,'CF'||repeat('c',32));perform public.dialer_parallel_event(new_batch,'launch');
   foreach l in array leg_ids loop perform public.dialer_parallel_event(new_batch,'claim',l);end loop;
-  perform public.dialer_parallel_event(new_batch,'answer',leg_ids[1],call_one,'unknown',10000);
-  perform public.dialer_parallel_event(new_batch,'confirm_timeout',leg_ids[1],call_one);
-  if (select outcome from public.dialer_parallel_legs where id=leg_ids[1])<>'answer_unconfirmed' then raise exception 'Unclear timeout lost';end if;
-  perform public.dialer_parallel_event(new_batch,'answer',leg_ids[2],call_two,'machine',2500);
-  result:=public.dialer_parallel_event(new_batch,'confirm',leg_ids[2],call_two,'1');if result->>'result'<>'winner' then raise exception 'Screened human cannot recover';end if;
+  result:=public.dialer_parallel_event(new_batch,'answer',leg_ids[1],call_one,'unknown',10000);
+  if result->>'result'<>'hangup' or not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[1] and outcome='answer_unconfirmed' and followup_noted_at is not null and confirm_requested_at is null) then raise exception 'Unclear pickup prompted or lost follow-up';end if;
+  result:=public.dialer_parallel_event(new_batch,'answer',leg_ids[2],call_two,'machine',2500);
+  if result->>'result'<>'hangup' or not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[2] and outcome='machine' and confirm_requested_at is null) then raise exception 'Machine prompted or connected';end if;
+  result:=public.dialer_parallel_event(new_batch,'confirm',leg_ids[2],call_two,'1');if result->>'result'<>'hangup' then raise exception 'Retired keypress still enabled';end if;
+  if (select winner_id from public.dialer_parallel_sessions where id=new_batch) is not null or (select state from public.dialer_parallel_sessions where id=new_batch)<>'dialing' then raise exception 'Machine or unknown stopped other lines';end if;
+  if exists(select 1 from public.dialer_parallel_legs where session_id=new_batch and (confirmed_at is not null or confirm_requested_at is not null)) then raise exception 'Confirmation still requested';end if;
   -- Notes remain scoped even when assignment changes before a late result.
   update public.leads set assigned_to=other_user where id=lead_ids[3];
   select call_notes into overflow_notes from public.leads where id=lead_ids[3];
@@ -88,4 +84,4 @@ begin
  reset role;
  if exists(select 1 from auth.users where id in(u,other_user)) or exists(select 1 from public.dialer_parallel_sessions where user_id=u) then raise exception 'Fixtures persisted';end if;
 end $$;
-select 'PASS: screening does not win; keypress recovery, one winner, second-answer note once, replay/out-of-order safety, unknown pickups never uncalled, late classifications never reconnect, genuine unanswered cancellation, reassignment isolation and fixture rollback.' as result;
+select 'PASS: no recipient prompt or keypress, automatic human connection, one winner, second-answer note once, replay/out-of-order safety, unknown pickups never uncalled, late classifications never reconnect, genuine unanswered cancellation, reassignment isolation and fixture rollback.' as result;
