@@ -1,6 +1,6 @@
 # Conversation assistant
 
-The agent can start a two-track transcript after connecting a call and confirming the client's agreement. The conversation panel labels utterances You and Client. Final utterances arrive through signed Twilio callbacks and appear on the next 2.5-second refresh. This is near-real-time phrase transcription, not guaranteed word-by-word captions.
+The agent can start a two-track transcript after connecting a call and confirming the client's agreement. The conversation panel labels utterances You and Client. Final utterances arrive through signed Twilio callbacks and appear on the next 2.5-second refresh. The panel retrieves the latest 250 statements so long calls stay responsive; the AI summary uses the full provider transcript. This is near-real-time phrase transcription, not guaranteed word-by-word captions.
 
 Supported: Power Dialer winner, single-line and manual calls, and answered incoming callbacks. The server resolves the actual active PSTN leg from the authenticated user and source record. It never accepts a provider Call SID from the browser. No transcript starts during ringing, screening, or an unconnected parallel leg. Consent is required anew for every call. Stop transcript ends transcription without hanging up. It cannot be restarted for that same call.
 
