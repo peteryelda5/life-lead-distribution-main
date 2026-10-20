@@ -16,9 +16,10 @@
  function close(focus=true){if(!panel)return;panel.remove();panel=null;lastSignature='';paintBadge();if(focus)$('portalNotifications')?.focus();}
  function toast(items){
   const next=new Map(items.map(n=>[n.key,n.at]));
-  const fresh=seen&&items.find(n=>!n.read&&seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter);
+  const viewing=n=>S.tab==='live-chat'&&n.category==='chat'&&(n.target?.conversation?(typeof PC!=='undefined'&&PC.group===n.target.conversation):(typeof CHAT!=='undefined'&&CHAT.room===n.target?.room&&!(typeof PC!=='undefined'&&PC.group)));
+  const fresh=seen&&items.find(n=>!n.read&&seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter&&!viewing(n));
   seenAfter=Date.parse(data?.as_of)||Date.now();seen=new Map([...(seen||[]),...next]);if(seen.size>1000)seen=next;
-  if(!fresh||panel||document.hidden||!data?.preferences?.toast_enabled||S.tab==='live-chat'&&fresh.category==='chat')return;
+  if(!fresh||panel||document.hidden||!data?.preferences?.toast_enabled)return;
   document.querySelector('.pn-toast')?.remove();const box=element('aside','pn-toast');box.setAttribute('role','status');
   const open=button('',()=>openNotification(fresh),'pn-toast-open');open.append(element('strong','',fresh.title),element('span','','Open notification'));
   const dismiss=button('×',()=>box.remove(),'pn-toast-close');dismiss.setAttribute('aria-label','Dismiss alert');box.append(open,dismiss);document.body.append(box);setTimeout(()=>box.remove(),8000);
@@ -26,7 +27,7 @@
  async function refresh(){
   if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;}
   if(busy){again=true;return;}if(flight){again=true;return flight;}const id=owner,ticket=epoch,view=revision;
-  flight=(async()=>{try{const d=await rpc('list');if(!current(id,ticket)||view!==revision){again=true;return;}data=d;paintBadge();paint();if(filter==='all'&&!unreadOnly&&offset===0)toast(d.items||[]);status('');}
+  flight=(async()=>{try{const filtered=filter!=='all'||unreadOnly||offset!==0;const [d,feed]=await Promise.all([rpc('list'),filtered?rpc('list',{category:'all',unread:false,offset:0}):Promise.resolve(null)]);if(!current(id,ticket)||view!==revision){again=true;return;}data=d;paintBadge();paint();toast((feed||d).items||[]);status('');}
    catch(e){if(current(id,ticket))status('Notifications could not refresh. '+e.message,true);}
    finally{if(ticket===epoch){flight=null;if(again){again=false;refresh();}}}})();return flight;
  }
