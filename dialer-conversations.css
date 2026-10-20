@@ -9,3 +9,33 @@
 #portalDialer #conversationSummary{width:100%;box-sizing:border-box;border:1px solid #d9e2ee;border-radius:10px;padding:12px;font:inherit;font-size:14px;line-height:1.6;resize:vertical}#portalDialer #conversationSummaryState,#portalDialer #conversationFeedback{font-size:12px;color:#6a7c91;line-height:1.5}#portalDialer #conversationHistoryRows{padding:10px;background:#f7f9fc;border-radius:10px;max-height:180px;overflow:auto}#portalDialer #conversationHistoryRows button{display:block;width:100%;text-align:left;margin:5px 0}
 #portalDialer #powerDialogBody .conversation-panel{flex:1 0 100%;width:100%}
 @media(max-width:750px){#portalDialer .conversation-columns{grid-template-columns:1fr}#portalDialer .conversation-panel>summary{flex-direction:column;gap:4px}#portalDialer .conversation-content{padding:14px}}
+
+#portalDialer .conversation-summary>summary{font-size:14px;font-weight:700;cursor:pointer;padding:10px 0;background:none}
+#portalDialer .conversation-summary>summary small{display:block;font-size:11px;font-weight:500;margin:4px 0 0;color:#71829a}
+#portalDialer .conversation-summary-content{padding:0 0 12px}
+#portalDialer .conversation-summary #conversationSummaryState{margin-bottom:10px}
+#portalDialer .conversation-panel.is-docked{margin:0 0 12px;border:0;border-radius:0;width:100%}
+#portalDialer .conversation-panel.is-docked>summary{display:none}
+#portalDialer .conversation-panel.is-docked .conversation-content{padding:0;border-top:1px solid #e8edf4;padding-top:12px}
+#portalDialer .conversation-panel.is-docked #conversationTitle{font-size:12px;color:#61738b}
+#portalDialer .conversation-panel.is-docked #conversationStatus{font-size:12px;margin:4px 0}
+#portalDialer .conversation-panel.is-docked header{gap:8px}
+#portalDialer .conversation-panel.is-docked #conversationHistory{font-size:11px;padding:6px;min-height:30px}
+#portalDialer .conversation-panel.is-docked .conversation-columns{grid-template-columns:minmax(0,1fr);gap:0;padding:0;border:0}
+#portalDialer .conversation-panel.is-docked .conversation-columns h3{margin:8px 0;font-size:14px}
+#portalDialer .conversation-panel.is-docked .conversation-columns h3 span{display:none}
+#portalDialer .conversation-panel.is-docked .conversation-actions{margin:8px 0}
+#portalDialer .conversation-panel.is-docked .conversation-actions button{font-size:12px;padding:7px 10px;min-height:34px}
+#portalDialer .conversation-panel.is-docked #conversationConsent{padding:10px;margin:10px 0;border-radius:7px}
+#portalDialer .conversation-panel.is-docked #conversationConsent label{font-size:12px;align-items:start;line-height:1.45;margin:0}
+#portalDialer .conversation-panel.is-docked #conversationConsent p{font-size:11px;line-height:1.45}
+#portalDialer .conversation-panel.is-docked .conversation-lines{max-height:230px;min-height:80px;scrollbar-gutter:stable;overscroll-behavior:contain}
+#portalDialer .conversation-panel.is-docked .conversation-lines article{margin:6px 0;padding:8px 10px;border-radius:4px;border-left:3px solid #19a59d;background:#f3f7f9}
+#portalDialer .conversation-panel.is-docked .conversation-lines article[data-speaker=agent]{margin:6px 0;border-left-color:#2563eb;background:#eef5ff}
+#portalDialer .conversation-panel.is-docked .conversation-lines strong{font-size:11px;color:#167e7a}
+#portalDialer .conversation-panel.is-docked .conversation-lines article[data-speaker=agent] strong{color:#2563eb}
+#portalDialer .conversation-panel.is-docked .conversation-lines p{font-size:13px;line-height:1.5;margin:4px 0}
+#portalDialer #powerSummarySlot .conversation-summary{border-top:1px solid #e8edf4;margin-top:12px}
+#portalDialer #powerSummarySlot .conversation-summary>summary{padding:12px 0;color:#173047}
+#portalDialer #powerSummarySlot #conversationSummary{font-size:13px;min-height:100px}
+#portalDialer #powerSummarySlot #conversationAdd{font-size:12px;margin-top:8px;padding:8px}
