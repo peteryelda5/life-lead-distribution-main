@@ -29,7 +29,7 @@ require.cache[require.resolve('../lib/dialer-parallel')]={exports:{get:async(i,o
 global.fetch=async(url,opt={})=>{const path=url.split('/v2/')[1],body=Object.fromEntries(new URLSearchParams(opt.body));let data,status=200;
  if(path==='Services/lld-agent-conversations-v1'){if(!serviceExists){data={code:20404};status=404;}else data={sid:ga,account_sid:account,unique_name:'lld-agent-conversations-v1',auto_transcribe:false,data_logging:false,read_only_attached_operator_sids:attached?[ly]:[]};}
  else if(path==='Services'){assert.equal(body.AutoTranscribe,'false');assert.equal(body.DataLogging,'false');serviceExists=true;data={sid:ga,account_sid:account,unique_name:body.UniqueName,auto_transcribe:false,data_logging:false};}
- else if(path.startsWith('Operators/PreBuilt'))data={prebuilt_operators:[{sid:ly,friendly_name:'Summarization',availability:'public'}]};
+ else if(path.startsWith('Operators/PreBuilt'))data={prebuilt_operators:[{sid:ly,friendly_name:'Conversation Summary',availability:'public'}]};
  else if(path===`Services/${ga}/Operators/${ly}`){attached=true;data={operator_sid:ly};}
  else if(path.startsWith(`Transcripts/${gt}/OperatorResults`))data={operator_results:[{operator_sid:'LY'+'f'.repeat(32),transcript_sid:gt,text_generation_results:{result:'Wrong operator'}},{operator_sid:ly,transcript_sid:gt,text_generation_results:{result:'The client requested a callback tomorrow.'}}]};
  else throw Error('Unexpected CI '+path);
