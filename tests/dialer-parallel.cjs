@@ -21,15 +21,13 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
   if(body.p_event==='claim'&&l.state==='prepared'&&s.state==='dialing'&&!winner){l.state='creating';result='create';}
   if(body.p_event==='reject'&&l.state==='creating'&&!l.provider_sid){l.state='failed';l.terminal=true;l.outcome='number_rejected';l.error_code=body.p_seconds;result='rejected';}
   if(body.p_event==='bind'){l.provider_sid=body.p_sid;if(l.state==='creating')l.state='queued';result='bound';}
-  if(body.p_event==='answer'||body.p_event==='confirm'){
+  if(body.p_event==='answer'){
    l.provider_sid=body.p_sid;l.pickup_at??=new Date().toISOString();records.get(body.p_sid).status='in-progress';
-   if(body.p_event==='confirm'){if(l.outcome!=='awaiting_confirmation'||body.p_value!=='1')return json({result:'ignored'});l.confirmed_at=new Date().toISOString();}else l.answer=body.p_value;
+   l.answer=body.p_value;
    if(s.state==='stopping'||s.state==='complete')result='stopped';
-   else if(body.p_event==='confirm'||['human','answered'].includes(body.p_value)){if(!winner||winner===l.id){s.winner_id=winner=l.id;s.state='connected';l.outcome='connected';result='winner';}else{l.outcome='second_answer';l.followup_noted_at=new Date().toISOString();result='overflow';}}
-   else if(s.kind==='leads'&&['machine','unknown'].includes(body.p_value)){l.outcome='awaiting_confirmation';l.confirm_requested_at=new Date().toISOString();result='confirm';}
-   else{l.outcome=body.p_value;result='hangup';}
+   else if(['human','answered'].includes(body.p_value)){if(!winner||winner===l.id){s.winner_id=winner=l.id;s.state='connected';l.outcome='connected';result='winner';}else{l.outcome='second_answer';l.followup_noted_at=new Date().toISOString();result='overflow';}}
+   else{l.outcome=s.kind==='leads'&&body.p_value==='unknown'?'answer_unconfirmed':body.p_value;result='hangup';}
   }
-  if(body.p_event==='confirm_timeout'&&l.outcome==='awaiting_confirmation'){l.outcome=l.answer==='machine'?'machine':'answer_unconfirmed';result='hangup';}
   if(body.p_event==='status'){l.provider_sid=body.p_sid;if(!l.terminal)l.state=body.p_value;l.duration_seconds=Math.max(l.duration_seconds,body.p_seconds);l.terminal||=['completed','canceled','failed','no-answer','busy'].includes(body.p_value);if(['in-progress','completed'].includes(body.p_value))l.pickup_at??=new Date().toISOString();if(l.terminal&&!l.answer&&l.pickup_at&&l.id!==winner)l.outcome='answer_unconfirmed';result='status';}
   if(body.p_event==='stop'){s.state='stopping';for(const l of legs)if(l.state==='prepared'){l.state='canceled';l.terminal=true;}result='stopped';}
   if(body.p_event==='complete'){s.state='complete';result='complete';}
@@ -106,8 +104,8 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  // Lead batches keep ringing after a machine or unknown answer; only a human wins.
  reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';
  await parallel.launch(await parallel.get(id));assert.equal(creates,3);assert.equal(maxInFlight,3);
- res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start',MachineDetectionDuration:'2100'}),res);assert.match(res.data,/<Hangup/);assert(!res.data.includes('<Conference'));assert.equal(winner,null);assert.equal(legs[0].outcome,'awaiting_confirmation');assert.match(res.data,/<Gather input="dtmf"/);assert.match(res.data,/actionOnEmptyResult="true"/);assert.equal(s.state,'dialing');assert.equal(records.get(legs[1].provider_sid).status,'queued','Machine detection stopped another line');
- res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Gather/);assert.equal(winner,null);assert.equal(s.state,'dialing');
+ res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start',MachineDetectionDuration:'2100'}),res);assert.match(res.data,/<Hangup/);assert(!res.data.includes('<Conference'));assert.equal(winner,null);assert.equal(legs[0].outcome,'machine');assert.doesNotMatch(res.data,/<Gather|<Say|press.?1/i);assert.equal(s.state,'dialing');assert.equal(records.get(legs[1].provider_sid).status,'queued','Machine detection stopped another line');
+ res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Hangup/);assert.doesNotMatch(res.data,/<Gather|<Say|press.?1/i);assert.equal(legs[1].outcome,'answer_unconfirmed');assert.equal(winner,null);assert.equal(s.state,'dialing');
  res=response();await parallel.events(webhook('answer',legs[2],{AnsweredBy:'human'}),res);assert.match(res.data,/<Conference/);assert.equal(s.winner_id,legs[2].id);
  await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
  // A definitive invalid-number response must not stop the two other leads.
@@ -135,12 +133,9 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'in-progress','Cancel race fell back to a forced hangup');
  // Missing AMD results have a bounded grace period and retain evidence of the pickup.
  legs[1].pickup_at=new Date(Date.now()-16000).toISOString();await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'completed');assert.equal(legs[1].outcome,'answer_unconfirmed');await parallel.stop(await parallel.get(id));
- // A screening/false-machine result can recover through a signed keypress; machines never win on their own.
- reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';await parallel.launch(await parallel.get(id));res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start'}),res);assert.match(res.data,/<Gather/);assert.equal(winner,null);
- res=response();await parallel.events(webhook('confirm',legs[0],{Digits:'1'}),res);assert.match(res.data,/<Conference/);assert.equal(parallel.publicState(await parallel.get(id)).legs[0].answer,'confirmed');
- res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Gather/);
- await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'in-progress','Winner interrupted a pending confirmation');
- res=response();await parallel.events(webhook('confirm',legs[1],{Digits:'1'}),res);assert.match(res.data,/Please call/);assert.equal(s.winner_id,legs[0].id);
+ // Old signed keypress callbacks cannot connect or prompt a recipient after removal.
+ reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';await parallel.launch(await parallel.get(id));
+ res=response();await parallel.events(webhook('confirm',legs[0],{Digits:'1'}),res);assert.match(res.data,/<Hangup/);assert.doesNotMatch(res.data,/<Gather|<Say|<Conference|press.?1/i);assert.equal(winner,null);assert.equal(legs[0].outcome,undefined);
  await parallel.stop(await parallel.get(id));assert([...records.values()].every(c=>['completed','canceled'].includes(c.status)),'Explicit stop left calls alive');
- console.log('PASS: legacy fast mode, signed screening confirmation, one winner, pending-AMD cleanup, GET/cancel pickup race, bounded detection/overflow cleanup, no silent loss of pickup evidence, explicit stop, refreshed follow-up notes and billing ownership.');
+ console.log('PASS: legacy fast mode, automatic detection without recipient prompts, one winner, pending-AMD cleanup, GET/cancel pickup race, bounded detection/overflow cleanup, no silent loss of pickup evidence, explicit stop, refreshed follow-up notes and billing ownership.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
