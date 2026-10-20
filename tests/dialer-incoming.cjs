@@ -5,22 +5,26 @@ const full=require('../lib/dialer-full'),incoming=require('../lib/dialer-incomin
 const user='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222',session='33333333-3333-4333-8333-333333333333',browser='44444444-4444-4444-8444-444444444444';
 const parent='CA'+'b'.repeat(32),recording='RE'+'c'.repeat(32),account=process.env.TWILIO_ACCOUNT_SID;
 let online=true,foreign=false,storageFail=false,wrongRecording=false,events=[],order=[],call={id,user_id:user,livemode:true,provider_sid:account,parent_sid:parent,caller_phone:'+12025550124',dialed_phone:'+12025550123',recording_pending:true,recording_path:null};
+let verifiedAt=new Date().toISOString(),billingChecks=0,accessAllowed=true,billingDown=false;
 const json=d=>new Response(JSON.stringify(d),{status:200,headers:{'content-type':'application/json'}});
 global.fetch=async(url,opt={})=>{
  url=String(url);const u=new URL(url),body=opt.body&&typeof opt.body==='string'&&opt.body.startsWith('{')?JSON.parse(opt.body):null;
  if(url.includes('/auth/v1/user'))return json({id:user,email:'test@example.invalid'});
  if(url.includes('/rest/v1/profiles?'))return json([{id:user,active:true,archived:false,role:'agent'}]);
  if(url.includes('/rest/v1/rpc/')){const name=u.pathname.split('/').at(-1);events.push({name,body});
-  if(name==='dialer_session_valid'||name==='dialer_entitled')return json(true);
+  if(name==='dialer_session_valid')return json(true);
+  if(name==='dialer_entitled')return json(accessAllowed&&Date.parse(verifiedAt)>Date.now()-300000);
   if(name==='dialer_get_account')return json({customer_id:'cus_test'});
   if(name==='dialer_callback_start')return json({id,identity:online?'vivid_in_test':null});
-  if(name==='dialer_callback_event'||name==='dialer_callback_presence')return json({});
+  if(name==='dialer_callback_presence'){if(body.p_ready&&(!accessAllowed||Date.parse(verifiedAt)<=Date.now()-300000))return new Response(JSON.stringify({message:'Calling access is unavailable'}),{status:400});return json({});}
+  if(name==='dialer_callback_event')return json({});
   if(name==='dialer_callback_list')return json({calls:[],unread:0});
   throw Error('Unknown RPC '+name);
  }
  if(url.includes('/rest/v1/dialer_numbers?'))return json([{user_id:user,livemode:true}]);
+ if(url.includes('/rest/v1/dialer_accounts?'))return json([{verified_at:verifiedAt}]);
  if(url.includes('/rest/v1/dialer_callbacks?')){if(opt.method==='PATCH'){Object.assign(call,body);order.push('database');return json([call]);}return json(foreign?[]:[call]);}
- if(url.includes('api.stripe.com/v1/subscriptions'))return json({data:[],has_more:false});
+ if(url.includes('api.stripe.com/v1/subscriptions')){billingChecks++;if(billingDown)return new Response(JSON.stringify({error:{message:'Test billing unavailable'}}),{status:503});verifiedAt=new Date().toISOString();return json({data:[],has_more:false});}
  if(url.includes('api.twilio.com')&&url.includes('/Recordings/')){
   if(opt.method==='DELETE'){assert(call.recording_path,'Provider copy deleted before private archive');order.push('delete-provider');return new Response(null,{status:204});}
   if(url.endsWith('.json'))return json({call_sid:wrongRecording?'CA'+'e'.repeat(32):parent,account_sid:account,source:'RecordVerb',status:'completed'});
@@ -47,9 +51,14 @@ const authenticated=body=>({method:'POST',headers:{origin:full.ORIGIN,authorizat
  res=response();await incoming.recording(signed('/api/dialer/incoming-recording',recordBody),res);assert.equal(res.code,204);assert.equal(call.status,'voicemail');assert.equal(call.provider_copy_removed,true);assert(order.indexOf('private-upload')<order.indexOf('delete-provider'));
  const downloads=order.filter(s=>s==='download').length;res=response();await incoming.recording(signed('/api/dialer/incoming-recording',recordBody),res);assert.equal(res.code,204);assert.equal(order.filter(s=>s==='download').length,downloads,'Duplicate webhook redownloaded archive');
  const callbacks=require('../api/dialer/callbacks');res=response();await callbacks(authenticated({action:'token',browserId:browser}),res);assert.equal(res.code,200);const claims=JSON.parse(Buffer.from(res.data.token.split('.')[1],'base64url'));assert.equal(claims.grants.voice.incoming.allow,true);assert.equal(claims.grants.voice.outgoing,undefined);assert(claims.grants.identity.includes(browser.replace(/-/g,'')));
+ const checks=billingChecks;res=response();await callbacks(authenticated({action:'presence',browserId:browser,ready:true,busy:false}),res);assert.equal(res.code,200);assert.equal(billingChecks,checks,'Fresh heartbeats must not repeat provider billing checks');
+ verifiedAt=new Date(Date.now()-360000).toISOString();res=response();await callbacks(authenticated({action:'presence',browserId:browser,ready:true,busy:false}),res);assert.equal(res.code,200,'An idle online agent must refresh expired calling access');assert.equal(billingChecks,checks+1);assert.equal(events.at(-1).body.p_ready,true);
+ accessAllowed=false;res=response();await callbacks(authenticated({action:'presence',browserId:browser,ready:true,busy:false}),res);assert.equal(res.code,409,'Refreshing must not grant revoked access');accessAllowed=true;
+ verifiedAt=new Date(Date.now()-360000).toISOString();billingDown=true;const beforeFailure=events.filter(e=>e.name==='dialer_callback_presence').length;res=response();await callbacks(authenticated({action:'presence',browserId:browser,ready:true,busy:false}),res);assert(res.code>=400);assert.equal(events.filter(e=>e.name==='dialer_callback_presence').length,beforeFailure,'A billing outage must not extend online availability');
+ const beforeOffline=billingChecks;res=response();await callbacks(authenticated({action:'presence',browserId:browser,ready:false,busy:true}),res);assert.equal(res.code,200);assert.equal(billingChecks,beforeOffline,'Going offline must not require billing');billingDown=false;
  res=response();await callbacks(authenticated({action:'list',userId:'another-user'}),res);assert.equal(events.at(-1).body.p_user,user);
  res=response();await callbacks({...authenticated({action:'list'}),headers:{origin:full.ORIGIN,authorization:'Bearer '+jwt('aal1')}},res);assert.equal(res.code,403);
  res=response();await require('../api/dialer/callback-audio')(authenticated({id}),res);assert.equal(res.code,200);assert.equal(res.headers['Content-Type'],'audio/mpeg');
  foreign=true;res=response();await require('../api/dialer/callback-audio')(authenticated({id}),res);assert.equal(res.code,404);res=response();await incoming.action(signed('/api/dialer/incoming-action',{...body,DialCallStatus:'no-answer'}),res);assert.equal(res.code,403);
- console.log('PASS: signed GET/POST routes, online ringing, missed-call voicemail, completed-call hangup, private archival before provider cleanup, recording ownership, replay, incoming-only tokens, MFA and audio ownership.');
+ console.log('PASS: signed GET/POST routes, online ringing, refreshed idle callback access, cached billing checks, revoked-access and outage protection, offline cleanup, missed-call voicemail, completed-call hangup, private archival before provider cleanup, recording ownership, replay, incoming-only tokens, MFA and audio ownership.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

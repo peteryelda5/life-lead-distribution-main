@@ -15,6 +15,7 @@ Each batch requires an agent click. The browser joins the conference before outb
 - Caller ID, current assignment, signed-in session, entitlement and provider ownership are checked server-side. Reassignment between preparation and dialing prevents that lead from being called. Server-only tables and RPCs remain inaccessible to browser roles.
 - Each phone leg ends within 30 minutes or the remaining minute allowance. Missing browser heartbeats stop the batch. Unconfirmed cleanup remains visible and blocks another batch until reconciled.
 - Single-line calls reuse recent verified billing state for up to two minutes. Repeated historical-error notification scans were removed from the call-start path.
+- Online callback heartbeats refresh billing verification before it expires. Fresh checks are reused for two minutes; revoked access and verification outages still prevent extending availability. Going offline does not depend on billing.
 
 ## Release and verification
 
