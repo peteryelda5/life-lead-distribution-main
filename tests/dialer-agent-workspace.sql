@@ -1,16 +1,19 @@
 -- All fixtures are rolled back, including auth users and callback tasks.
 do $$
-declare u uuid:=gen_random_uuid(); leader uuid:=gen_random_uuid(); peer uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid(); admin_id uuid:=gen_random_uuid(); master_id uuid:=gen_random_uuid();
+declare u uuid:=gen_random_uuid(); leader uuid:=gen_random_uuid(); peer uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid(); admin_id uuid:=gen_random_uuid(); master_id uuid;
  sess uuid:=gen_random_uuid(); browser uuid:=gen_random_uuid(); lid uuid; other_lead uuid; callback_id uuid; task uuid; scheduled uuid:=gen_random_uuid(); batch uuid:=gen_random_uuid(); leg uuid:=gen_random_uuid();
  division_id text:='fixture_'||replace(gen_random_uuid()::text,'-',''); due_time timestamptz:=now()+interval '2 hours'; result jsonb; rejected boolean; actor uuid;
 begin
  begin
   perform set_config('request.jwt.claims','{}',true);
+  -- Read the existing Master only for scope assertions. Never create or modify
+  -- a Master fixture: only_peter_master deliberately permits exactly one owner.
+  select id into strict master_id from public.profiles where is_super_admin and role='admin' and active and not coalesce(archived,false);
   insert into public.divisions(id,name) values(division_id,'Workspace isolation fixture');
-  foreach actor in array array[u,leader,peer,outsider,admin_id,master_id] loop
+  foreach actor in array array[u,leader,peer,outsider,admin_id] loop
    insert into auth.users(id,email) values(actor,actor||'@example.invalid');
    insert into public.profiles(id,email,full_name,role,active,division,is_team_leader,is_super_admin)
-   values(actor,actor||'@example.invalid','Workspace fixture',case when actor in(admin_id,master_id) then 'admin'::public.user_role else 'agent'::public.user_role end,true,case when actor=outsider then division_id else 'vivid_life' end,actor=leader,actor=master_id)
+   values(actor,actor||'@example.invalid','Workspace fixture',case when actor=admin_id then 'admin'::public.user_role else 'agent'::public.user_role end,true,case when actor=outsider then division_id else 'vivid_life' end,actor=leader,false)
    on conflict(id) do update set role=excluded.role,active=true,archived=false,division=excluded.division,is_team_leader=excluded.is_team_leader,is_super_admin=excluded.is_super_admin;
   end loop;
   update public.profiles set team_leader_id=leader where id=u;

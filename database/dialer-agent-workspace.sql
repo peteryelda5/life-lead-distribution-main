@@ -28,6 +28,9 @@ do $$ declare t text;begin
  end loop;
 end $$;
 
+-- The authenticated server reads explicit agency grants when scoping supervisors.
+-- Keep browser roles excluded and preserve SECURITY INVOKER on the scope helper.
+grant select on private.admin_division_access to service_role;
 create function private.dialer_workspace_scope(p_user uuid) returns setof uuid language sql stable security invoker set search_path='' as $$
  select p.id from public.profiles actor join public.profiles p on p.active and not coalesce(p.archived,false) and p.role in ('admin','agent')
  where actor.id=p_user and actor.active and not coalesce(actor.archived,false) and (
