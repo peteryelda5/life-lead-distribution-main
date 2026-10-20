@@ -1,0 +1,23 @@
+#portalDialer .agent-status-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:18px 22px;background:#f5f8fc;border:1px solid #dce5f0;border-radius:16px;margin:16px 0;color:#233956}
+#portalDialer .agent-live-state{display:flex;align-items:center;gap:12px;flex:1;min-width:220px}
+#portalDialer .agent-live-state strong{display:block;font-size:19px}#portalDialer .agent-live-state small{display:block;color:#64748b;margin-top:3px}
+#portalDialer .agent-state-dot{width:12px;height:12px;border-radius:50%;background:#20a87c;box-shadow:0 0 0 5px #20a87c15;flex:none}
+#portalDialer .agent-status-bar[data-state=break] .agent-state-dot,#portalDialer .agent-status-bar[data-state=wrap] .agent-state-dot{background:#d69026;box-shadow:0 0 0 5px #d6902615}
+#portalDialer .agent-status-bar[data-state=offline] .agent-state-dot{background:#8794a6;box-shadow:none}
+#portalDialer .agent-status-bar label{display:grid;gap:4px;font-size:12px;font-weight:700}#portalDialer .agent-status-bar select{min-width:125px;padding:9px}
+#portalDialer #agentPriorityCount{border-radius:20px;background:#e4ebff;color:#344fb7;padding:2px 7px;margin-left:5px}
+#portalDialer .agent-operations{padding:26px;background:#f7f9fc;border-radius:18px;margin-top:20px}
+#portalDialer .agent-ops-heading{display:flex;justify-content:space-between;align-items:center;gap:20px}#portalDialer .agent-ops-heading h2{margin:7px 0;font-size:28px;color:#192e4a}#portalDialer .agent-ops-heading p{color:#65758b;max-width:720px;line-height:1.6}
+#portalDialer .agent-eyebrow{font-size:11px;font-weight:800;letter-spacing:1.5px;color:#6478aa}
+#portalDialer .priority-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px;margin-top:20px}
+#portalDialer .priority-card{background:white;border:1px solid #dfe6ef;border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:10px;overflow-wrap:anywhere}
+#portalDialer .priority-card h3,#portalDialer .priority-card p{margin:0}#portalDialer .priority-card h3{font-size:18px;line-height:1.4;color:#233956}
+#portalDialer .priority-badge{font-size:10px;font-weight:800;letter-spacing:1px;color:#48658e}#portalDialer .priority-card[data-due=true] .priority-badge{color:#af671d}
+#portalDialer .priority-meta,#portalDialer .priority-card small{color:#68788d;font-size:13px;line-height:1.5}
+#portalDialer .priority-open{text-align:left;color:#315fbd;background:#eff4ff;border-color:#dce6fb;white-space:normal}
+#portalDialer .priority-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:10px}
+#portalDialer .agent-team-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0}#portalDialer .agent-team-summary>div{background:white;border:1px solid #e0e7f0;border-radius:14px;padding:20px}#portalDialer .agent-team-summary strong{display:block;font-size:30px;color:#274677}#portalDialer .agent-team-summary span{color:#6b7a90;font-size:13px}
+#portalDialer .agent-table-scroll{overflow:auto;background:white;border:1px solid #e0e7f0;border-radius:14px}#portalDialer .agent-team-table{width:100%;border-collapse:collapse;text-align:left;white-space:nowrap}#portalDialer .agent-team-table th{background:#eef3fa;font-size:12px;color:#61728a;padding:16px}#portalDialer .agent-team-table td{padding:16px;border-top:1px solid #edf1f6;font-size:14px}#portalDialer .agent-team-table small{display:block;color:#7b889b;margin-top:5px}
+#portalDialer .agent-schedule-dialog{border:0;border-radius:18px;padding:28px;width:min(460px,90vw);color:#223752;box-shadow:0 24px 80px #10244144}#portalDialer .agent-schedule-dialog::backdrop{background:#12294480}#portalDialer .agent-schedule-dialog label{display:grid;gap:8px;margin:18px 0 8px;font-weight:600}#portalDialer .agent-schedule-dialog input,#portalDialer .agent-schedule-dialog textarea{width:100%;box-sizing:border-box;padding:12px;border:1px solid #d3ddea;border-radius:9px;font:inherit}#portalDialer .agent-schedule-dialog form>div{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+#portalDialer .power-save-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+@media(max-width:750px){#portalDialer .agent-team-summary{grid-template-columns:repeat(2,1fr)}#portalDialer .agent-operations{padding:16px}#portalDialer .agent-ops-heading{align-items:flex-start}#portalDialer .agent-status-bar{padding:16px}#portalDialer .agent-status-bar>button{flex:1}}

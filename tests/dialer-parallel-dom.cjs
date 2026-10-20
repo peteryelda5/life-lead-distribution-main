@@ -9,12 +9,19 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
  const owner='77777777-7777-4777-8777-777777777777',session={user:{id:owner},access_token:'test'};w.localStorage.setItem('lld_session',JSON.stringify(session));w.AbortSignal=AbortSignal;w.confirm=()=>false;w.sessionExpiresWithin=()=>false;w.S={session,profile:{id:owner}};w.portalSessionEpoch=0;
  let dialogOpens=0;w.HTMLDialogElement.prototype.showModal=function(){this.open=true;dialogOpens++;};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};
  const timers=[];w.setInterval=(fn,ms)=>{timers.push({fn,ms});return timers.length;};w.clearInterval=()=>{};
- let microphoneError=false,stopError=false,access=true;Object.defineProperty(w.navigator,'mediaDevices',{value:{getUserMedia:async()=>{if(microphoneError)throw Object.assign(Error('Denied'),{name:'NotAllowedError'});return{getTracks:()=>[{stop(){}}]};}}});
+ let microphoneError=false,stopError=false,access=true,agentMode='ready',saveError=false;let priorityTasks=[];Object.defineProperty(w.navigator,'mediaDevices',{value:{getUserMedia:async()=>{if(microphoneError)throw Object.assign(Error('Denied'),{name:'NotAllowedError'});return{getTracks:()=>[{stop(){}}]};}}});
  const leads=[1,2,3,4].map(n=>({id:'11111111-1111-4111-8111-'+String(n).padStart(12,'0'),first_name:n===1?'<img src=x onerror=alert(1)>':'Lead '+n,last_name:'Fixture',phone:n===4?'911':'+1202555019'+n,state:n===2?'OH':'MI',lead_type:'Folder A',agent_status:n===3?'appointment_follow_up':null,call_notes:'Original notes',csv_headers:['Age'],csv_values:['61']}));
  let state=null,activeCall,starts=0,prepareGate=null;const requests=[];
  class Device extends Events{async connect(){state.state='ready';return activeCall=new Call();}destroy(){}}
  w.Twilio={Device};w.fetch=async(url,opt)=>{const b=JSON.parse(opt.body);requests.push({url,...b});let data;
- if(url==='/api/dialer/parallel'){
+ if(url==='/api/dialer/operations'){
+  if(b.action==='presence'){agentMode=b.mode||agentMode;data={mode:agentMode,supervisor:true};}
+  else if(b.action==='priority')data={due:priorityTasks.length,total:priorityTasks.length,tasks:priorityTasks};
+  else if(b.action==='supervisor')data={updatedAt:new Date().toISOString(),agents:[]};
+  else if(b.action==='resolve'){priorityTasks=priorityTasks.filter(t=>t.id!==b.id);data={saved:true};}
+  else if(b.action==='schedule'){data={saved:true};}
+  else throw Error('Unexpected operations '+b.action);
+ }else if(url==='/api/dialer/parallel'){
   if(b.action==='options')data={canCall:access,numbers:access?['+12025550198']:[],sessions:state?[{id:state.id,state:state.state,kind:'leads',created_at:new Date().toISOString()}]:[]};
   else if(b.action==='prepareLeads'){if(prepareGate)await prepareGate;state={id:b.id,kind:'leads',connectMode:b.connectMode,state:'prepared',callerId:b.callerId,legs:b.leadIds.map((leadId,i)=>({id:'leg'+i,leadId,position:i+1,phone:leads.find(l=>l.id===leadId).phone,state:'queued'}))};data={session:structuredClone(state),leads:leads.filter(l=>b.leadIds.includes(l.id)),token:'test',callGrant:'signed'};}
   else if(b.action==='status')data={session:structuredClone(state),leads:structuredClone(b.details?leads:leads.filter(l=>state.legs.some(leg=>leg.leadId===l.id&&['second_answer','answer_unconfirmed','answered_not_connected'].includes(leg.outcome))))};
@@ -25,10 +32,10 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
  else if(b.action==='profile')data={profile:{full_name:'Paid agent',division:'vivid_life'},scripts:[]};
  else if(b.action==='folders')data={folders:[{lead_type:'Folder A',lead_count:4}]};
  else if(b.action==='leads')data={leads:b.states?.length?leads.filter(l=>b.states.includes(l.state)):leads,count:4,states:[{state:'MI',lead_count:3},{state:'OH',lead_count:1}]};
- else if(b.action==='save'){const l=leads.find(l=>l.id===b.leadId);assert.equal(b.expectedNotes,l.call_notes);assert.equal(b.expectedStatus,l.agent_status);l.call_notes=b.notes;l.agent_status=b.status;data={lead:{...l}};}
+ else if(b.action==='save'){if(saveError)return{ok:false,status:409,json:async()=>({error:'Lead changed in another window'})};const l=leads.find(l=>l.id===b.leadId);assert.equal(b.expectedNotes,l.call_notes);assert.equal(b.expectedStatus,l.agent_status);l.call_notes=b.notes;l.agent_status=b.status;data={lead:{...l}};}
  else throw Error('Unexpected API '+url+' '+b.action);
  return {ok:true,status:200,json:async()=>data};};
- w.eval(fs.readFileSync(__dirname+'/../dialer-parallel.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../portal-dialer.js','utf8'));
+ w.eval(fs.readFileSync(__dirname+'/../dialer-operations.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-parallel.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../portal-dialer.js','utf8'));
  const root=w.document.querySelector('#root'),$=id=>root.querySelector('#'+id);instance=w.createPortalDialer(root);await flush();
  assert.equal(root.querySelector('[data-view="parallel"]').textContent,'Power Dialer');root.querySelector('[data-view="parallel"]').click();await flush();
  assert.equal($('parallel').hidden,false);assert.equal($('powerMode').value,'human','Voicemail detection must be the default');assert.equal($('powerMode').options.length,1,'Unsafe fast connection is still offered');assert.equal($('powerSetup').hidden,true);assert.equal($('powerRows').querySelectorAll('input').length,4);assert.equal($('powerRows').querySelectorAll('input')[3].disabled,true);assert.equal(root.querySelector('img[src=x]'),null,'Lead data became HTML');
@@ -67,9 +74,25 @@ class Call extends Events{status(){return 'open';}disconnect(){this.emit('discon
  $('powerStart').click();await flush();state.legs[0].state='in-progress';state.legs[0].answer=null;state.legs[0].outcome=null;await timers.find(t=>t.ms===1200).fn();await flush();assert.match($('powerCards').textContent,/Checking answer/);assert.doesNotMatch(root.textContent,/press.?1/i);assert.equal($('powerConnectedDialog').open,false);
  state.legs[0].state='completed';state.legs[0].answer=null;state.legs[0].pickedUp=true;state.legs[0].durationSeconds=2;state.legs[0].outcome='answer_unconfirmed';leads[1].call_notes+='\nCall picked up, but a live person was not confirmed before it ended. Follow-up needed.';state.state='complete';await timers.find(t=>t.ms===1200).fn();await flush();assert.match($('powerCards').textContent,/Pickup unconfirmed/);assert.match($('powerReturned').textContent,/returned for follow-up/);assert.doesNotMatch($('powerReturned').textContent,/uncalled/);assert.match($('powerRows').querySelector('.power-returned').textContent,/Pickup unconfirmed/);
  $('powerRows').querySelectorAll('button')[1].click();assert.match($('powerNotes').value,/live person was not confirmed/);$('powerDialogMinimize').click();
+ // Availability applies across the workspace, without losing the selected queue.
+ assert.equal($('agentState').textContent,'Ready');$('agentMode').value='break';$('agentMode').dispatchEvent(new w.Event('change'));await flush();
+ assert.equal($('agentState').textContent,'Break');assert.equal($('powerStart').disabled,true);const breakStarts=starts;await $('powerStart').onclick();await flush();assert.equal(starts,breakStarts);
+ $('agentMode').value='ready';$('agentMode').dispatchEvent(new w.Event('change'));await flush();assert.equal($('powerStart').disabled,false);
+ // Save & Call Next must preserve a failed draft, then start only once after a successful save.
+ $('powerClear').click();$('powerSelect').click();$('powerStart').click();await flush();state.state='connected';state.winnerId=state.legs[0].id;state.legs[0].outcome='connected';await timers.find(t=>t.ms===1200).fn();await flush();
+ assert.equal($('agentState').textContent,'On call');$('powerDialogStop').click();await flush();assert.equal($('agentState').textContent,'Finishing notes');
+ $('powerNotes').value='Save-next draft';$('powerOutcome').value='call_back';saveError=true;const beforeNextStarts=starts;$('powerSaveNext').click();await flush();assert.equal(starts,beforeNextStarts);assert.equal($('powerNotes').value,'Save-next draft');assert.match($('powerSaveMessage').textContent,/changed/);
+ saveError=false;$('powerSaveNext').click();await flush();assert.equal(starts,beforeNextStarts+1);$('powerStop').click();await flush();
+ // Due callbacks intercept the next batch and opening them never marks them handled.
+ $('powerRows').querySelector('button').click();$('powerOutcome').value='call_back';priorityTasks=[{id:'task',source:'power',reason:'Answered without agent',phone:leads[0].phone,due_at:new Date().toISOString(),matches:[leads[0]]}];
+ $('powerSaveNext').click();await flush();assert.equal($('priority').hidden,false);assert.equal(starts,beforeNextStarts+1);assert.match($('priorityRows').textContent,/Answered without agent/);
+ $('priorityRows').querySelector('.priority-open').click();await flush();assert.equal($('workspace').hidden,false);assert.equal(priorityTasks.length,1);assert.equal(root.querySelector('img[src=x]'),null);
+ $('agentPriority').click();await flush();[...$('priorityRows').querySelectorAll('button')].find(b=>b.textContent==='Mark handled').click();await flush();assert.equal(priorityTasks.length,0);
+ $('agentTeam').click();await flush();assert.equal($('supervisor').hidden,false);assert.match($('teamMessage').textContent,/permitted scope/);
+ root.querySelector('[data-view="parallel"]').click();await flush();
  // Existing subscriptions stay required, with visible setup guidance for new agents.
  access=false;$('powerRefreshHistory').click();await flush();assert.equal($('powerSetup').hidden,false);assert.equal($('powerStart').disabled,true);
  w.localStorage.setItem('lld_session',JSON.stringify({user:{id:'other'},access_token:'other'}));w.dispatchEvent(new w.StorageEvent('storage',{key:'lld_session'}));assert.equal(root.querySelector('#parallel'),null);
- console.log('PASS: paid-agent tab, folder/states, valid lead queue, HTML escaping, microphone recovery, pending-setup polling and cancellation, automatic detection mode, pending answer status, unknown-pickup notes and queue, three-line launch, stable cards, automatic winner popup, minimize/reopen, popup call controls, draft preservation, stop retry, required outcome, canceled-lead queue restoration, original folder/notes/status retention, distinct answered follow-up with refreshed durable notes, no auto-redial, setup guidance and account cleanup.');
+ console.log('PASS: agent status and Break, Save & Call Next with save-conflict protection, due callback interception and explicit resolution, supervisor navigation, paid-agent tab, folder/states, valid lead queue, HTML escaping, microphone recovery, pending-setup polling and cancellation, automatic detection mode, pending answer status, unknown-pickup notes and queue, three-line launch, stable cards, automatic winner popup, minimize/reopen, popup call controls, draft preservation, stop retry, required outcome, canceled-lead queue restoration, original folder/notes/status retention, distinct answered follow-up with refreshed durable notes, no auto-redial, setup guidance and account cleanup.');
  }finally{instance?.dispose();dom.window.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
