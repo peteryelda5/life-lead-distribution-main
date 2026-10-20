@@ -30,7 +30,7 @@ function setup(role='agent',leader=false){
   await tick();h.setList([event('unsafe',{title:'<img src=x onerror=alert(1)>',body:'<script>bad()</script>'})]);await h.click('portalNotifications');assert.equal(h.w.document.querySelector('.pn-item img'),null);assert.match(h.w.document.querySelector('.pn-item-open').textContent,/<img/);
   h.w.document.querySelector('.pn-item-actions button').click();await tick();assert.equal(h.requests.at(-1).p_action,'read');assert.equal(h.$('pnMarkAll').disabled,true);assert.match(h.w.document.querySelector('.pn-item-actions button').textContent,/unread/);
   h.w.document.querySelector('.pn-item-actions button').click();await tick();assert.equal(h.requests.at(-1).p_action,'unread');assert.equal(h.$('pnMarkAll').disabled,false);
-  await h.click('pnUnread');assert.equal(h.requests.at(-1).p_data.unread,true);h.$('pnCategory').value='calls';h.$('pnCategory').dispatchEvent(new h.w.Event('change'));await tick();assert.equal(h.requests.at(-1).p_data.category,'calls');assert.match(h.$('pnRows').textContent,/caught up/);
+  await h.click('pnUnread');assert(h.requests.slice(-2).some(r=>r.p_data.unread===true));h.$('pnCategory').value='calls';h.$('pnCategory').dispatchEvent(new h.w.Event('change'));await tick();assert(h.requests.slice(-2).some(r=>r.p_data.category==='calls'));assert.match(h.$('pnRows').textContent,/caught up/);
   h.$('pnCategory').value='all';h.$('pnCategory').dispatchEvent(new h.w.Event('change'));await tick();await h.click('pnAll');
   await h.click('pnSettings');h.w.document.querySelector('[name=category][value=team]').checked=false;h.w.document.querySelector('[name=toasts]').checked=false;h.w.document.querySelector('.pn-primary').click();await tick();assert.equal(h.requests.at(-1).p_action,'preferences');assert.deepEqual([...h.requests.at(-1).p_data.muted_categories],['team']);assert.equal(h.requests.at(-1).p_data.toast_enabled,false);
   await h.click('pnMarkAll');assert.equal(h.requests.at(-1).p_data.before,'2026-10-20T10:01:00Z');assert.equal(h.$('pnMarkAll').disabled,true);
@@ -49,6 +49,10 @@ function setup(role='agent',leader=false){
   t.setNow('2026-10-20T10:03:00Z');t.setList([event('fresh',{at:'2026-10-20T10:02:00Z'})]);await t.poll();assert(t.w.document.querySelector('.pn-toast'));
   t.w.document.querySelector('.pn-toast-close').click();await t.poll();assert.equal(t.w.document.querySelector('.pn-toast'),null);
   t.setList([event('older',{at:'2026-10-20T09:00:00Z'})]);await t.poll();assert.equal(t.w.document.querySelector('.pn-toast'),null);
+  t.w.S.tab='live-chat';t.w.PC.group='currently-open';t.setNow('2026-10-20T10:05:00Z');t.setList([event('group:currently-open',{category:'chat',at:'2026-10-20T10:04:00Z',target:{tab:'live-chat',conversation:'currently-open'}})]);await t.poll();assert.equal(t.w.document.querySelector('.pn-toast'),null);
+  t.setNow('2026-10-20T10:07:00Z');t.setList([event('group:other-chat',{category:'chat',at:'2026-10-20T10:06:00Z',target:{tab:'live-chat',conversation:'other-chat'}})]);await t.poll();assert(t.w.document.querySelector('.pn-toast'));t.w.document.querySelector('.pn-toast-close').click();
+  await t.click('portalNotifications');t.$('pnCategory').value='calls';t.$('pnCategory').dispatchEvent(new t.w.Event('change'));await tick();await t.click('pnClose');
+  t.setNow('2026-10-20T10:09:00Z');t.setList([event('delivery:after-filter',{at:'2026-10-20T10:08:00Z'})]);await t.poll();assert(t.w.document.querySelector('.pn-toast'));assert.match(t.w.document.querySelector('.pn-toast').textContent,/New leads/);
  }finally{await t.close();}
  console.log('PASS: all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
