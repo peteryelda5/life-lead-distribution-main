@@ -5,8 +5,8 @@ const provider=require('../lib/dialer-at-cost-provider');
 const full=require('../lib/dialer-full'),parallel=require('../lib/dialer-parallel'),owner=full.MASTER;
 const id='11111111-1111-4111-8111-111111111111',authSession='22222222-2222-4222-8222-222222222222',agent='CA'+'b'.repeat(32),account=process.env.TWILIO_ACCOUNT_SID;
 const exempt='5893f335-aad3-4079-ad95-77eaf1347ac6',subaccount='AC'+'d'.repeat(32);let exemption,access=true,entitled=true,syncs=0;require('../lib/dialer-full-billing').sync=async()=>{syncs++;};require('../lib/dialer-full-billing').ensureFresh=async()=>{syncs++;};
-let recoveryRecords=[];let rejectNumber=false,parallelInFlight=0,maxInFlight=0;let s,legs,records,requests=[],rateCountry='US',rate='0.014',winner=null,createUncertain=false,creates=0;
-function reset(user=owner){access=true;entitled=true;exemption={user_id:exempt,required_role:'agent',enabled:true,provider_sid:subaccount,provider_app:'AP'+'d'.repeat(32),provider_key:'SK'+'d'.repeat(32),provider_secret_cipher:provider.seal('sub-key',exempt)};s={id,created_at:new Date().toISOString(),user_id:user,session_id:authSession,provider_sid:user===owner?account:subaccount,caller_id:'+12025550123',state:'prepared',heartbeat_at:new Date().toISOString(),expires_at:new Date(Date.now()+240000).toISOString(),agent_sid:agent};legs=[1,2,3].map(n=>({id:'33333333-3333-4333-8333-'+String(n).padStart(12,'0'),session_id:id,position:n,phone:'+1202555012'+(n+3),rate:.014,state:'prepared',terminal:false,duration_seconds:0}));records=new Map([[agent,{sid:agent,account_sid:s.provider_sid,from:'client:vivid_parallel_'+id.replaceAll('-',''),status:'in-progress',duration:'10'}]]);winner=null;creates=0;createUncertain=false;recoveryRecords=[];rejectNumber=false;parallelInFlight=0;maxInFlight=0;requests=[];}
+let raceCancelSid=null;let recoveryRecords=[];let rejectNumber=false,parallelInFlight=0,maxInFlight=0;let s,legs,records,requests=[],rateCountry='US',rate='0.014',winner=null,createUncertain=false,creates=0;
+function reset(user=owner){raceCancelSid=null;access=true;entitled=true;exemption={user_id:exempt,required_role:'agent',enabled:true,provider_sid:subaccount,provider_app:'AP'+'d'.repeat(32),provider_key:'SK'+'d'.repeat(32),provider_secret_cipher:provider.seal('sub-key',exempt)};s={id,created_at:new Date().toISOString(),user_id:user,session_id:authSession,provider_sid:user===owner?account:subaccount,caller_id:'+12025550123',state:'prepared',heartbeat_at:new Date().toISOString(),expires_at:new Date(Date.now()+240000).toISOString(),agent_sid:agent};legs=[1,2,3].map(n=>({id:'33333333-3333-4333-8333-'+String(n).padStart(12,'0'),session_id:id,position:n,phone:'+1202555012'+(n+3),rate:.014,state:'prepared',terminal:false,duration_seconds:0}));records=new Map([[agent,{sid:agent,account_sid:s.provider_sid,from:'client:vivid_parallel_'+id.replaceAll('-',''),status:'in-progress',duration:'10'}]]);winner=null;creates=0;createUncertain=false;recoveryRecords=[];rejectNumber=false;parallelInFlight=0;maxInFlight=0;requests=[];}
 const json=d=>new Response(JSON.stringify(d),{headers:{'content-type':'application/json'}});
 global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.body).startsWith('{')?JSON.parse(opt.body):null;requests.push({url,method:opt.method,body,authorization:opt.headers?.Authorization});
  if(u.pathname.endsWith('/rpc/dialer_parallel_allowed'))return json(access);
@@ -21,8 +21,16 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
   if(body.p_event==='claim'&&l.state==='prepared'&&s.state==='dialing'&&!winner){l.state='creating';result='create';}
   if(body.p_event==='reject'&&l.state==='creating'&&!l.provider_sid){l.state='failed';l.terminal=true;l.outcome='number_rejected';l.error_code=body.p_seconds;result='rejected';}
   if(body.p_event==='bind'){l.provider_sid=body.p_sid;if(l.state==='creating')l.state='queued';result='bound';}
-  if(body.p_event==='answer'){l.provider_sid=body.p_sid;l.answer=body.p_value;if(s.state==='stopping'||s.state==='complete')result='stopped';else if(['human','answered'].includes(body.p_value)){if(!winner||winner===l.id){s.winner_id=winner=l.id;s.state='connected';l.outcome='connected';result='winner';}else{l.outcome='second_answer';result='overflow';}}else{l.outcome=body.p_value;result='hangup';}}
-  if(body.p_event==='status'){l.provider_sid=body.p_sid;l.state=body.p_value;l.duration_seconds=body.p_seconds;l.terminal=['completed','canceled','failed','no-answer','busy'].includes(body.p_value);result='status';}
+  if(body.p_event==='answer'||body.p_event==='confirm'){
+   l.provider_sid=body.p_sid;l.pickup_at??=new Date().toISOString();records.get(body.p_sid).status='in-progress';
+   if(body.p_event==='confirm'){if(l.outcome!=='awaiting_confirmation'||body.p_value!=='1')return json({result:'ignored'});l.confirmed_at=new Date().toISOString();}else l.answer=body.p_value;
+   if(s.state==='stopping'||s.state==='complete')result='stopped';
+   else if(body.p_event==='confirm'||['human','answered'].includes(body.p_value)){if(!winner||winner===l.id){s.winner_id=winner=l.id;s.state='connected';l.outcome='connected';result='winner';}else{l.outcome='second_answer';l.followup_noted_at=new Date().toISOString();result='overflow';}}
+   else if(s.kind==='leads'&&['machine','unknown'].includes(body.p_value)){l.outcome='awaiting_confirmation';l.confirm_requested_at=new Date().toISOString();result='confirm';}
+   else{l.outcome=body.p_value;result='hangup';}
+  }
+  if(body.p_event==='confirm_timeout'&&l.outcome==='awaiting_confirmation'){l.outcome=l.answer==='machine'?'machine':'answer_unconfirmed';result='hangup';}
+  if(body.p_event==='status'){l.provider_sid=body.p_sid;if(!l.terminal)l.state=body.p_value;l.duration_seconds=Math.max(l.duration_seconds,body.p_seconds);l.terminal||=['completed','canceled','failed','no-answer','busy'].includes(body.p_value);if(['in-progress','completed'].includes(body.p_value))l.pickup_at??=new Date().toISOString();if(l.terminal&&!l.answer&&l.pickup_at&&l.id!==winner)l.outcome='answer_unconfirmed';result='status';}
   if(body.p_event==='stop'){s.state='stopping';for(const l of legs)if(l.state==='prepared'){l.state='canceled';l.terminal=true;}result='stopped';}
   if(body.p_event==='complete'){s.state='complete';result='complete';}
   return json({result});
@@ -38,7 +46,7 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
   assert(u.pathname.includes('/Accounts/'+s.provider_sid+'/'),'Wrong billing account');assert.equal(opt.headers.Authorization,'Basic '+Buffer.from(s.provider_sid+':'+(s.provider_sid===account?'test-secret':'sub-secret')).toString('base64'));
   if(u.pathname.endsWith('/Calls.json')&&opt.method==='GET')return json({calls:recoveryRecords.filter(c=>c.to===u.searchParams.get('To')&&c.from===u.searchParams.get('From')),next_page_uri:null});
   if(u.pathname.endsWith('/Calls.json')&&opt.method==='POST'){creates++;const p=new URLSearchParams(opt.body);assert.deepEqual(p.getAll('StatusCallbackEvent'),['initiated','ringing','answered','completed']);assert.equal(p.get('MachineDetection'),s.connect_mode==='fast'?null:'Enable');assert.equal(p.get('AsyncAmd'),s.connect_mode==='fast'?null:'false');assert.equal(p.get('TimeLimit'),String(s.kind==='leads'?1800:90));assert.equal(p.get('Timeout'),'20');if(createUncertain)throw Error('Provider timeout');const thisCreate=creates;parallelInFlight++;maxInFlight=Math.max(maxInFlight,parallelInFlight);await new Promise(r=>setTimeout(r,5));parallelInFlight--;if(rejectNumber&&thisCreate===1)return new Response(JSON.stringify({code:21211}),{status:400});const sid='CA'+String(thisCreate).padStart(32,'0'),d={sid,account_sid:s.provider_sid,to:p.get('To'),from:p.get('From'),status:'queued',duration:'0',price:null};records.set(sid,d);return json(d);}
-  const sid=u.pathname.split('/').at(-1).replace('.json',''),d=records.get(sid);assert(d,'Unowned provider call read');if(opt.method==='POST'){const p=new URLSearchParams(opt.body);d.status=p.get('Status');}return json(d);
+  const sid=u.pathname.split('/').at(-1).replace('.json',''),d=records.get(sid);assert(d,'Unowned provider call read');if(opt.method==='POST'){const p=new URLSearchParams(opt.body);if(sid===raceCancelSid&&p.get('Status')==='canceled'){raceCancelSid=null;d.status='in-progress';return new Response(JSON.stringify({code:21220}),{status:400});}d.status=p.get('Status');}return json(d);
  }
  throw Error('Unexpected fetch '+url);
 };
@@ -98,8 +106,8 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  // Lead batches keep ringing after a machine or unknown answer; only a human wins.
  reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';
  await parallel.launch(await parallel.get(id));assert.equal(creates,3);assert.equal(maxInFlight,3);
- res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start',MachineDetectionDuration:'2100'}),res);assert.match(res.data,/<Hangup/);assert(!res.data.includes('<Conference'));assert.equal(winner,null);assert.equal(legs[0].outcome,'machine');assert.equal(s.state,'dialing');assert.equal(records.get(legs[1].provider_sid).status,'queued','Machine detection stopped another line');
- res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Hangup/);assert.equal(winner,null);assert.equal(s.state,'dialing');
+ res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start',MachineDetectionDuration:'2100'}),res);assert.match(res.data,/<Hangup/);assert(!res.data.includes('<Conference'));assert.equal(winner,null);assert.equal(legs[0].outcome,'awaiting_confirmation');assert.match(res.data,/<Gather input="dtmf"/);assert.match(res.data,/actionOnEmptyResult="true"/);assert.equal(s.state,'dialing');assert.equal(records.get(legs[1].provider_sid).status,'queued','Machine detection stopped another line');
+ res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Gather/);assert.equal(winner,null);assert.equal(s.state,'dialing');
  res=response();await parallel.events(webhook('answer',legs[2],{AnsweredBy:'human'}),res);assert.match(res.data,/<Conference/);assert.equal(s.winner_id,legs[2].id);
  await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
  // A definitive invalid-number response must not stop the two other leads.
@@ -113,5 +121,26 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  const recovered={sid:'CA'+'9'.repeat(32),account_sid:account,from:s.caller_id,to:legs[0].phone,direction:'outbound-api',date_created:new Date(s.created_at).toUTCString(),status:'ringing',duration:'0',price:null};records.set(recovered.sid,recovered);recoveryRecords=[recovered];
  await parallel.stop(await parallel.get(id));assert.equal(legs[0].provider_sid,recovered.sid);assert.equal(recovered.status,'canceled');assert.equal(creates,3,'Recovery created another call');
  s.created_at=new Date(Date.now()-180000).toISOString();await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');assert.equal(creates,3);assert(legs.every(l=>l.terminal));
- console.log('PASS: fast first-pickup connection without AMD, one winner and bounded cleanup, human-filter compatibility, no fast-mode detection fee, Master/$0 ownership and billing isolation.');
+ // A nonwinning phone has already picked up but its AMD webhook is still in flight.
+ reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';legs.forEach((l,i)=>l.lead_id='55555555-5555-4555-8555-'+String(i+1).padStart(12,'0'));
+ await parallel.launch(await parallel.get(id));res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'human'}),res);
+ records.get(legs[1].provider_sid).status='in-progress';
+ await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});
+ assert.equal(records.get(legs[1].provider_sid).status,'in-progress','Cleanup hung up a person before AMD finished');assert.equal(records.get(legs[2].provider_sid).status,'canceled','Unanswered phone kept ringing');
+ res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'human'}),res);assert.match(res.data,/Please call/);assert.equal(legs[1].outcome,'second_answer');assert.equal(s.winner_id,legs[0].id);
+ await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'in-progress','Cleanup interrupted the overflow message');
+ legs[1].followup_noted_at=new Date(Date.now()-31000).toISOString();await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'completed','Overflow cleanup was unbounded');await parallel.stop(await parallel.get(id));
+ // GET says ringing, but a person answers before the cancellation request reaches Twilio.
+ reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';await parallel.launch(await parallel.get(id));res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'human'}),res);raceCancelSid=legs[1].provider_sid;
+ await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'in-progress','Cancel race fell back to a forced hangup');
+ // Missing AMD results have a bounded grace period and retain evidence of the pickup.
+ legs[1].pickup_at=new Date(Date.now()-16000).toISOString();await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'completed');assert.equal(legs[1].outcome,'answer_unconfirmed');await parallel.stop(await parallel.get(id));
+ // A screening/false-machine result can recover through a signed keypress; machines never win on their own.
+ reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';await parallel.launch(await parallel.get(id));res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'machine_start'}),res);assert.match(res.data,/<Gather/);assert.equal(winner,null);
+ res=response();await parallel.events(webhook('confirm',legs[0],{Digits:'1'}),res);assert.match(res.data,/<Conference/);assert.equal(parallel.publicState(await parallel.get(id)).legs[0].answer,'confirmed');
+ res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'unknown'}),res);assert.match(res.data,/<Gather/);
+ await parallel.action({body:{action:'status',id}},{id:owner,sessionId:authSession,live:true});assert.equal(records.get(legs[1].provider_sid).status,'in-progress','Winner interrupted a pending confirmation');
+ res=response();await parallel.events(webhook('confirm',legs[1],{Digits:'1'}),res);assert.match(res.data,/Please call/);assert.equal(s.winner_id,legs[0].id);
+ await parallel.stop(await parallel.get(id));assert([...records.values()].every(c=>['completed','canceled'].includes(c.status)),'Explicit stop left calls alive');
+ console.log('PASS: legacy fast mode, signed screening confirmation, one winner, pending-AMD cleanup, GET/cancel pickup race, bounded detection/overflow cleanup, no silent loss of pickup evidence, explicit stop, refreshed follow-up notes and billing ownership.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
