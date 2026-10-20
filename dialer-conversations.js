@@ -8,9 +8,11 @@
   const anchor=document.createElement('div');anchor.className='conversation-anchor';root.querySelector('.workspace-toolbar').after(anchor);anchor.append(panel);
   const elements=new Map([...panel.querySelectorAll('[id]')].map(el=>[el.id,el]));const $=id=>elements.get(id),same=()=>{try{return !disposed&&JSON.parse(localStorage.getItem('lld_session')||'null')?.user?.id===owner;}catch{return false;}};
   const key=c=>c?c.kind+':'+c.id:'';
-  const summaryHome=panel.querySelector('.conversation-columns');let docked=false,summaryWasOpen=true;
+  const summaryHome=panel.querySelector('.conversation-columns');let docked=false,summaryWasOpen=true,inPower=false,homeWasOpen=true;
   function place(){
-   const dialog=root.querySelector('#powerConnectedDialog[open]'),slot=dialog?.querySelector('#powerConversationSlot'),target=slot||dialog?.querySelector('#powerDialogBody')||anchor;
+   const powerHome=root.querySelector('#parallel:not([hidden]) #powerAssistantSlot'),nextPower=!!powerHome;
+   if(nextPower!==inPower){if(nextPower){homeWasOpen=panel.open;if(!current&&!data&&!options.getCall()?.active)panel.open=false;}else panel.open=homeWasOpen;inPower=nextPower;}
+   const dialog=root.querySelector('#powerConnectedDialog[open]'),slot=dialog?.querySelector('#powerConversationSlot'),target=slot||dialog?.querySelector('#powerDialogBody')||powerHome||anchor;
    const summaryTarget=slot?dialog.querySelector('#powerSummarySlot'):null,nextDocked=!!slot;
    if(nextDocked!==docked){if(nextDocked){summaryWasOpen=$('conversationSummarySection').open;$('conversationSummarySection').open=!!data?.conversation?.summary;panel.open=true;}else $('conversationSummarySection').open=summaryWasOpen;docked=nextDocked;}
    if(panel.parentNode!==target)target.append(panel);
@@ -60,8 +62,8 @@
   $('conversationAdd').onclick=()=>{const row=data?.conversation,text=$('conversationSummary').value.trim();if(!row?.leadId||!text)return;if(options.addNotes(row.leadId,'[AI call summary — reviewed]\n'+text))$('conversationFeedback').textContent='Added to the notes draft. Save the lead outcome to keep it.';else $('conversationFeedback').textContent='Open this lead and finish the call before adding the summary.';};
   $('conversationHistory').onclick=async()=>{if(actionBusy)return;try{const d=await request('list'),box=$('conversationHistoryRows');box.replaceChildren();box.hidden=false;for(const c of d.conversations||[]){const b=document.createElement('button');b.textContent=c.phone+' · '+new Date(c.created_at).toLocaleString();b.onclick=()=>{historyOpen=true;switchCall({kind:c.kind,id:c.source_id,label:c.phone,active:false});box.hidden=true;poll(true);};box.append(b);}if(!box.children.length)box.textContent='No transcripts yet.';}catch(e){$('conversationFeedback').textContent=e.message;}};
   $('conversationCurrent').onclick=()=>{historyOpen=false;switchCall(options.getCall());poll(true);};panel.ontoggle=()=>{if(panel.open)poll(true);};
-  const timer=setInterval(()=>poll(),1500);
-  function dispose(){if(disposed)return;disposed=true;clearInterval(timer);$('conversationSummarySection').remove();panel.remove();anchor.remove();}
+  const timer=setInterval(()=>poll(),1500);root.addEventListener('powerlayoutchange',place);
+  function dispose(){if(disposed)return;disposed=true;clearInterval(timer);root.removeEventListener('powerlayoutchange',place);$('conversationSummarySection').remove();panel.remove();anchor.remove();}
   controls();return {dispose,changed:()=>{place();controls();},setVisible(value){visible=value;if(value)poll(true);}};
  };
 })();
