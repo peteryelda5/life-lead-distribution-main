@@ -10,6 +10,8 @@
 .power-dialog-header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 24px;background:#fff;border-bottom:1px solid var(--power-line)}
 .power-dialog-header h2{font-size:24px;margin:4px 0}.power-dialog-header p{font-size:13px;margin:6px 0 0;color:var(--power-muted)}
 .power-dialog-actions{display:flex;gap:8px;flex-wrap:wrap}.power-dialog-actions button{white-space:nowrap}
-.power-connected-dialog>.power-message{margin:14px 24px 0}.power-connected-dialog>.power-message:empty{display:none}
+.power-workspace .power-connected-dialog>.power-message{margin:14px 24px 0}.power-workspace .power-connected-dialog>.power-message:empty{display:none}
 #powerDialogBody{padding:18px 24px 24px}.power-connected-dialog .power-lead{border-radius:12px}.power-connected-dialog .power-lead dl{max-height:none}.power-connected-dialog .power-lead h2{font-size:28px}
-@media(max-width:600px){.power-workspace .power-connected-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:12px}.power-dialog-header{padding:14px;align-items:start;flex-direction:column;gap:10px}.power-dialog-header h2{font-size:21px}.power-dialog-actions{width:100%}.power-dialog-actions button{flex:1;padding:8px;font-size:12px}.power-connected-dialog>.power-message{margin:12px 14px 0}#powerDialogBody{padding:12px 14px 14px}.power-connected-dialog .power-lead h2{font-size:23px}.power-connected-dialog .power-lead dl{grid-template-columns:1fr}}
+@media(max-width:600px){.power-workspace .power-connected-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);border-radius:12px}.power-dialog-header{padding:14px;align-items:start;flex-direction:column;gap:10px}.power-dialog-header h2{font-size:21px}.power-dialog-actions{width:100%}.power-dialog-actions button{flex:1;padding:8px;font-size:12px}.power-workspace .power-connected-dialog>.power-message{margin:12px 14px 0}#powerDialogBody{padding:12px 14px 14px}.power-connected-dialog .power-lead h2{font-size:23px}.power-connected-dialog .power-lead dl{grid-template-columns:1fr}}
+
+.power-workspace .power-row .power-returned{color:#177c67;font-weight:700}
