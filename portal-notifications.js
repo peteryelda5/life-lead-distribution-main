@@ -3,7 +3,12 @@
  'use strict';
  const categories={leads:'Leads',requests:'Lead requests',calls:'Calls & follow-ups',deals:'Closed deals',chat:'Chat',announcements:'Announcements',team:'Team & goals',billing:'Billing'};
  let owner=null,epoch=0,revision=0,timer=null,flight=null,again=false,busy=false,panel=null,data=null,filter='all',unreadOnly=false,offset=0,lastSignature='',seen=null,seenAfter=0,toastQueue=[],toastCards=new Map(),toastRegion=null;
- let liveChannel=null,liveStarting=false,liveTimer=null,dealStart=0;
+ let liveChannel=null,liveStarting=false,liveTimer=null,dealStart=0,celebrationSound=null,soundEnabled=true;
+ const soundKey=()=> 'lld_celebration_sound:'+owner;
+ function loadSoundPreference(){try{soundEnabled=localStorage.getItem(soundKey())!=='off';}catch{soundEnabled=true;}}
+ function quietForCall(){return !!window.manualCalling?.()||(typeof portalDialerInstance!=='undefined'&&!!portalDialerInstance&&(typeof portalDialerInstance.isBusy!=='function'||portalDialerInstance.isBusy()));}
+ function getSound(){if(!celebrationSound&&eligible()&&window.createPortalCelebrationSound){const id=owner,ticket=epoch;celebrationSound=window.createPortalCelebrationSound({enabled:()=>soundEnabled,quiet:quietForCall,active:()=>current(id,ticket)});}return celebrationSound;}
+ function unlockSound(){if(eligible())getSound()?.unlock();}
  const $=id=>document.getElementById(id);
  const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&currentAal()==='aal2'&&!!document.querySelector('.portal-topnav');
  const current=(id,ticket)=>eligible()&&S.profile.id===id&&epoch===ticket;
@@ -11,7 +16,7 @@
  const rpc=(action,extra={})=>api('/rest/v1/rpc/portal_notifications',{method:'POST',body:{p_action:action,p_data:{...query(),...extra}}});
  const element=(tag,className,text)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  function button(text,action,className=''){const b=element('button',className,text);b.type='button';b.onclick=action;return b;}
- function reset(){epoch++;revision++;close(false);clearToasts();stopLive();clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
+ function reset(){epoch++;revision++;close(false);clearToasts();stopLive();celebrationSound?.dispose();celebrationSound=null;clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
  function stopLive(){clearTimeout(liveTimer);liveTimer=null;liveStarting=false;const channel=liveChannel;liveChannel=null;if(channel&&typeof SB!=='undefined')Promise.resolve(SB.removeChannel(channel)).catch(()=>{});}
  function queueLiveRefresh(id,ticket){if(!current(id,ticket)||document.hidden||liveTimer)return;liveTimer=setTimeout(()=>{liveTimer=null;if(current(id,ticket))refresh();},250);}
  async function connectLive(){
@@ -53,7 +58,7 @@
     }
    }else open.append(element('span','pn-toast-category',categories[n.category]||'Update'),element('strong','',n.title),element('span','pn-toast-body',n.body),element('span','pn-toast-link','Open →'));
    const dismiss=button('×',()=>dismissToast(n.key),'pn-toast-close');dismiss.setAttribute('aria-label','Dismiss alert');
-   box.append(icon,open,dismiss);toastRegion.append(box);
+   box.append(icon,open,dismiss);toastRegion.append(box);if(deal)getSound()?.play();
    const card={box,timer:null,remaining:10000,started:0};toastCards.set(n.key,card);
    const pause=()=>{box.classList.add('pn-paused');if(card.timer){clearTimeout(card.timer);card.timer=null;card.remaining=Math.max(0,card.remaining-(Date.now()-card.started));}};
    const resume=()=>{if(card.timer||box.matches(':hover')||box.contains(document.activeElement))return;box.classList.remove('pn-paused');card.started=Date.now();card.timer=setTimeout(()=>dismissToast(n.key),card.remaining);};
@@ -78,7 +83,7 @@
   pumpToasts();
  }
  async function refresh(){
-  if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;}
+  if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;loadSoundPreference();}
   if(busy){again=true;return;}if(flight){again=true;return flight;}const id=owner,ticket=epoch,view=revision;
   flight=(async()=>{try{const filtered=filter!=='all'||unreadOnly||offset!==0;const [d,feed]=await Promise.all([rpc('list'),filtered?rpc('list',{category:'all',unread:false,offset:0}):Promise.resolve(null)]);if(!current(id,ticket)||view!==revision){again=true;return;}data=d;paintBadge();paint();toast((feed||d).items||[]);status('');}
    catch(e){if(current(id,ticket))status('Notifications could not refresh. '+e.message,true);}
@@ -139,6 +144,10 @@
   box.append(element('h3','','Notification preferences'),element('p','','Choose which updates appear in your inbox. Chat also follows each conversation’s notification settings.'));
   for(const [key,label] of Object.entries(categories)){const row=element('label'),input=element('input');input.type='checkbox';input.name='category';input.value=key;input.checked=!data?.preferences?.muted_categories?.includes(key);row.append(input,document.createTextNode(label));box.append(row);}
   const row=element('label'),input=element('input');input.type='checkbox';input.name='toasts';input.checked=data?.preferences?.toast_enabled!==false;row.append(input,document.createTextNode('Show bottom-right pop-up alerts'));box.append(row);
+  const soundRow=element('label'),soundInput=element('input');soundInput.type='checkbox';soundInput.name='celebration-sound';soundInput.checked=soundEnabled;soundRow.append(soundInput,document.createTextNode('Play celebration sound on this device'));box.append(soundRow);
+  const preview=button('Preview sound',async()=>{if(quietForCall()){status('Celebration sound is muted during calls and wrap-up.');return;}const played=await getSound()?.play(true);status(played?'Celebration sound preview.':'Click Preview sound again to enable audio in your browser.');});preview.disabled=!soundEnabled;
+  soundInput.onchange=()=>{soundEnabled=soundInput.checked;preview.disabled=!soundEnabled;try{localStorage.setItem(soundKey(),soundEnabled?'on':'off');}catch{}if(soundEnabled)unlockSound();else celebrationSound?.stop();};
+  box.append(element('p','','Sound preference saves on this device. Chimes stay quiet during calls and wrap-up.'),preview);
   const save=button('Save preferences',async()=>{const muted=[...box.querySelectorAll('[name=category]:not(:checked)')].map(i=>i.value);if(await change('preferences',{muted_categories:muted,toast_enabled:input.checked})){box.hidden=true;status('Preferences saved.');}},'pn-primary');save.dataset.mutation='true';box.append(save);
  }
  function open(){
@@ -154,11 +163,12 @@
   paintBadge();paint();status(data?'':'Loading notifications…');$('pnClose').focus();refresh();
  }
  function bind(){
-  if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;}
+  if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;loadSoundPreference();}
   const bell=$('portalNotifications');if(bell)bell.onclick=open;paintBadge();
   connectLive();
   if(!timer){timer=setInterval(()=>{if(!eligible()){reset();return;}if(!document.hidden){connectLive();if(!busy)refresh();}},20000);refresh();}
  }
+ document.addEventListener('pointerdown',unlockSound,{passive:true});document.addEventListener('keydown',unlockSound);
  document.addEventListener('keydown',e=>{if(panel&&e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}},true);
  document.addEventListener('pointerdown',e=>{if(panel&&!panel.contains(e.target)&&!$('portalNotifications')?.contains(e.target))close(false);});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){bind();pumpToasts();}});
