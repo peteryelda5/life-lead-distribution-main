@@ -1,0 +1,77 @@
+-- Every message and preference fixture is rolled back. No users receive test posts.
+begin;
+set local statement_timeout='30s';
+do $$
+declare master public.profiles;author public.profiles;peer public.profiles;agency_admin public.profiles;
+ mid bigint;reply_id bigint;group_id uuid;hidden_group uuid;private_id bigint;deal_id bigint;outbox jsonb;item jsonb;original_count bigint;
+begin
+ select * into master from public.profiles where active and not coalesce(archived,false) and role='admin' and is_super_admin limit 1;
+ select * into author from public.profiles where active and not coalesce(archived,false) and role='agent' and division=master.division order by id limit 1;
+ select * into peer from public.profiles where active and not coalesce(archived,false) and role='agent' and division=master.division and id<>author.id order by id limit 1;
+ select * into agency_admin from public.profiles where active and not coalesce(archived,false) and role='admin' and not is_super_admin and division=master.division limit 1;
+ if master.id is null or author.id is null or peer.id is null then raise exception 'Need master and two agents';end if;
+ if has_function_privilege('anon','public.portal_chat_delete(bigint,uuid)','execute') then raise exception 'Anonymous delete grant';end if;
+ if has_table_privilege('authenticated','public.chat_messages','delete') or has_table_privilege('authenticated','private.portal_conversation_messages','delete') then raise exception 'Direct delete bypass';end if;
+ select count(*) into original_count from public.closed_business;
+ insert into public.chat_messages(division,channel,author_id,author_name,body,request_id)
+ values(author.division,'general',author.id,author.full_name,'Rolled-back chat deletion fixture',gen_random_uuid()) returning id into mid;
+ insert into public.chat_messages(division,channel,author_id,author_name,body,request_id,reply_to)
+ values(peer.division,'general',peer.id,peer.full_name,'Rolled-back reply',gen_random_uuid(),mid) returning id into reply_id;
+ insert into private.chat_reactions(message_id,user_id,emoji) values(mid,peer.id,'🎉');
+ insert into private.portal_chat_preferences(user_id,chat_key,mode,last_read) values(peer.id,'channel:general','all',0) on conflict(user_id,chat_key) do update set mode='all',last_read=0;
+ insert into private.portal_notification_preferences(user_id,muted_categories,toast_enabled) values(peer.id,'{}',true) on conflict(user_id) do update set muted_categories='{}',toast_enabled=true;
+ delete from private.portal_notification_receipts where user_id=peer.id and event_key='channel:general';
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',peer.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;
+ outbox:=public.portal_notifications('list','{"category":"chat"}');
+ select value into item from jsonb_array_elements(outbox->'items') where value->>'key'='channel:general';
+ if item is null or item->'target'->>'message_id'<>mid::text or (item->>'read')::boolean then raise exception 'General notification version/unread incorrect';end if;
+ begin perform public.portal_chat_delete(mid);raise exception 'Peer deleted another author' using errcode='XX000';exception when insufficient_privilege then null;end;
+ reset role;
+ if agency_admin.id is not null then
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',agency_admin.id,'aal','aal2','role','authenticated')::text,true);
+  set local role authenticated;
+  begin perform public.portal_chat_delete(mid);raise exception 'Agency admin deleted another author' using errcode='XX000';exception when insufficient_privilege then null;end;
+  reset role;
+ end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',author.id,'aal','aal1','role','authenticated')::text,true);
+ set local role authenticated;
+ begin perform public.portal_chat_delete(mid);raise exception 'AAL1 deleted message' using errcode='XX000';exception when insufficient_privilege then null;end;
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',author.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;
+ if not (public.portal_chat_delete(mid)->>'deleted')::boolean then raise exception 'Author could not delete own post';end if;
+ if (public.portal_chat_delete(mid)->>'deleted')::boolean then raise exception 'Retry should report already absent';end if;
+ reset role;
+ if exists(select 1 from public.chat_messages where id=mid) or exists(select 1 from private.chat_reactions where message_id=mid) or exists(select 1 from public.chat_messages where id=reply_id and reply_to is not null) then raise exception 'Message/reply/reaction cleanup failed';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',master.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;
+ if not (public.portal_chat_delete(reply_id)->>'deleted')::boolean then raise exception 'Master could not moderate';end if;
+ reset role;
+ insert into public.chat_messages(division,channel,author_id,author_name,kind,body) values(author.division,'deals',author.id,author.full_name,'deal','Rolled-back deal fixture') returning id into deal_id;
+ set local role authenticated;
+ begin perform public.portal_chat_delete(deal_id);raise exception 'Chat delete changed deal announcement' using errcode='XX000';exception when raise_exception then null;end;
+ reset role;
+ insert into private.portal_conversations(name,kind,owner_id,members) values('Rolled-back private chat','group',author.id,array[author.id,peer.id,master.id]) returning id into group_id;
+ insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(group_id,author.id,'Rolled-back private message',gen_random_uuid()) returning id into private_id;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',peer.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;
+ outbox:=public.portal_notifications('list','{"category":"chat"}');
+ if not exists(select 1 from jsonb_array_elements(outbox->'items') where value->>'key'='group:'||group_id and value->'target'->>'message_id'=private_id::text) then raise exception 'Private notification missing message version';end if;
+ begin perform public.portal_chat_delete(private_id,group_id);raise exception 'Peer deleted private post' using errcode='XX000';exception when insufficient_privilege then null;end;
+ reset role;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',author.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;perform public.portal_chat_delete(private_id,group_id);reset role;
+ insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(group_id,peer.id,'Rolled-back master moderation',gen_random_uuid()) returning id into private_id;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',master.id,'aal','aal2','role','authenticated')::text,true);
+ set local role authenticated;perform public.portal_chat_delete(private_id,group_id);reset role;
+ if exists(select 1 from private.portal_conversation_messages where id=private_id) then raise exception 'Master private moderation failed';end if;
+ insert into private.portal_conversations(name,kind,owner_id,members) values('Rolled-back private boundary','direct',author.id,array[author.id,peer.id]) returning id into hidden_group;
+ insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(hidden_group,author.id,'Private to its members',gen_random_uuid()) returning id into private_id;
+ set local role authenticated;
+ begin perform public.portal_chat_delete(private_id,hidden_group);raise exception 'Nonmember Master gained private access' using errcode='XX000';exception when insufficient_privilege then null;end;
+ reset role;
+ if (select count(*) from public.closed_business)<>original_count then raise exception 'Production totals changed';end if;
+end $$;
+select 'PASS: authors, Master, peer/admin denial, MFA, private membership, notification versions, reply/reaction cleanup, retry safety, unchanged deals; fixtures rolled back.' as result;
+rollback;

@@ -3,7 +3,7 @@
  'use strict';
  const categories={leads:'Leads',requests:'Lead requests',calls:'Calls & follow-ups',deals:'Closed deals',chat:'Chat',announcements:'Announcements',team:'Team & goals',billing:'Billing'};
  let owner=null,epoch=0,revision=0,timer=null,flight=null,again=false,busy=false,panel=null,data=null,filter='all',unreadOnly=false,offset=0,lastSignature='',seen=null,seenAfter=0,toastQueue=[],toastCards=new Map(),toastRegion=null;
- let liveChannel=null,liveStarting=false,liveTimer=null,dealStart=0,celebrationSound=null,soundEnabled=true;
+ let liveChannel=null,liveStarting=false,liveTimer=null,dealStart=0,chatSeen=new Map(),celebrationSound=null,soundEnabled=true;
  const soundKey=()=> 'lld_celebration_sound:'+owner;
  function loadSoundPreference(){try{soundEnabled=localStorage.getItem(soundKey())!=='off';}catch{soundEnabled=true;}}
  function quietForCall(){return !!window.manualCalling?.()||(typeof portalDialerInstance!=='undefined'&&!!portalDialerInstance&&(typeof portalDialerInstance.isBusy!=='function'||portalDialerInstance.isBusy()));}
@@ -16,7 +16,7 @@
  const rpc=(action,extra={})=>api('/rest/v1/rpc/portal_notifications',{method:'POST',body:{p_action:action,p_data:{...query(),...extra}}});
  const element=(tag,className,text)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  function button(text,action,className=''){const b=element('button',className,text);b.type='button';b.onclick=action;return b;}
- function reset(){epoch++;revision++;close(false);clearToasts();stopLive();celebrationSound?.dispose();celebrationSound=null;clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
+ function reset(){epoch++;revision++;close(false);clearToasts();stopLive();celebrationSound?.dispose();celebrationSound=null;clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;chatSeen.clear();flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
  function stopLive(){clearTimeout(liveTimer);liveTimer=null;liveStarting=false;const channel=liveChannel;liveChannel=null;if(channel&&typeof SB!=='undefined')Promise.resolve(SB.removeChannel(channel)).catch(()=>{});}
  function queueLiveRefresh(id,ticket){if(!current(id,ticket)||document.hidden||liveTimer)return;liveTimer=setTimeout(()=>{liveTimer=null;if(current(id,ticket))refresh();},250);}
  async function connectLive(){
@@ -25,7 +25,9 @@
   try{
    await SB.realtime.setAuth(S.session.access_token);if(!current(id,ticket))return;
    const channel=SB.channel('lld-notifications-'+id);liveChannel=channel;
-   channel.on('postgres_changes',{event:'UPDATE',schema:'public',table:'leaderboard_updates'},()=>queueLiveRefresh(id,ticket)).subscribe(state=>{
+   channel.on('postgres_changes',{event:'UPDATE',schema:'public',table:'leaderboard_updates'},()=>queueLiveRefresh(id,ticket))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages'},()=>queueLiveRefresh(id,ticket))
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'chat_messages'},()=>queueLiveRefresh(id,ticket)).subscribe(state=>{
     if(!current(id,ticket)||liveChannel!==channel)return;
     if(state==='SUBSCRIBED')queueLiveRefresh(id,ticket);
     else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(state))stopLive();
@@ -59,7 +61,7 @@
    }else open.append(element('span','pn-toast-category',categories[n.category]||'Update'),element('strong','',n.title),element('span','pn-toast-body',n.body),element('span','pn-toast-link','Open →'));
    const dismiss=button('×',()=>dismissToast(n.key),'pn-toast-close');dismiss.setAttribute('aria-label','Dismiss alert');
    box.append(icon,open,dismiss);toastRegion.append(box);if(deal)getSound()?.play();
-   const card={box,timer:null,remaining:10000,started:0};toastCards.set(n.key,card);
+   const card={box,item:n,timer:null,remaining:10000,started:0};toastCards.set(n.key,card);
    const pause=()=>{box.classList.add('pn-paused');if(card.timer){clearTimeout(card.timer);card.timer=null;card.remaining=Math.max(0,card.remaining-(Date.now()-card.started));}};
    const resume=()=>{if(card.timer||box.matches(':hover')||box.contains(document.activeElement))return;box.classList.remove('pn-paused');card.started=Date.now();card.timer=setTimeout(()=>dismissToast(n.key),card.remaining);};
    box.onmouseenter=pause;box.onmouseleave=resume;box.onfocusin=pause;box.onfocusout=()=>setTimeout(resume,0);resume();
@@ -69,9 +71,23 @@
  function toast(items){
   const next=new Map(items.map(n=>[n.key,n.at]));
   const viewing=n=>S.tab==='live-chat'&&n.category==='chat'&&(n.target?.conversation?(typeof PC!=='undefined'&&PC.group===n.target.conversation):(typeof CHAT!=='undefined'&&CHAT.room===n.target?.room&&!(typeof PC!=='undefined'&&PC.group)));
+  const chatVersion=n=>/^\d+$/.test(String(n.target?.message_id||''))?BigInt(n.target.message_id):null;
+  const freshChat=n=>{
+   const at=Date.parse(n.at),version=chatVersion(n),previous=chatSeen.get(n.key);
+   if(at<=dealStart||at<=seenAfter-120000)return false;
+   if(version!==null)return previous===undefined||version>previous;
+   return seen.get(n.key)!==n.at&&(!seen.has(n.key)||at>Date.parse(seen.get(n.key)));
+  };
+  // Message IDs distinguish same-millisecond messages and never replay older
+  // messages when the latest post is deleted. The overlap handles late commits.
+  const chatItems=new Map(items.filter(n=>n.category==='chat').map(n=>[n.key,n]));
+  const currentChat=n=>{const latest=chatItems.get(n.key);return latest&&!latest.read&&(chatVersion(latest)!==null?chatVersion(latest)===chatVersion(n):latest.at===n.at);};
+  toastQueue=toastQueue.filter(n=>n.category!=='chat'||currentChat(n));
+  for(const [key,card] of toastCards)if(card.item?.category==='chat'&&!currentChat(card.item)){clearTimeout(card.timer);card.box.remove();toastCards.delete(key);}
   // The small overlap catches transactions committed just after the last poll.
   // The first-response cutoff and stable deal key prevent history/edit replays.
-  const fresh=seen?items.filter(n=>!n.read&&!viewing(n)&&(n.category==='deals'?(!seen.has(n.key)&&Date.parse(n.at)>dealStart&&Date.parse(n.at)>seenAfter-120000):(seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter))):[];
+  const fresh=seen?items.filter(n=>!n.read&&!viewing(n)&&(n.category==='deals'?(!seen.has(n.key)&&Date.parse(n.at)>dealStart&&Date.parse(n.at)>seenAfter-120000):(n.category==='chat'?freshChat(n):(seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter)))):[];
+  for(const n of items)if(n.category==='chat'){const version=chatVersion(n);if(version!==null&&(chatSeen.get(n.key)===undefined||version>chatSeen.get(n.key)))chatSeen.set(n.key,version);}
   if(!seen)dealStart=Date.parse(data?.as_of)||Date.now();
   seenAfter=Date.parse(data?.as_of)||Date.now();seen=new Map([...(seen||[]),...next]);if(seen.size>1000)seen=next;
   if(document.hidden||!data?.preferences?.toast_enabled)return;
@@ -173,6 +189,6 @@
  document.addEventListener('pointerdown',e=>{if(panel&&!panel.contains(e.target)&&!$('portalNotifications')?.contains(e.target))close(false);});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){bind();pumpToasts();}});
  window.addEventListener('storage',e=>{if(e.key==='lld_session')reset();});
- window.PortalNotifications={bind,sync(){if(!eligible())reset();else bind();},reset,buttonHtml:()=>'<button type="button" id="portalNotifications" class="pn-bell" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="portalNotificationPanel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="pn-bell-label">Notifications</span><span class="pn-badge" hidden></span></button>'};
+ window.PortalNotifications={bind,refresh(){if(eligible())queueLiveRefresh(owner,epoch);},sync(){if(!eligible())reset();else bind();},reset,buttonHtml:()=>'<button type="button" id="portalNotifications" class="pn-bell" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="portalNotificationPanel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="pn-bell-label">Notifications</span><span class="pn-badge" hidden></span></button>'};
 })();
 

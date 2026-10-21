@@ -12,7 +12,7 @@ function setup(role='agent',leader=false,options={}){
  const response=q=>{const all=list.filter(n=>!n.archived&&!muted.includes(n.category)),items=all.filter(n=>(!q.category||q.category==='all'||q.category===n.category)&&(!q.unread||!n.read));return JSON.parse(JSON.stringify({items:items.slice(q.offset||0,(q.offset||0)+50),total:items.length,unread:all.filter(n=>!n.read).length,as_of:now,preferences:{muted_categories:muted,toast_enabled:popups}}));};
  const live={subscriptions:0,removed:0,event:null,state:null};
  w.matchMedia=()=>({matches:!!options.reducedMotion});
- if(options.live)w.SB={realtime:{async setAuth(){}},channel(){live.subscriptions++;return {on(type,config,fn){assert.equal(config.table,'leaderboard_updates');assert.equal(config.event,'UPDATE');live.event=fn;return this;},subscribe(fn){live.state=fn;return this;}};},async removeChannel(){live.removed++;}};
+ if(options.live)w.SB={realtime:{async setAuth(){}},channel(){live.subscriptions++;return {on(type,config,fn){assert.equal(type,'postgres_changes');assert.equal(config.schema,'public');if(config.table==='leaderboard_updates'){assert.equal(config.event,'UPDATE');live.event=fn;}else{assert.equal(config.table,'chat_messages');assert(['INSERT','DELETE'].includes(config.event));live[config.event]=fn;}return this;},subscribe(fn){live.state=fn;return this;}};},async removeChannel(){live.removed++;}};
  w.api=async(path,{body})=>{assert.equal(path,'/rest/v1/rpc/portal_notifications');requests.push(body);const {p_action:a,p_data:q}=body;
   if(hold===a){hold=null;const snapshot=response(q);return new Promise(resolve=>{pending=()=>resolve(snapshot);});}
   if(['read','unread','archive'].includes(a))for(const item of q.items){const n=list.find(n=>n.key===item.key);if(n){if(a==='archive')n.archived=true;else n.read=a==='read';}}
@@ -86,5 +86,30 @@ function setup(role='agent',leader=false,options={}){
   const oldEvent=c.live.event;c.w.PortalNotifications.reset();assert.equal(c.live.removed,1);const count=c.requests.length;oldEvent();await new Promise(r=>setTimeout(r,300));assert.equal(c.requests.length,count,'stale real-time event after logout is ignored');
  }finally{await c.close();}
  const reduced=setup('agent',false,{reducedMotion:true});try{await tick();reduced.setNow('2026-10-20T10:03:00Z');reduced.setList([deal('deal:reduced')]);await reduced.poll();assert(reduced.w.document.querySelector('.pn-celebration'));assert.equal(reduced.w.document.querySelector('.pn-confetti'),null,'reduced motion omits confetti');}finally{await reduced.close();}
+
+ const chatMessage=(id,at='2026-10-20T10:02:00.001Z')=>event('channel:general',{category:'chat',title:'New message in #general',body:'A teammate posted in #general.',at,target:{tab:'live-chat',room:'general',message_id:String(id)}});
+ for(const [role,leader] of [['agent',false],['agent',true],['admin',false]]){
+  const liveChat=setup(role,leader,{live:true,items:[chatMessage(100,'2026-10-20T10:00:00Z')]});
+  try{
+   await tick();assert.equal(liveChat.w.document.querySelector('.pn-toast'),null);
+   assert.equal(typeof liveChat.live.INSERT,'function');assert.equal(typeof liveChat.live.DELETE,'function');
+   liveChat.setNow('2026-10-20T10:03:00Z');liveChat.setList([chatMessage(101)]);
+   const before=liveChat.requests.length;liveChat.live.INSERT({new:{body:'Untrusted event payload'}});liveChat.live.INSERT();
+   await new Promise(r=>setTimeout(r,300));await tick();assert.equal(liveChat.requests.length,before+1);
+   assert.match(liveChat.w.document.querySelector('.pn-toast').textContent,/#general/);assert(!liveChat.w.document.body.textContent.includes('Untrusted event payload'));
+   liveChat.w.document.querySelector('.pn-toast-close').click();await liveChat.poll();assert.equal(liveChat.w.document.querySelector('.pn-toast'),null);
+   // A transaction created before the preceding refresh but committed afterward.
+   liveChat.setNow('2026-10-20T10:03:20Z');liveChat.setList([chatMessage(102,'2026-10-20T10:02:59.999Z')]);await liveChat.poll();assert(liveChat.w.document.querySelector('.pn-toast'),'late chat commit is not lost');
+   liveChat.w.document.querySelector('.pn-toast-close').click();
+   // Message identity, not rounded JS timestamps, distinguishes rapid messages.
+   liveChat.setList([chatMessage(103,'2026-10-20T10:02:59.999Z')]);await liveChat.poll();assert(liveChat.w.document.querySelector('.pn-toast'),'same millisecond message appears');
+   liveChat.setList([chatMessage(101)]);liveChat.live.DELETE();await new Promise(r=>setTimeout(r,300));await tick();assert.equal(liveChat.w.document.querySelector('.pn-toast'),null,'deleted latest message removes card without replaying history');await liveChat.poll();assert.equal(liveChat.w.document.querySelector('.pn-toast'),null);
+   liveChat.w.S.tab='live-chat';liveChat.w.CHAT.room='general';liveChat.w.PC.group=null;
+   liveChat.setList([chatMessage(104,'2026-10-20T10:03:30Z')]);liveChat.setNow('2026-10-20T10:04:00Z');await liveChat.poll();assert.equal(liveChat.w.document.querySelector('.pn-toast'),null,'no duplicate toast in currently viewed channel');
+   liveChat.w.S.tab='dashboard';liveChat.setList([chatMessage(105,'2026-10-20T10:04:10Z')]);liveChat.setNow('2026-10-20T10:04:20Z');await liveChat.poll();assert(liveChat.w.document.querySelector('.pn-toast'));
+   liveChat.w.document.querySelector('.pn-toast-open').click();await tick();assert.equal(liveChat.navigation.at(-1),'live-chat');assert.equal(liveChat.w.CHAT.room,'general');
+   const oldSignal=liveChat.live.INSERT;liveChat.w.PortalNotifications.reset();const count=liveChat.requests.length;oldSignal();await new Promise(r=>setTimeout(r,300));assert.equal(liveChat.requests.length,count);
+  }finally{await liveChat.close();}
+ }
  console.log('PASS: corner celebrations, stable deal deduplication, delayed transactions, reduced motion, preferences, real-time coalescing/cleanup, stacked alerts and burst queue, independent dismiss/open, active-call safety, all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

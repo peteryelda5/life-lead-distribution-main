@@ -63,7 +63,7 @@ begin
  return query
  select 'group:'||c.id,'chat',case when c.kind='direct' then 'New direct message' else 'New message in '||c.name end,
   coalesce(p.full_name,'A teammate')||' sent a message. Open the conversation to read it.',
-  jsonb_build_object('tab','live-chat','conversation',c.id),m.created_at,m.id<=coalesce(pref.last_read,0)
+  jsonb_build_object('tab','live-chat','conversation',c.id,'message_id',m.id::text),m.created_at,m.id<=coalesce(pref.last_read,0)
  from private.portal_conversations c
  left join private.portal_chat_preferences pref on pref.user_id=me.id and pref.chat_key='group:'||c.id
  join lateral (select x.id,x.author_id,x.body,x.created_at from private.portal_conversation_messages x
@@ -73,7 +73,7 @@ begin
   and coalesce(pref.mode,'all')<>'muted';
  return query
  select 'channel:'||room,'chat','New message in #'||room,
-  m.author_name||' posted in #'||room||'.',jsonb_build_object('tab','live-chat','room',room),m.created_at,m.id<=coalesce(pref.last_read,0)
+  m.author_name||' posted in #'||room||'.',jsonb_build_object('tab','live-chat','room',room,'message_id',m.id::text),m.created_at,m.id<=coalesce(pref.last_read,0)
  from unnest(array['general','deals','resources']) room
  left join private.portal_chat_preferences pref on pref.user_id=me.id and pref.chat_key='channel:'||room
  join lateral (select x.id,x.author_name,x.created_at from public.chat_messages x where x.channel=room

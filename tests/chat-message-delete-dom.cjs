@@ -1,0 +1,31 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<body><div id="chatMessages"></div><p id="chatSendStatus"></p></body>',{url:'https://www.lldportal.com',runScripts:'outside-only'}),w=dom.window;
+const calls=[];let confirmation=true,fail=false;
+w.q=s=>w.document.querySelector(s);w.qa=s=>[...w.document.querySelectorAll(s)];w.esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+w.S={profile:{id:'author',role:'agent',active:true},tab:'live-chat'};w.PC={group:null,rows:[]};w.CHAT={rows:[],room:'general'};
+w.chatKey=()=>w.PC.group?'group:'+w.PC.group:'general';w.confirm=()=>confirmation;
+w.api=async(path,options)=>{calls.push({path,...options});if(fail)throw Error('Not allowed');return {deleted:true};};
+w.paintChatMessages=()=>{};w.paintChatReply=()=>{};w.refreshChat=async()=>{};w.pcList=async()=>{};w.refreshChatBadges=async()=>{};w.PortalNotifications={refresh(){}};
+w.eval(fs.readFileSync(__dirname+'/../chat-social.js','utf8'));
+// Use a fixture-only override for unrelated network badge refresh and draft UI.
+w.refreshChatBadges=async()=>{};w.paintChatReply=()=>{};
+const message={id:9001,author_id:'author',author_name:'Author',kind:'message',body:'hello',created_at:'2026-10-20T12:00:00Z'};
+(async()=>{try{
+ assert.match(w.chatActionsHtml(message),/data-chat-delete="9001"/);
+ assert(!w.chatActionsHtml({...message,author_id:'peer'}).includes('data-chat-delete'));
+ w.S.profile.role='admin';assert(!w.chatActionsHtml({...message,author_id:'peer'}).includes('data-chat-delete'));
+ w.S.profile.is_super_admin=true;assert(w.chatActionsHtml({...message,author_id:'peer'}).includes('data-chat-delete'));
+ assert(!w.chatActionsHtml({...message,kind:'deal'}).includes('data-chat-delete'));
+ w.S.profile={id:'author',role:'agent',active:true};w.CHAT.rows=[message];
+ w.document.querySelector('#chatMessages').innerHTML=w.chatActionsHtml(message);w.bindChatMessageDeletion();
+ confirmation=false;await w.deleteChatMessage('9001','',null);assert.equal(calls.length,0);assert.equal(w.CHAT.rows.length,1);
+ confirmation=true;fail=true;await w.deleteChatMessage('9001','',null);assert.equal(w.CHAT.rows.length,1);assert.equal(w.q('#chatSendStatus').textContent,'Not allowed');
+ fail=false;await w.deleteChatMessage('9001','',null);assert.equal(w.CHAT.rows.length,0);assert.equal(calls.at(-1).path,'/rest/v1/rpc/portal_chat_delete');assert.equal(calls.at(-1).body.p_message_id,'9001');assert.equal(calls.at(-1).body.p_conversation_id,null);assert.equal(w.q('#chatSendStatus').textContent,'Message deleted.');
+ w.PC.group='private-room';w.PC.rows=[{...message,id:9002}];
+ w.pcBase={chatMessagesHtml:()=>''};w.chatMediaHtml=()=>'';
+ const renderer=fs.readFileSync(__dirname+'/../portal-collaboration.js','utf8').split('\n').find(x=>x.startsWith('chatMessagesHtml=function'));
+ w.eval(renderer);assert.match(w.chatMessagesHtml(),/data-chat-conversation="private-room"/);
+ await w.deleteChatMessage('9002','private-room',null);assert.equal(w.PC.rows.length,0);assert.equal(calls.at(-1).body.p_conversation_id,'private-room');
+ console.log('PASS: author/Master controls, peer/admin hiding, separate deal controls, confirmation, server rejection, channel/private deletion and refresh.');
+}finally{dom.window.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
