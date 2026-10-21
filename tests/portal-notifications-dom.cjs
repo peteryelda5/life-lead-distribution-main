@@ -54,5 +54,16 @@ function setup(role='agent',leader=false){
   await t.click('portalNotifications');t.$('pnCategory').value='calls';t.$('pnCategory').dispatchEvent(new t.w.Event('change'));await tick();await t.click('pnClose');
   t.setNow('2026-10-20T10:09:00Z');t.setList([event('delivery:after-filter',{at:'2026-10-20T10:08:00Z'})]);await t.poll();assert(t.w.document.querySelector('.pn-toast'));assert.match(t.w.document.querySelector('.pn-toast').textContent,/New leads/);
  }finally{await t.close();}
- console.log('PASS: all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
+ const stack=setup();try{
+  await tick();await stack.click('portalNotifications');
+  stack.setNow('2026-10-20T10:04:00Z');stack.setList(Array.from({length:5},(_,i)=>event('batch:'+i,{title:'Alert '+i,body:'<img src=x onerror=alert(1)> Details '+i,at:'2026-10-20T10:03:00Z'})));await stack.poll();
+  assert.equal(stack.w.document.querySelectorAll('.pn-toast').length,3,'show three cards even with inbox open');assert(stack.w.document.querySelector('.pn-toast-stack'));
+  assert.equal(stack.w.document.querySelector('.pn-toast img'),null);assert.match(stack.w.document.querySelector('.pn-toast-body').textContent,/<img/);
+  stack.w.document.querySelector('.pn-toast-close').click();assert.equal(stack.w.document.querySelectorAll('.pn-toast').length,3);assert.match(stack.w.document.querySelector('.pn-toast-stack').textContent,/Alert 3/);
+  stack.w.document.querySelector('.pn-toast-close').click();assert.equal(stack.w.document.querySelectorAll('.pn-toast').length,3);assert.match(stack.w.document.querySelector('.pn-toast-stack').textContent,/Alert 4/);
+  stack.block(true);stack.w.document.querySelector('.pn-toast-open').click();await tick();assert.equal(stack.navigation.length,0);assert.equal(stack.w.document.querySelectorAll('.pn-toast').length,3);
+  stack.block(false);stack.w.document.querySelector('.pn-toast-open').click();await tick();assert.equal(stack.navigation.at(-1),'my-leads');assert.equal(stack.w.document.querySelectorAll('.pn-toast').length,2,'opening one alert leaves the others');
+  stack.w.PortalNotifications.reset();assert.equal(stack.w.document.querySelector('.pn-toast-stack'),null);
+ }finally{await stack.close();}
+ console.log('PASS: stacked alerts and burst queue, independent dismiss/open, active-call safety, all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
