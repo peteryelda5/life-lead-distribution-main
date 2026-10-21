@@ -1,8 +1,9 @@
 /* One permission-scoped notification center, shared by every portal role. */
 (() => {
  'use strict';
- const categories={leads:'Leads',requests:'Lead requests',calls:'Calls & follow-ups',chat:'Chat',announcements:'Announcements',team:'Team & goals',billing:'Billing'};
+ const categories={leads:'Leads',requests:'Lead requests',calls:'Calls & follow-ups',deals:'Closed deals',chat:'Chat',announcements:'Announcements',team:'Team & goals',billing:'Billing'};
  let owner=null,epoch=0,revision=0,timer=null,flight=null,again=false,busy=false,panel=null,data=null,filter='all',unreadOnly=false,offset=0,lastSignature='',seen=null,seenAfter=0,toastQueue=[],toastCards=new Map(),toastRegion=null;
+ let liveChannel=null,liveStarting=false,liveTimer=null,dealStart=0;
  const $=id=>document.getElementById(id);
  const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&currentAal()==='aal2'&&!!document.querySelector('.portal-topnav');
  const current=(id,ticket)=>eligible()&&S.profile.id===id&&epoch===ticket;
@@ -10,7 +11,22 @@
  const rpc=(action,extra={})=>api('/rest/v1/rpc/portal_notifications',{method:'POST',body:{p_action:action,p_data:{...query(),...extra}}});
  const element=(tag,className,text)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  function button(text,action,className=''){const b=element('button',className,text);b.type='button';b.onclick=action;return b;}
- function reset(){epoch++;revision++;close(false);clearToasts();clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
+ function reset(){epoch++;revision++;close(false);clearToasts();stopLive();clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
+ function stopLive(){clearTimeout(liveTimer);liveTimer=null;liveStarting=false;const channel=liveChannel;liveChannel=null;if(channel&&typeof SB!=='undefined')Promise.resolve(SB.removeChannel(channel)).catch(()=>{});}
+ function queueLiveRefresh(id,ticket){if(!current(id,ticket)||document.hidden||liveTimer)return;liveTimer=setTimeout(()=>{liveTimer=null;if(current(id,ticket))refresh();},250);}
+ async function connectLive(){
+  if(!eligible()||liveChannel||liveStarting||typeof SB==='undefined'||!SB.channel||!SB.realtime)return;
+  const id=owner,ticket=epoch;liveStarting=true;
+  try{
+   await SB.realtime.setAuth(S.session.access_token);if(!current(id,ticket))return;
+   const channel=SB.channel('lld-notifications-'+id);liveChannel=channel;
+   channel.on('postgres_changes',{event:'UPDATE',schema:'public',table:'leaderboard_updates'},()=>queueLiveRefresh(id,ticket)).subscribe(state=>{
+    if(!current(id,ticket)||liveChannel!==channel)return;
+    if(state==='SUBSCRIBED')queueLiveRefresh(id,ticket);
+    else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(state))stopLive();
+   });
+  }catch(e){if(current(id,ticket))stopLive();}finally{if(ticket===epoch)liveStarting=false;}
+ }
  function paintBadge(){const b=$('portalNotifications');if(!b)return;const count=Number(data?.unread||0),badge=b.querySelector('.pn-badge');badge.textContent=count>99?'99+':String(count);badge.hidden=!count;b.setAttribute('aria-label','Notifications'+(count?', '+count+' unread':''));b.setAttribute('aria-expanded',String(!!panel));}
  function status(text,error=false){const el=$('pnStatus');if(el){el.textContent=text;el.classList.toggle('pn-error',error);}}
  function close(focus=true){if(!panel)return;panel.remove();panel=null;lastSignature='';paintBadge();if(focus)$('portalNotifications')?.focus();}
@@ -24,12 +40,23 @@
    const box=element('aside','pn-toast');box.dataset.key=n.key;box.setAttribute('role','status');box.setAttribute('aria-live','polite');
    const icon=element('span','pn-toast-icon',({leads:'↗',requests:'✓',calls:'☎',chat:'✉',announcements:'i',team:'★',billing:'!'}[n.category]||'i'));icon.setAttribute('aria-hidden','true');
    const open=button('',async()=>{if(await openNotification(n))dismissToast(n.key);},'pn-toast-open');
-   open.append(element('span','pn-toast-category',categories[n.category]||'Update'),element('strong','',n.title),element('span','pn-toast-body',n.body),element('span','pn-toast-link','Open →'));
+   const deal=n.category==='deals'&&n.target?.celebration==='corner';
+   if(deal){
+    const amount=Number(n.target.annual_premium),premium=Number.isFinite(amount)&&amount>=0?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:Number.isInteger(amount)?0:2}).format(amount):'—';
+    box.classList.add('pn-celebration');icon.textContent='✓';
+    open.append(element('span','pn-toast-category','Deal closed'),element('strong','pn-deal-agent',n.target.agent_name||'A teammate'),element('span','pn-deal-agency',n.target.agency_name||''),element('span','pn-deal-premium','+ '+premium),element('span','pn-toast-link','Annual premium · View leaderboard →'));
+    const progress=element('span','pn-deal-progress');progress.setAttribute('aria-hidden','true');box.append(progress);
+    if(!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches){
+     const burst=element('span','pn-confetti');burst.setAttribute('aria-hidden','true');
+     for(let i=0;i<18;i++){const piece=element('i');piece.style.setProperty('--x',((i*41)%257-128)+'px');piece.style.setProperty('--rise',(-40-(i*17)%55)+'px');piece.style.setProperty('--turn',((i%2?1:-1)*(180+i*37))+'deg');piece.style.setProperty('--delay',((i%6)*35)+'ms');piece.style.setProperty('--color',['#16a577','#f0bf4c','#4299e1'][i%3]);burst.append(piece);}
+     box.append(burst);
+    }
+   }else open.append(element('span','pn-toast-category',categories[n.category]||'Update'),element('strong','',n.title),element('span','pn-toast-body',n.body),element('span','pn-toast-link','Open →'));
    const dismiss=button('×',()=>dismissToast(n.key),'pn-toast-close');dismiss.setAttribute('aria-label','Dismiss alert');
    box.append(icon,open,dismiss);toastRegion.append(box);
    const card={box,timer:null,remaining:10000,started:0};toastCards.set(n.key,card);
-   const pause=()=>{if(card.timer){clearTimeout(card.timer);card.timer=null;card.remaining=Math.max(0,card.remaining-(Date.now()-card.started));}};
-   const resume=()=>{if(card.timer||box.matches(':hover')||box.contains(document.activeElement))return;card.started=Date.now();card.timer=setTimeout(()=>dismissToast(n.key),card.remaining);};
+   const pause=()=>{box.classList.add('pn-paused');if(card.timer){clearTimeout(card.timer);card.timer=null;card.remaining=Math.max(0,card.remaining-(Date.now()-card.started));}};
+   const resume=()=>{if(card.timer||box.matches(':hover')||box.contains(document.activeElement))return;box.classList.remove('pn-paused');card.started=Date.now();card.timer=setTimeout(()=>dismissToast(n.key),card.remaining);};
    box.onmouseenter=pause;box.onmouseleave=resume;box.onfocusin=pause;box.onfocusout=()=>setTimeout(resume,0);resume();
   }
   if(!toastCards.size&&!toastQueue.length){toastRegion?.remove();toastRegion=null;}
@@ -37,7 +64,10 @@
  function toast(items){
   const next=new Map(items.map(n=>[n.key,n.at]));
   const viewing=n=>S.tab==='live-chat'&&n.category==='chat'&&(n.target?.conversation?(typeof PC!=='undefined'&&PC.group===n.target.conversation):(typeof CHAT!=='undefined'&&CHAT.room===n.target?.room&&!(typeof PC!=='undefined'&&PC.group)));
-  const fresh=seen?items.filter(n=>!n.read&&seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter&&!viewing(n)):[];
+  // The small overlap catches transactions committed just after the last poll.
+  // The first-response cutoff and stable deal key prevent history/edit replays.
+  const fresh=seen?items.filter(n=>!n.read&&!viewing(n)&&(n.category==='deals'?(!seen.has(n.key)&&Date.parse(n.at)>dealStart&&Date.parse(n.at)>seenAfter-120000):(seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter))):[];
+  if(!seen)dealStart=Date.parse(data?.as_of)||Date.now();
   seenAfter=Date.parse(data?.as_of)||Date.now();seen=new Map([...(seen||[]),...next]);if(seen.size>1000)seen=next;
   if(document.hidden||!data?.preferences?.toast_enabled)return;
   for(const n of fresh){
@@ -56,7 +86,7 @@
  }
  async function change(action,extra={}){
   if(busy||!eligible())return false;busy=true;revision++;const id=owner,ticket=epoch,view=revision;paintBusy();
-  try{const result=await rpc(action,extra);if(!current(id,ticket))return false;if(view===revision){data=result;paintBadge();paint();if(action==='preferences'){clearToasts();}}else refresh();status('');return true;}
+  try{const result=await rpc(action,extra);if(!current(id,ticket))return false;if(view===revision){data=result;paintBadge();paint();if(action==='preferences'){clearToasts();dealStart=Date.parse(result.as_of)||Date.now();}}else refresh();status('');return true;}
   catch(e){if(current(id,ticket))status(e.message,true);return false;}
   finally{if(ticket===epoch){busy=false;paintBusy();if(again){again=false;refresh();}}}
  }
@@ -65,7 +95,7 @@
  async function openNotification(n){
   if(!eligible())return;
   if(typeof portalDialerInstance!=='undefined'&&portalDialerInstance&&!portalDialerInstance.canLeave()){if(!panel)open();status('Finish your call and save its outcome before opening this notification.',true);return;}
-  const id=owner,ticket=epoch,t=n.target||{},tabs=['my-leads','activity','lead-requests','power-dialer','live-chat','announcements','dashboard','agents'];
+  const id=owner,ticket=epoch,t=n.target||{},tabs=['my-leads','activity','lead-requests','power-dialer','live-chat','announcements','dashboard','agents','leaderboard'];
   if(!tabs.includes(t.tab))return;
   try{
    await navigatePortalTab(t.tab);if(!current(id,ticket)||S.tab!==t.tab)return;
@@ -126,7 +156,8 @@
  function bind(){
   if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;}
   const bell=$('portalNotifications');if(bell)bell.onclick=open;paintBadge();
-  if(!timer){timer=setInterval(()=>{if(!eligible()){reset();return;}if(!document.hidden&&!busy)refresh();},20000);refresh();}
+  connectLive();
+  if(!timer){timer=setInterval(()=>{if(!eligible()){reset();return;}if(!document.hidden){connectLive();if(!busy)refresh();}},20000);refresh();}
  }
  document.addEventListener('keydown',e=>{if(panel&&e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}},true);
  document.addEventListener('pointerdown',e=>{if(panel&&!panel.contains(e.target)&&!$('portalNotifications')?.contains(e.target))close(false);});
