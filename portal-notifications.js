@@ -169,9 +169,9 @@
  function open(){
   if(!eligible())return;if(panel){close();return;}
   panel=element('section','pn-panel');panel.id='portalNotificationPanel';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','false');panel.setAttribute('aria-labelledby','pnTitle');
-  panel.innerHTML='<header class="pn-header"><div><h2 id="pnTitle">Notifications</h2><p>Your workspace updates</p></div><button id="pnClose" aria-label="Close notifications">×</button></header><div class="pn-toolbar"><div><button id="pnAll" aria-pressed="true">All</button><button id="pnUnread" aria-pressed="false">Unread</button></div><button id="pnSettings">Preferences</button></div><div class="pn-filters"><label>Category<select id="pnCategory"><option value="all">All categories</option></select></label><button id="pnMarkAll" data-mutation="true">Mark all read</button><button id="pnRefresh" aria-label="Refresh notifications">Refresh</button></div><div id="pnPreferences" class="pn-preferences" hidden></div><p id="pnStatus" class="pn-status" role="status" aria-live="polite"></p><div id="pnRows" class="pn-rows"></div><footer class="pn-footer"><span id="pnPage"></span><button id="pnPrevious">Previous</button><button id="pnNext">Next</button></footer><p class="pn-retention">Recent 30 days, plus unresolved callbacks. Alerts update while the portal is open.</p>';
+  panel.innerHTML='<header class="pn-header"><div><h2 id="pnTitle">Notifications</h2><p>Your workspace updates</p></div><button id="pnClose" aria-label="Close notifications">×</button></header><div class="pn-toolbar"><div><button id="pnAll" aria-pressed="true">All</button><button id="pnUnread" aria-pressed="false">Unread</button></div><button id="pnPhone">Phone alerts</button><button id="pnSettings">Preferences</button></div><div class="pn-filters"><label>Category<select id="pnCategory"><option value="all">All categories</option></select></label><button id="pnMarkAll" data-mutation="true">Mark all read</button><button id="pnRefresh" aria-label="Refresh notifications">Refresh</button></div><div id="pnPreferences" class="pn-preferences" hidden></div><p id="pnStatus" class="pn-status" role="status" aria-live="polite"></p><div id="pnRows" class="pn-rows"></div><footer class="pn-footer"><span id="pnPage"></span><button id="pnPrevious">Previous</button><button id="pnNext">Next</button></footer><p class="pn-retention">Recent 30 days, plus unresolved callbacks. Alerts update while the portal is open.</p>';
   document.body.append(panel);for(const [key,label] of Object.entries(categories))$('pnCategory').add(new Option(label,key));
-  $('pnClose').onclick=()=>close();$('pnSettings').onclick=preferences;$('pnRefresh').onclick=()=>refresh();
+  $('pnClose').onclick=()=>close();$('pnPhone').onclick=()=>window.PortalPush?.open();$('pnSettings').onclick=preferences;$('pnRefresh').onclick=()=>refresh();
   const applyFilter=()=>{revision++;offset=0;lastSignature='';status('Loading…');refresh();};
   $('pnAll').onclick=()=>{unreadOnly=false;applyFilter();};$('pnUnread').onclick=()=>{unreadOnly=true;applyFilter();};$('pnCategory').onchange=e=>{filter=e.target.value;applyFilter();};
   $('pnMarkAll').onclick=()=>{if(data?.as_of)change('read_all',{before:data.as_of});};
@@ -180,7 +180,7 @@
  }
  function bind(){
   if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;loadSoundPreference();}
-  const bell=$('portalNotifications');if(bell)bell.onclick=open;paintBadge();
+  const bell=$('portalNotifications');if(bell)bell.onclick=open;paintBadge();window.PortalPush?.sync();
   connectLive();
   if(!timer){timer=setInterval(()=>{if(!eligible()){reset();return;}if(!document.hidden){connectLive();if(!busy)refresh();}},20000);refresh();}
  }
@@ -189,6 +189,6 @@
  document.addEventListener('pointerdown',e=>{if(panel&&!panel.contains(e.target)&&!$('portalNotifications')?.contains(e.target))close(false);});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden){bind();pumpToasts();}});
  window.addEventListener('storage',e=>{if(e.key==='lld_session')reset();});
- window.PortalNotifications={bind,refresh(){if(eligible())queueLiveRefresh(owner,epoch);},sync(){if(!eligible())reset();else bind();},reset,buttonHtml:()=>'<button type="button" id="portalNotifications" class="pn-bell" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="portalNotificationPanel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="pn-bell-label">Notifications</span><span class="pn-badge" hidden></span></button>'};
+ window.PortalNotifications={bind,open,openItem:openNotification,refresh(){if(eligible())queueLiveRefresh(owner,epoch);},sync(){if(!eligible())reset();else bind();},reset,buttonHtml:()=>'<button type="button" id="portalNotifications" class="pn-bell" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="portalNotificationPanel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="pn-bell-label">Notifications</span><span class="pn-badge" hidden></span></button>'};
 })();
 

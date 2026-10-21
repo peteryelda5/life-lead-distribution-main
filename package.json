@@ -1,0 +1,12 @@
+{
+  "name": "vivid-life-portal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vivid Life Portal server dependencies",
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
+  }
+}
