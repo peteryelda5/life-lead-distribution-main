@@ -1,4 +1,5 @@
-/* The selected cash-register sample; cached locally and separate from call audio. */
+/* Selected classic cash-register sample; cached locally and separate from call audio.
+ * Source and CC0 license: celebration-sound-credits.txt. */
 (() => {
  'use strict';
  window.createPortalCelebrationSound=function({enabled,quiet,active}){
@@ -12,7 +13,7 @@
     if(ctx.state==='suspended')await ctx.resume();if(disposed||context!==ctx||ctx.state!=='running')return false;
     if(!buffer&&!loading){
      request=new AbortController();
-     loading=(async()=>{try{const response=await window.fetch('/celebration-cash.wav?v=20261020-cash-register',{credentials:'omit',cache:'force-cache',signal:request.signal});if(!response.ok)throw Error('Sound unavailable');const decoded=await ctx.decodeAudioData(await response.arrayBuffer());if(!disposed&&context===ctx)buffer=decoded;}catch{}finally{loading=null;request=null;}})();
+     loading=(async()=>{try{const response=await window.fetch('/celebration-cash.wav?v=20261020-classic-cash',{credentials:'omit',cache:'force-cache',signal:request.signal});if(!response.ok)throw Error('Sound unavailable');const decoded=await ctx.decodeAudioData(await response.arrayBuffer());if(!disposed&&context===ctx)buffer=decoded;}catch{}finally{loading=null;request=null;}})();
     }
     if(loading)await loading;
     return !disposed&&context===ctx&&ctx.state==='running'&&!!buffer;

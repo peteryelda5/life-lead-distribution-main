@@ -22,7 +22,7 @@ async function runAudioChecks(source){
  const h=setup();
  check(!await h.sound.play(),'No automatic sound before user interaction');check(h.contexts.length===0,'No AudioContext before interaction');
  check(await h.sound.unlock(),'User interaction unlocks audio');check(h.contexts.length===1,'One dedicated audio context');
- check(await h.sound.play(),'Fresh celebration plays');check(h.tones.length===1&&h.tones[0].buffer.duration===3,'Selected cash-register sample plays');check(h.requests.length===1&&h.requests[0].url==='/celebration-cash.wav?v=20261020-cash-register','Selected first-party sound loaded once');check(h.requests[0].config.credentials==='omit','No account credentials sent with sound asset');
+ check(await h.sound.play(),'Fresh celebration plays');check(h.tones.length===1&&h.tones[0].buffer.duration===3,'Selected cash-register sample plays');check(h.requests.length===1&&h.requests[0].url==='/celebration-cash.wav?v=20261020-classic-cash','Selected first-party sound loaded once');check(h.requests[0].config.credentials==='omit','No account credentials sent with sound asset');
  check([...h.timeouts.values()].length===1,'Playback has bounded cleanup');
  check(!await h.sound.play(),'Burst alerts do not stack sounds');check(h.tones.length===1,'No overlapping voices');
  h.block(true);[...h.intervals.values()][0]();check(h.tones.every(t=>t.disconnected),'Starting a call stops existing sound');check(h.intervals.size===0&&h.timeouts.size===0,'Sound guards cleaned up');
