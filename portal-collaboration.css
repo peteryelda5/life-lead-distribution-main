@@ -44,3 +44,9 @@
 #pcCreateForm #pcCreateError:empty{display:none}
 #pcCreateForm>.row{display:flex;gap:10px;margin-top:8px}
 #pcCreateForm .pc-member-list label{display:flex;flex-direction:row;align-items:center}
+
+/* Honor filtering after the member-row and responsive flex layout rules. */
+#pcCreateForm .pc-member-list label[hidden],#pcCreateForm #pcMemberEmpty[hidden],.pc-chats .pc-room[hidden]{display:none!important}
+#pcCreateForm #pcMemberHelp{margin:0;line-height:1.45}
+#pcCreateForm #pcMemberEmpty{padding:12px;margin:0;line-height:1.45}
+#pcCreateForm #pcCreateError{color:#b42318;line-height:1.45;margin:0}
