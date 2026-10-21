@@ -20,6 +20,19 @@
           "value": "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"
         }
       ]
+    },
+    {
+      "source": "/portal-push-sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
     }
   ],
   "crons": [
@@ -50,6 +63,10 @@
     {
       "path": "/api/dialer/health-maintenance",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/notifications/push-maintenance",
+      "schedule": "* * * * *"
     }
   ],
   "redirects": [
