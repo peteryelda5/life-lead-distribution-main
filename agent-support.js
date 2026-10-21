@@ -1,8 +1,8 @@
 const SUPPORT={agentId:null,section:'dashboard',type:'',page:1,count:0,rows:[],types:[]};
 function resetAgentSupport(){Object.assign(SUPPORT,{agentId:null,section:'dashboard',type:'',page:1,count:0,rows:[],types:[]})}
-function supportAgent(){return S.profile?.role==='admin'&&S.profile.is_super_admin&&currentAal()==='aal2'?S.agents.find(a=>a.id===SUPPORT.agentId&&a.active&&!a.archived):null}
+function supportAgent(){return S.profile?.role==='admin'&&S.profile.is_super_admin&&(currentAal()==='aal2'||window.PortalPasskeys?.verified()===true)?S.agents.find(a=>a.id===SUPPORT.agentId&&a.active&&!a.archived):null}
 async function openAgentSupport(id){
- if(S.profile?.role!=='admin'||!S.profile.is_super_admin||currentAal()!=='aal2')throw new Error('Verified Master account required.');
+ if(S.profile?.role!=='admin'||!S.profile.is_super_admin||!(currentAal()==='aal2'||window.PortalPasskeys?.verified()===true))throw new Error('Verified Master account required.');
  const a=S.agents.find(x=>x.id===id&&x.active&&!x.archived);if(!a)throw new Error('Active agent not found.');
  const ok=await api('/rest/v1/rpc/open_agent_support',{method:'POST',body:{p_agent:id}});
  if(ok!==true)throw new Error('Could not open this agent view.');

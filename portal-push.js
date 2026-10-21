@@ -7,7 +7,7 @@
  let pending=new URL(location.href).searchParams.get('push');
  const uuid=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value||'');
  if(!uuid(pending))pending=null;
- const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&currentAal()==='aal2';
+ const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&(currentAal()==='aal2'||window.PortalPasskeys?.verified()===true);
  const iphone=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  const standalone=()=>navigator.standalone===true||window.matchMedia?.('(display-mode: standalone)').matches;
  const supported=()=>window.isSecureContext&&'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;

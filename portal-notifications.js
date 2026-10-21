@@ -10,7 +10,7 @@
  function getSound(){if(!celebrationSound&&eligible()&&window.createPortalCelebrationSound){const id=owner,ticket=epoch;celebrationSound=window.createPortalCelebrationSound({enabled:()=>soundEnabled,quiet:quietForCall,active:()=>current(id,ticket)});}return celebrationSound;}
  function unlockSound(){if(eligible())getSound()?.unlock();}
  const $=id=>document.getElementById(id);
- const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&currentAal()==='aal2'&&!!document.querySelector('.portal-topnav');
+ const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&(currentAal()==='aal2'||window.PortalPasskeys?.verified()===true)&&!!document.querySelector('.portal-topnav');
  const current=(id,ticket)=>eligible()&&S.profile.id===id&&epoch===ticket;
  const query=()=>({category:filter,unread:unreadOnly,offset});
  const rpc=(action,extra={})=>api('/rest/v1/rpc/portal_notifications',{method:'POST',body:{p_action:action,p_data:{...query(),...extra}}});

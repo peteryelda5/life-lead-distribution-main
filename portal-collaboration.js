@@ -42,7 +42,7 @@ function pcGoalModal(){const users=[{id:S.profile.id,full_name:S.profile.full_na
 
 function pcAlert(){if(window.PortalNotifications)return;for(const c of PC.chats){const prev=PC.seen[c.id];PC.seen[c.id]={last:c.last_id,mentions:c.mention_unread};if(prev&&c.last_id>prev.last&&c.unread>0&&c.mode!=='muted'&&(c.mode==='all'||c.mention_unread>prev.mentions)&&!(S.tab==='live-chat'&&PC.group===c.id&&!document.hidden)){document.querySelector('.pc-toast')?.remove();const b=document.createElement('button');b.className='pc-toast';b.setAttribute('aria-live','polite');b.innerHTML='<strong>'+esc(c.name)+'</strong><span>'+c.unread+' unread message'+(c.unread===1?'':'s')+' · Open chat</span>';b.onclick=async()=>{b.remove();PC.group=c.id;CHAT.rows=[];await navigatePortalTab('live-chat');await refreshChat();};document.body.appendChild(b);setTimeout(()=>b.remove(),7000);}}}
 function pcPoll(force=false){
- if(document.hidden||!S.profile?.active||currentAal()!=='aal2')return;
+ if(document.hidden||!S.profile?.active||!(currentAal()==='aal2'||window.PortalPasskeys?.verified()===true))return;
  const now=Date.now(),listEvery=S.tab==='live-chat'?15000:30000;
  if(force||now-PC.lastListAt>=listEvery)pcList(false).catch(()=>{});
  if(force||now-PC.lastDashboardAt>=30000)pcRefreshDashboardGoal().catch(()=>{});
