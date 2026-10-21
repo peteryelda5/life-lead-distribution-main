@@ -2,7 +2,7 @@
 (() => {
  'use strict';
  const categories={leads:'Leads',requests:'Lead requests',calls:'Calls & follow-ups',chat:'Chat',announcements:'Announcements',team:'Team & goals',billing:'Billing'};
- let owner=null,epoch=0,revision=0,timer=null,flight=null,again=false,busy=false,panel=null,data=null,filter='all',unreadOnly=false,offset=0,lastSignature='',seen=null,seenAfter=0;
+ let owner=null,epoch=0,revision=0,timer=null,flight=null,again=false,busy=false,panel=null,data=null,filter='all',unreadOnly=false,offset=0,lastSignature='',seen=null,seenAfter=0,toastQueue=[],toastCards=new Map(),toastRegion=null;
  const $=id=>document.getElementById(id);
  const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&currentAal()==='aal2'&&!!document.querySelector('.portal-topnav');
  const current=(id,ticket)=>eligible()&&S.profile.id===id&&epoch===ticket;
@@ -10,19 +10,42 @@
  const rpc=(action,extra={})=>api('/rest/v1/rpc/portal_notifications',{method:'POST',body:{p_action:action,p_data:{...query(),...extra}}});
  const element=(tag,className,text)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  function button(text,action,className=''){const b=element('button',className,text);b.type='button';b.onclick=action;return b;}
- function reset(){epoch++;revision++;close(false);document.querySelector('.pn-toast')?.remove();clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
+ function reset(){epoch++;revision++;close(false);clearToasts();clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
  function paintBadge(){const b=$('portalNotifications');if(!b)return;const count=Number(data?.unread||0),badge=b.querySelector('.pn-badge');badge.textContent=count>99?'99+':String(count);badge.hidden=!count;b.setAttribute('aria-label','Notifications'+(count?', '+count+' unread':''));b.setAttribute('aria-expanded',String(!!panel));}
  function status(text,error=false){const el=$('pnStatus');if(el){el.textContent=text;el.classList.toggle('pn-error',error);}}
  function close(focus=true){if(!panel)return;panel.remove();panel=null;lastSignature='';paintBadge();if(focus)$('portalNotifications')?.focus();}
+ function clearToasts(){for(const card of toastCards.values())clearTimeout(card.timer);toastCards.clear();toastQueue=[];toastRegion?.remove();toastRegion=null;}
+ function dismissToast(key){const card=toastCards.get(key);if(card){clearTimeout(card.timer);card.box.remove();toastCards.delete(key);}pumpToasts();}
+ function pumpToasts(){
+  if(!eligible()||document.hidden)return;
+  while(toastCards.size<3&&toastQueue.length){
+   const n=toastQueue.shift();if(toastCards.has(n.key))continue;
+   if(!toastRegion){toastRegion=element('section','pn-toast-stack');toastRegion.setAttribute('aria-label','New notifications');document.body.append(toastRegion);}
+   const box=element('aside','pn-toast');box.dataset.key=n.key;box.setAttribute('role','status');box.setAttribute('aria-live','polite');
+   const icon=element('span','pn-toast-icon',({leads:'↗',requests:'✓',calls:'☎',chat:'✉',announcements:'i',team:'★',billing:'!'}[n.category]||'i'));icon.setAttribute('aria-hidden','true');
+   const open=button('',async()=>{if(await openNotification(n))dismissToast(n.key);},'pn-toast-open');
+   open.append(element('span','pn-toast-category',categories[n.category]||'Update'),element('strong','',n.title),element('span','pn-toast-body',n.body),element('span','pn-toast-link','Open →'));
+   const dismiss=button('×',()=>dismissToast(n.key),'pn-toast-close');dismiss.setAttribute('aria-label','Dismiss alert');
+   box.append(icon,open,dismiss);toastRegion.append(box);
+   const card={box,timer:null,remaining:10000,started:0};toastCards.set(n.key,card);
+   const pause=()=>{if(card.timer){clearTimeout(card.timer);card.timer=null;card.remaining=Math.max(0,card.remaining-(Date.now()-card.started));}};
+   const resume=()=>{if(card.timer||box.matches(':hover')||box.contains(document.activeElement))return;card.started=Date.now();card.timer=setTimeout(()=>dismissToast(n.key),card.remaining);};
+   box.onmouseenter=pause;box.onmouseleave=resume;box.onfocusin=pause;box.onfocusout=()=>setTimeout(resume,0);resume();
+  }
+  if(!toastCards.size&&!toastQueue.length){toastRegion?.remove();toastRegion=null;}
+ }
  function toast(items){
   const next=new Map(items.map(n=>[n.key,n.at]));
   const viewing=n=>S.tab==='live-chat'&&n.category==='chat'&&(n.target?.conversation?(typeof PC!=='undefined'&&PC.group===n.target.conversation):(typeof CHAT!=='undefined'&&CHAT.room===n.target?.room&&!(typeof PC!=='undefined'&&PC.group)));
-  const fresh=seen&&items.find(n=>!n.read&&seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter&&!viewing(n));
+  const fresh=seen?items.filter(n=>!n.read&&seen.get(n.key)!==n.at&&Date.parse(n.at)>seenAfter&&!viewing(n)):[];
   seenAfter=Date.parse(data?.as_of)||Date.now();seen=new Map([...(seen||[]),...next]);if(seen.size>1000)seen=next;
-  if(!fresh||panel||document.hidden||!data?.preferences?.toast_enabled)return;
-  document.querySelector('.pn-toast')?.remove();const box=element('aside','pn-toast');box.setAttribute('role','status');
-  const open=button('',()=>openNotification(fresh),'pn-toast-open');open.append(element('strong','',fresh.title),element('span','','Open notification'));
-  const dismiss=button('×',()=>box.remove(),'pn-toast-close');dismiss.setAttribute('aria-label','Dismiss alert');box.append(open,dismiss);document.body.append(box);setTimeout(()=>box.remove(),8000);
+  if(document.hidden||!data?.preferences?.toast_enabled)return;
+  for(const n of fresh){
+   // New versions replace the old card, while distinct alerts queue without loss.
+   const old=toastCards.get(n.key);if(old){clearTimeout(old.timer);old.box.remove();toastCards.delete(n.key);}
+   toastQueue=toastQueue.filter(x=>x.key!==n.key);toastQueue.push(n);
+  }
+  pumpToasts();
  }
  async function refresh(){
   if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;}
@@ -33,7 +56,7 @@
  }
  async function change(action,extra={}){
   if(busy||!eligible())return false;busy=true;revision++;const id=owner,ticket=epoch,view=revision;paintBusy();
-  try{const result=await rpc(action,extra);if(!current(id,ticket))return false;if(view===revision){data=result;paintBadge();paint();}else refresh();status('');return true;}
+  try{const result=await rpc(action,extra);if(!current(id,ticket))return false;if(view===revision){data=result;paintBadge();paint();if(action==='preferences'){clearToasts();}}else refresh();status('');return true;}
   catch(e){if(current(id,ticket))status(e.message,true);return false;}
   finally{if(ticket===epoch){busy=false;paintBusy();if(again){again=false;refresh();}}}
  }
@@ -55,7 +78,7 @@
     if(t.conversation){await pcList();if(!current(id,ticket))return;if(!PC.chats.some(c=>c.id===t.conversation))throw Error('This conversation is no longer available.');PC.group=t.conversation;CHAT.rows=[];PC.rows=[];render();await refreshChat();}
     else if(['general','deals','resources'].includes(t.room)){await changeChatRoom(CHAT.division,t.room);}
    }
-   if(!current(id,ticket))return;const success=await change('read',receipt(n));if(success)close(false);document.querySelector('.pn-toast')?.remove();
+   if(!current(id,ticket))return;const success=await change('read',receipt(n));if(success)close(false);return success;
   }catch(e){if(current(id,ticket)){if(!panel)open();status(e.message,true);}}
  }
  function paint(){
@@ -85,7 +108,7 @@
   const box=$('pnPreferences');box.hidden=!box.hidden;if(box.hidden)return;box.replaceChildren();
   box.append(element('h3','','Notification preferences'),element('p','','Choose which updates appear in your inbox. Chat also follows each conversation’s notification settings.'));
   for(const [key,label] of Object.entries(categories)){const row=element('label'),input=element('input');input.type='checkbox';input.name='category';input.value=key;input.checked=!data?.preferences?.muted_categories?.includes(key);row.append(input,document.createTextNode(label));box.append(row);}
-  const row=element('label'),input=element('input');input.type='checkbox';input.name='toasts';input.checked=data?.preferences?.toast_enabled!==false;row.append(input,document.createTextNode('Show in-portal pop-up alerts'));box.append(row);
+  const row=element('label'),input=element('input');input.type='checkbox';input.name='toasts';input.checked=data?.preferences?.toast_enabled!==false;row.append(input,document.createTextNode('Show bottom-right pop-up alerts'));box.append(row);
   const save=button('Save preferences',async()=>{const muted=[...box.querySelectorAll('[name=category]:not(:checked)')].map(i=>i.value);if(await change('preferences',{muted_categories:muted,toast_enabled:input.checked})){box.hidden=true;status('Preferences saved.');}},'pn-primary');save.dataset.mutation='true';box.append(save);
  }
  function open(){
@@ -107,7 +130,7 @@
  }
  document.addEventListener('keydown',e=>{if(panel&&e.key==='Escape'){e.preventDefault();e.stopPropagation();close();}},true);
  document.addEventListener('pointerdown',e=>{if(panel&&!panel.contains(e.target)&&!$('portalNotifications')?.contains(e.target))close(false);});
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)bind();});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden){bind();pumpToasts();}});
  window.addEventListener('storage',e=>{if(e.key==='lld_session')reset();});
  window.PortalNotifications={bind,sync(){if(!eligible())reset();else bind();},reset,buttonHtml:()=>'<button type="button" id="portalNotifications" class="pn-bell" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="portalNotificationPanel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span class="pn-bell-label">Notifications</span><span class="pn-badge" hidden></span></button>'};
 })();
