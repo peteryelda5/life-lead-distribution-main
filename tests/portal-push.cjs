@@ -7,16 +7,18 @@ const u='11111111-1111-4111-8111-111111111111',session='22222222-2222-4222-8222-
 const client=crypto.createECDH('prime256v1');client.generateKeys();
 const sub={endpoint:'https://web.push.apple.com/fixture',keys:{p256dh:client.getPublicKey().toString('base64url'),auth:crypto.randomBytes(16).toString('base64url')}};
 const token=aal=>'e30.'+Buffer.from(JSON.stringify({sub:u,session_id:session,aal,exp:Date.now()/1000+3600})).toString('base64url')+'.fixture';
-const job={id,lease,category:'chat',title:'New chat message',body:'Open Vivid Life Portal to view your update.',subscription:sub};
-let calls=[],providerStatus=201,manageResult={device:{id,enabled:true,categories:['deals','chat']}};
+const job={id,lease,category:'chat',title:'Vivid Life Portal',body:'New message in #general\nPat: See you at the team meeting.',subscription:sub};
+let wakeResult={accepted:true},calls=[],providerStatus=201,manageResult={device:{id,enabled:true,categories:['deals','chat']}};
 const json=(value,status=200)=>({ok:status>=200&&status<300,status,json:async()=>value,body:{cancel:async()=>{}}});
 global.fetch=async(url,opt)=>{
  calls.push({url,opt});
  if(url.endsWith('/auth/v1/user'))return json({id:u});
+ if(url.endsWith('/require_portal_mfa'))return json(false,403);
+ if(url.endsWith('/portal_push_wake'))return json(wakeResult);
  if(url.endsWith('/portal_push_manage'))return json(manageResult);
  if(url.endsWith('/portal_push_batch'))return json([job]);
  if(url.endsWith('/portal_push_finish'))return json(true);
- if(url===sub.endpoint){assert.equal(opt.redirect,'error');assert.equal(opt.headers['Content-Encoding'],'aes128gcm');assert(Buffer.isBuffer(opt.body));assert(!opt.body.includes(Buffer.from(job.body)));assert.match(opt.headers.Authorization,/vapid /);return json({},providerStatus);}
+ if(url===sub.endpoint){assert.equal(opt.redirect,'error');assert.equal(opt.headers['Content-Encoding'],'aes128gcm');assert.equal(opt.headers.Urgency,'high');assert(Buffer.isBuffer(opt.body));assert(!opt.body.includes(Buffer.from(job.body)));assert.match(opt.headers.Authorization,/vapid /);return json({},providerStatus);}
  throw Error('Unexpected request');
 };
 const req=(body={},aal='aal2')=>({method:'POST',headers:{origin:'https://www.lldportal.com',authorization:'Bearer '+token(aal)},body});
@@ -40,6 +42,10 @@ async function run(request,handler=push.handler){const res={headers:{},setHeader
  providerStatus=201;manageResult={job:id};r=await run(req({action:'test',id}));assert.equal(r.code,200);assert.equal(r.body.sent,true);assert.equal(JSON.parse(calls.findLast(c=>c.url.endsWith('/portal_push_batch')).opt.body).p_test,id);
  r=await run({method:'GET',headers:{}},push.maintenance);assert.equal(r.code,401);
  r=await run({method:'GET',headers:{authorization:'Bearer fixture-cron'}},push.maintenance);assert.equal(r.code,200);assert.equal(r.body.sent,1);
- const p=push.payload(job);assert.equal(p.web_push,8030);assert.equal(p.notification.navigate,'https://www.lldportal.com/?push='+id);assert.equal(p.notification.data.push,id);
+ r=await run(req({action:'wake'},'aal1'));assert.equal(r.code,403);
+ calls=[];r=await run(req({action:'wake',userId:lease,body:'fake message'}));assert.equal(r.code,200);assert.deepEqual(r.body,{accepted:true,retry_after_ms:0});
+ const wakeBody=JSON.parse(calls.find(c=>c.url.endsWith('/portal_push_wake')).opt.body);assert.deepEqual(wakeBody,{p_user:u,p_session:session});assert.equal(calls.filter(c=>c.url===sub.endpoint).length,1);
+ wakeResult={accepted:false,retry_after_ms:800};calls=[];r=await run(req({action:'wake'}));assert.equal(r.body.retry_after_ms,800);assert(!calls.some(c=>c.url.endsWith('/portal_push_batch')));
+ const p=push.payload(job);assert.equal(p.web_push,8030);assert.equal(p.notification.title,'Vivid Life Portal');assert.equal(p.notification.body,job.body);assert.equal(push.payload({...job,body:'x'.repeat(1000)}).notification.body.length,650);assert.equal(p.notification.navigate,'https://www.lldportal.com/?push='+id);assert.equal(p.notification.data.push,id);
  console.log('PASS: authenticated AAL2 ownership, no billing dependency, opt-in validation, endpoint SSRF restrictions, encryption, declarative payload, no redirects, acknowledgements, per-device tests, and protected cron. No external notifications sent.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

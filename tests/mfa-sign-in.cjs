@@ -1,7 +1,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('node:assert/strict');
-let factors=[{id:'verified-factor',status:'verified'}],lastRequest='';
+let factors=[{id:'verified-factor',status:'verified',factor_type:'totp'}],lastRequest='';
 const client={auth:{setSession:async()=>({data:{session:null}}),mfa:{listFactors:async()=>({data:{totp:factors}})}}};
-const context=vm.createContext({URLSearchParams,Intl,Set,Map,Date,Number,String,JSON,atob,localStorage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}},window:{supabase:{createClient:()=>client},LLDStartup:{ready:()=>{}}},document:{getElementById:()=>({}),querySelector:()=>null,querySelectorAll:()=>[],addEventListener:()=>{}},setInterval:()=>{}});
+const context=vm.createContext({location:{hash:""},URLSearchParams,Intl,Set,Map,Date,Number,String,JSON,atob,localStorage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}},window:{supabase:{createClient:()=>client},LLDStartup:{ready:()=>{}}},document:{getElementById:()=>({}),querySelector:()=>null,querySelectorAll:()=>[],addEventListener:()=>{}},setInterval:()=>{}});
 const src=[...require('./portal-document.cjs')().matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]).find(x=>x.startsWith('const BASE='));
 vm.runInContext(src.slice(0,src.lastIndexOf('(async()=>{if(S.session)')),context);
 vm.runInContext("S.session={access_token:'fixture',refresh_token:'fixture'};resetChatSocial=stopChat=stopLeaderboard=stopRequestBadge=()=>{};saveSession=()=>{};currentAal=()=> 'aal1';render=()=>{};loadCore=()=>{throw Error('Lead data accessed before MFA')};",context);

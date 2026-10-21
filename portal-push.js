@@ -4,10 +4,11 @@
  const labels={deals:'Closed deals',chat:'New chats & direct messages',leads:'New leads',requests:'Lead requests',calls:'Callbacks & voicemails',announcements:'Announcements',team:'Team updates',billing:'Calling plan updates'};
  const storageKey='vivid_phone_notifications';
  let owner=null,epoch=0,device=null,registration=null,config=null,preparing=null,panel=null,busy=false,checkedSession=null,opening=false;
+ let wakeTimer=null,wakeOwner=null,wakeFlight=false,wakeDirty=false,wakeRetries=0;
  let pending=new URL(location.href).searchParams.get('push');
  const uuid=value=>/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value||'');
  if(!uuid(pending))pending=null;
- const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&currentAal()==='aal2';
+ const eligible=()=>typeof S!=='undefined'&&S.session&&S.profile?.active&&!S.profile.archived&&!S.mfaMode&&(currentAal()==='aal2'||window.PortalPasskeys?.verified()===true);
  const iphone=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
  const standalone=()=>navigator.standalone===true||window.matchMedia?.('(display-mode: standalone)').matches;
  const supported=()=>window.isSecureContext&&'serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
@@ -17,7 +18,7 @@
  function remember(){try{if(device)localStorage.setItem(storageKey,JSON.stringify({owner,id:device.id}));else localStorage.removeItem(storageKey);}catch{}}
  function message(text,error=false){const p=panel?.querySelector('.pp-status');if(p){p.textContent=text;p.classList.toggle('pp-error',error);}}
  function close(){panel?.remove();panel=null;document.getElementById('pnPhone')?.focus();}
- function reset(){epoch++;owner=null;device=null;preparing=null;registration=null;config=null;checkedSession=null;opening=false;busy=false;close();}
+ function reset(){clearTimeout(wakeTimer);wakeTimer=null;wakeOwner=null;wakeDirty=false;wakeRetries=0;epoch++;owner=null;device=null;preparing=null;registration=null;config=null;checkedSession=null;opening=false;busy=false;close();}
  async function request(action,extra={}){
   const id=owner,ticket=epoch;
   if(!current(id,ticket))throw Error('Sign in to manage phone notifications.');
@@ -26,6 +27,33 @@
   const r=await fetch('/api/notifications/push',{method:'POST',headers:{Authorization:'Bearer '+S.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action,...extra}),signal:AbortSignal.timeout(15000)});
   const d=await r.json();if(!current(id,ticket))throw Error('Your account changed. Open notifications again.');
   if(!r.ok)throw Error(d.error||'Could not update phone notifications.');return d;
+ }
+ // Successful source writes wake delivery even on desktops without push enabled.
+ // The recipient does not need an open portal. The scheduled worker is fallback.
+ function afterWrite(path,opt={}){
+  if(opt.method!=='POST'||!eligible())return;
+  const route=path.split('?')[0];
+  const direct=['/rest/v1/rpc/chat_send_social','/rest/v1/rpc/chat_standalone_deal','/rest/v1/rpc/close_lead','/rest/v1/closed_business','/rest/v1/portal_announcements'];
+  if(!direct.includes(route)&&!(route==='/rest/v1/rpc/portal_collaboration'&&opt.body?.p_action==='send'))return;
+  wakeOwner=S.profile.id;wakeDirty=true;wakeRetries=0;clearTimeout(wakeTimer);
+  wakeTimer=setTimeout(wake,150);
+ }
+ async function wake(){
+  wakeTimer=null;
+  if(wakeFlight||!wakeDirty||!eligible()||wakeOwner!==S.profile.id)return;
+  const id=wakeOwner;wakeDirty=false;wakeFlight=true;
+  try{
+   const r=await fetch('/api/notifications/push',{method:'POST',headers:{Authorization:'Bearer '+S.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'wake'}),keepalive:true,signal:AbortSignal.timeout(55000)});
+   const result=await r.json();
+   if(id!==wakeOwner||!eligible()||id!==S.profile.id)return;
+   if(r.ok&&result.accepted===false&&Number(result.retry_after_ms)>0){wakeDirty=true;wakeTimer=setTimeout(wake,Math.min(3000,Math.max(100,result.retry_after_ms+50)));}
+   else if(!r.ok&&r.status>=500&&wakeRetries++<2){wakeDirty=true;wakeTimer=setTimeout(wake,2000);}
+  }catch{
+   if(id===wakeOwner&&eligible()&&id===S.profile.id&&wakeRetries++<2){wakeDirty=true;wakeTimer=setTimeout(wake,2000);}
+  }finally{
+   wakeFlight=false;
+   if(wakeDirty&&!wakeTimer&&eligible()&&wakeOwner===S.profile.id)wakeTimer=setTimeout(wake,150);
+  }
  }
  function prepare(){
   if(preparing)return preparing;
@@ -94,7 +122,7 @@
    else if(!config?.available)content.append(el('p','pp-note','Phone notifications are not available yet. Close this window and try again shortly.'));
    if(window.Notification?.permission==='denied')content.append(el('p','pp-note','Notifications are blocked. Allow Vivid Life notifications in your phone’s Settings, then reopen the app.'));
   }
-  content.append(el('p','pp-note','Alerts follow your agency access and notification preferences. Muted chats stay muted. New chat activity is grouped by conversation; delivery usually takes about a minute. Client details and message contents stay inside the portal.'));
+  content.append(el('p','pp-note','Alerts follow your agency access and notification preferences. Muted chats stay muted. Chats show the sender and message preview. Closed deals show the agent, carrier, policy type and premium. Alerts are sent after saving, with a scheduled retry if needed. Your phone’s preview and Focus settings control what appears on the lock screen.'));
   paintButtons();
  }
  function control(text,action,name,className=''){const b=el('button',className,text);b.type='button';b.dataset.pushAction=name;b.onclick=action;return b;}
@@ -137,5 +165,5 @@
  });
  document.addEventListener('keydown',e=>{if(!panel)return;if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const controls=[...panel.querySelectorAll('button:not(:disabled),input')],first=controls[0],last=controls.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync();});
- window.PortalPush={open,sync,beforeLogout,reset};
+ window.PortalPush={open,sync,beforeLogout,reset,afterWrite};
 })();

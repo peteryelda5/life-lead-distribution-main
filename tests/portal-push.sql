@@ -24,23 +24,35 @@ begin
  begin perform public.portal_push_manage(b,sb,'subscribe',jsonb_build_object('subscription',jsonb_build_object('endpoint','https://web.push.apple.com/fixture-'||a,'keys',jsonb_build_object('p256dh',repeat('B',87),'auth',repeat('B',22)))));raise exception 'Endpoint ownership stolen' using errcode='XX000';exception when insufficient_privilege then null;end;
  begin perform public.portal_push_manage(a,sa,'subscribe','{"subscription":{"endpoint":"https://127.0.0.1/admin"}}');raise exception 'Internal endpoint accepted' using errcode='XX000';exception when raise_exception then null;end;
  update private.portal_push_devices set started_at=now()-interval '1 second' where id in (da,db);
+ if not(public.portal_push_wake(a,sa)->>'accepted')::boolean then raise exception 'First wake denied';end if;
+ if (public.portal_push_wake(a,sa)->>'accepted')::boolean then raise exception 'Wake throttle missing';end if;
+ begin perform public.portal_push_wake(a,sb);raise exception 'Foreign wake accepted' using errcode='XX000';exception when insufficient_privilege then null;end;
+ if has_function_privilege('authenticated','public.portal_push_wake(uuid,uuid)','execute') or has_table_privilege('service_role','private.portal_push_wakes','select') then raise exception 'Wake privileges exposed';end if;
+ if private.portal_chat_preview('VIVID_MEDIA:{"path":"private/path.jpg","name":"photo.jpg","caption":"Great work!"}')<>'Photo: Great work!' or private.portal_chat_preview('LLD_RESOURCE:{"path":"private/file.pdf","name":"Training.pdf"}')<>'Shared file: Training.pdf' then raise exception 'Attachment preview wrong';end if;
+ if private.portal_chat_preview('VIVID_MEDIA:bad-json')<>'Photo attachment' then raise exception 'Malformed media preview failed';end if;
  -- Only subscribed users' currently visible records enter the queue.
  insert into private.portal_conversations(name,kind,owner_id,members) values('Push fixture','group',a,array[a,b]) returning id into chat;
- insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(chat,b,'PRIVATE_MESSAGE_MUST_NOT_PUSH',gen_random_uuid()) returning id into mid;
+ insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(chat,b,'Allowed message preview',gen_random_uuid()) returning id into mid;
  insert into private.portal_conversations(name,kind,owner_id,members) values('Private fixture','group',outsider,array[outsider]) returning id into hidden_chat;
  insert into private.portal_conversation_messages(conversation_id,author_id,body,request_id) values(hidden_chat,outsider,'PRIVATE_OTHER_AGENCY',gen_random_uuid());
  insert into public.closed_business(agent_id,carrier,policy_type,monthly_premium,application_date,policy_number,notes)
   values(b,'Fixture','Fixture',120,current_date,'PRIVATE_POLICY','PRIVATE_NOTES') returning id,created_at into deal,at_time;
  insert into public.closed_business(agent_id,carrier,policy_type,monthly_premium,application_date)
   values(outsider,'Fixture','Fixture',90,current_date) returning id into hidden_deal;
+ insert into public.chat_messages(division,channel,author_id,author_name,body,request_id)
+ values('vivid_life','general',b,'Push Peer Fixture','General channel preview',gen_random_uuid());
+ insert into public.chat_messages(division,channel,author_id,author_name,body,request_id)
+ values('legacy_life','general',outsider,'Private Agency Fixture','PRIVATE_CHANNEL_MESSAGE',gen_random_uuid());
  prior_claims:='{"sub":"'||b||'","aal":"aal1"}';perform set_config('request.jwt.claims',prior_claims,true);perform set_config('request.jwt.claim.sub','',true);
  jobs:=public.portal_push_batch();
  if current_setting('request.jwt.claims')<>prior_claims or current_setting('request.jwt.claim.sub')<>'' then raise exception 'Claims were not restored';end if;
+ if jobs::text not like '%Push Peer Fixture: Allowed message preview%' then raise exception 'Chat preview missing';end if;
+ if jobs::text not like '%Push Peer Fixture: General channel preview%' then raise exception 'General chat preview missing';end if;
  if jobs::text like '%PRIVATE_%' then raise exception 'Private client/message data in push payload';end if;
  if not exists(select 1 from private.portal_push_deliveries where device_id=da and event_key='deal:'||deal and state='sending') or not exists(select 1 from private.portal_push_deliveries where device_id=da and event_key='group:'||chat and state='sending') then raise exception 'Deal/chat missing';end if;
  if exists(select 1 from private.portal_push_deliveries where device_id in (da,db) and event_key in ('deal:'||hidden_deal,'group:'||hidden_chat)) then raise exception 'Cross-agency/private chat leak';end if;
  select value into job from jsonb_array_elements(jobs) where value->'subscription'->>'endpoint'='https://web.push.apple.com/fixture-'||a and value->>'category'='deals';
- if job->>'title'<>'Push Peer Fixture closed a deal' or job->>'body' not like '%1,440%' then raise exception 'Deal display wrong';end if;
+ if job->>'title'<>'Vivid Life Portal' or job->>'body' not like '%Push Peer Fixture closed a deal%Fixture%1,440%' then raise exception 'Deal display wrong';end if;
  job_id:=(job->>'id')::uuid;lease_id:=(job->>'lease')::uuid;
  if public.portal_push_finish(job_id,gen_random_uuid(),201) then raise exception 'Wrong lease accepted';end if;
  if not public.portal_push_finish(job_id,lease_id,201) then raise exception 'Valid acknowledgement rejected';end if;
@@ -63,6 +75,11 @@ begin
  update private.portal_push_deliveries set next_attempt=now() where device_id=da and event_key='group:'||chat;
  perform public.portal_push_batch();
  if exists(select 1 from private.portal_push_deliveries where device_id=da and event_key='group:'||chat and state<>'skipped') then raise exception 'Removed chat member still notified';end if;
+ insert into private.portal_chat_preferences(user_id,chat_key,mode) values(a,'channel:general','muted')
+ on conflict(user_id,chat_key) do update set mode='muted';
+ update private.portal_push_deliveries set next_attempt=now() where device_id=da and event_key='channel:general';
+ jobs:=public.portal_push_batch();
+ if exists(select 1 from private.portal_push_deliveries where device_id=da and event_key='channel:general' and state<>'skipped') then raise exception 'Muted channel delivered';end if;
  -- Test is per-device, throttled, and expired endpoints stop further attempts.
  r:=public.portal_push_manage(a,sa,'test',jsonb_build_object('id',da));job_id:=(r->>'job')::uuid;
  begin perform public.portal_push_manage(a,sa,'test',jsonb_build_object('id',da));raise exception 'Test throttle failed' using errcode='XX000';exception when raise_exception then null;end;
