@@ -67,18 +67,31 @@ begin
   perform public.dialer_parallel_event(new_batch,'agent',null,agent);perform public.dialer_parallel_event(new_batch,'ready',null,agent,'CF'||repeat('c',32));perform public.dialer_parallel_event(new_batch,'launch');
   foreach l in array leg_ids loop perform public.dialer_parallel_event(new_batch,'claim',l);end loop;
   result:=public.dialer_parallel_event(new_batch,'answer',leg_ids[1],call_one,'unknown',10000);
-  if result->>'result'<>'hangup' or not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[1] and outcome='answer_unconfirmed' and followup_noted_at is not null and confirm_requested_at is null) then raise exception 'Unclear pickup prompted or lost follow-up';end if;
+  if result->>'result'<>'winner' or not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[1] and outcome='connected' and answer='unknown' and followup_noted_at is null and confirm_requested_at is null) then raise exception 'Unclear pickup was dropped or falsely identified';end if;
+  update public.dialer_parallel_sessions set heartbeat_at=now()-interval '60 seconds' where id=new_batch;
+  result:=public.dialer_parallel_event(new_batch,'answer',leg_ids[1],call_one,'unknown',10000);if result->>'result'<>'winner' then raise exception 'Connected recovery grace lost the call';end if;
   result:=public.dialer_parallel_event(new_batch,'answer',leg_ids[2],call_two,'machine',2500);
   if result->>'result'<>'hangup' or not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[2] and outcome='machine' and confirm_requested_at is null) then raise exception 'Machine prompted or connected';end if;
   result:=public.dialer_parallel_event(new_batch,'confirm',leg_ids[2],call_two,'1');if result->>'result'<>'hangup' then raise exception 'Retired keypress still enabled';end if;
-  if (select winner_id from public.dialer_parallel_sessions where id=new_batch) is not null or (select state from public.dialer_parallel_sessions where id=new_batch)<>'dialing' then raise exception 'Machine or unknown stopped other lines';end if;
+  if (select winner_id from public.dialer_parallel_sessions where id=new_batch)<>leg_ids[1] or (select state from public.dialer_parallel_sessions where id=new_batch)<>'connected' then raise exception 'Uncertain winner was lost';end if;
+  result:=public.dialer_parallel_event(new_batch,'answer',leg_ids[3],'CA'||repeat('d',32),'unknown',5000);
+  if result->>'result'<>'overflow' or not exists(select 1 from public.dialer_parallel_legs where id=leg_ids[3] and answer='unknown' and outcome='answer_unconfirmed' and followup_noted_at is not null) then raise exception 'Second uncertain pickup lost its honest follow-up';end if;
   if exists(select 1 from public.dialer_parallel_legs where session_id=new_batch and (confirmed_at is not null or confirm_requested_at is not null)) then raise exception 'Confirmation still requested';end if;
   -- Notes remain scoped even when assignment changes before a late result.
   update public.leads set assigned_to=other_user where id=lead_ids[3];
   select call_notes into overflow_notes from public.leads where id=lead_ids[3];
-  perform public.dialer_parallel_event(new_batch,'status',leg_ids[3],'CA'||replace(gen_random_uuid()::text,'-',''),'completed',2);
+  perform public.dialer_parallel_event(new_batch,'status',leg_ids[3],'CA'||repeat('d',32),'completed',2);
   if (select call_notes from public.leads where id=lead_ids[3])<>overflow_notes then raise exception 'Follow-up wrote to reassigned lead';end if;
   if not exists(select 1 from public.leads where id=lead_ids[2] and agent_status='appointment_follow_up' and lead_type='Followup Fixture') then raise exception 'Agent outcome/folder changed';end if;
+  -- Client diagnostics are owned, deduplicated, and inaccessible to browser database roles.
+  result:=public.dialer_record_client_health(u,auth_session,'parallel',new_batch,jsonb_build_array(jsonb_build_object('id',new_batch,'type','started','ms',0)));
+  perform public.dialer_record_client_health(u,auth_session,'parallel',new_batch,jsonb_build_array(jsonb_build_object('id',new_batch,'type','started','ms',0)));
+  if (select jsonb_array_length(events) from public.dialer_client_health where target_id=new_batch)<>1 then raise exception 'Diagnostics replay duplicated events';end if;
+  rejected:=false;begin perform public.dialer_record_client_health(u,auth_session,'parallel',gen_random_uuid(),'[{"id":"x","type":"started","ms":0}]');exception when others then rejected:=true;end;
+  if not rejected then raise exception 'Unowned diagnostic target accepted';end if;
+  rejected:=false;begin perform public.dialer_record_client_health(other_user,auth_session,'parallel',new_batch,'[{"id":"x","type":"started","ms":0}]');exception when others then rejected:=true;end;
+  if not rejected then raise exception 'Other agent wrote diagnostics';end if;
+  if has_table_privilege('authenticated','public.dialer_client_health','select') or has_table_privilege('anon','public.dialer_client_health','select') or has_function_privilege('authenticated','public.dialer_record_client_health(uuid,uuid,text,uuid,jsonb)','execute') then raise exception 'Private diagnostics exposed';end if;
   reset role;raise exception using errcode='ZX001',message='Rollback fixtures';
  exception when sqlstate 'ZX001' then null;end;
  reset role;
