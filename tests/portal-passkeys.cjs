@@ -7,7 +7,7 @@ const user='11111111-1111-4111-8111-111111111111',session='22222222-2222-4222-82
 const {privateKey,publicKey}=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'}),jwk=publicKey.export({format:'jwk'});
 const cose=Buffer.from(isoCBOR.encode(new Map([[1,2],[3,-7],[-1,1],[-2,Buffer.from(jwk.x,'base64url')],[-3,Buffer.from(jwk.y,'base64url')]])));
 const rawId=crypto.randomBytes(32),id=rawId.toString('base64url');
-let stored=null,challenge=null,used=false,proof=false,finishes=0,calls=[];
+let stored=null,challenge=null,browserChallenge=null,used=false,proof=false,finishes=0,calls=[];
 const json=(d,status=200)=>({ok:status>=200&&status<300,status,json:async()=>d});
 global.fetch=async(url,opt)=>{
  if(url.endsWith('/auth/v1/user'))return json({id:user,email:'fixture@example.invalid'});
@@ -24,9 +24,9 @@ global.fetch=async(url,opt)=>{
 };
 const token=aal=>'e30.'+Buffer.from(JSON.stringify({sub:user,session_id:session,aal,exp:Date.now()/1000+3600})).toString('base64url')+'.fixture';
 const request=(body,aal='aal1')=>({method:'POST',headers:{origin:'https://www.lldportal.com',authorization:'Bearer '+token(aal)},body});
-async function run(req){const res={setHeader(){},status(s){this.code=s;return this;},json(b){this.body=b;return this;}};await api.handler(req,res);return res;}
+async function run(req){const res={setHeader(){},status(s){this.code=s;return this;},json(b){this.body=b;return this;}};await api.handler(req,res);if(res.code===200&&req.body.action.endsWith('_options')){browserChallenge=res.body.options.challenge;assert.equal(browserChallenge,challenge,'Browser challenge must exactly match the saved verifier challenge');assert.equal(Buffer.from(browserChallenge,'base64url').length,32);}return res;}
 function response(register=false,{origin='https://www.lldportal.com',uv=true,badSignature=false,badChallenge=false}={}){
- const client=Buffer.from(JSON.stringify({type:register?'webauthn.create':'webauthn.get',origin,challenge:badChallenge?'bad':challenge,crossOrigin:false}));
+ const client=Buffer.from(JSON.stringify({type:register?'webauthn.create':'webauthn.get',origin,challenge:badChallenge?'bad':browserChallenge,crossOrigin:false}));
  const count=Buffer.alloc(4);count.writeUInt32BE(register?0:(stored.counter+1));
  const auth=Buffer.concat([crypto.createHash('sha256').update('lldportal.com').digest(),Buffer.from([(uv?5:1)|(register?64:0)]),count]);
  const common={id,rawId:id,type:'public-key',clientExtensionResults:{},authenticatorAttachment:'platform'};
@@ -49,5 +49,5 @@ function response(register=false,{origin='https://www.lldportal.com',uv=true,bad
  await run(request({action:'authenticate_options'}));r=await run(request({action:'authenticate_verify',id:challengeId,credential:{...response(),id:'different_credential_id'}}));assert.equal(r.code,403);
  process.env.VERCEL_ENV='preview';assert.equal((await run(request({action:'status'}))).code,503);process.env.VERCEL_ENV='production';
  r=await run(request({action:'remove',credential:id},'aal2'));assert.equal(r.code,200);assert.equal(r.body.credentials.length,0);
- console.log('PASS: real ES256 registration/assertion, required device verification, RP/origin/challenge checks, rejected tampering/replay/foreign credential, explicit verified enrollment, account binding, removal, and preview isolation. No real accounts modified.');
+ console.log('PASS: actual issued browser challenge round trip for real ES256 registration/assertion, required device verification, RP/origin/challenge checks, rejected tampering/replay/foreign credential, explicit verified enrollment, account binding, removal, and preview isolation. No real accounts modified.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

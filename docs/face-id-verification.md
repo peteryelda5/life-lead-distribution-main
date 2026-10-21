@@ -17,7 +17,7 @@ The iPhone chooses Face ID or its device passcode. The website never receives fa
 
 ## Validation
 
-- `node tests/portal-passkeys.cjs`: real ES256 registration and authentication responses; rejects wrong origins/challenges, missing device verification, tampered signatures, replay and another credential.
+- `node tests/portal-passkeys.cjs`: real ES256 registration and authentication responses built from the exact options returned to the browser (not the stored challenge); verifies 32-byte challenges remain identical through serialization; rejects wrong origins/challenges, missing device verification, tampered signatures, replay and another credential.
 - `NODE_PATH=/tmp/lld-dialer-tests/node_modules node tests/portal-passkeys-dom.cjs`: explicit gesture, cancellation/code fallback, account switching, session binding and cleanup.
 - `NODE_PATH=/tmp/lld-passkey-tests/node_modules node tests/portal-passkeys-local.cjs`: isolated PGlite/PostgreSQL 0.5.11 test engine with prior-schema fixtures; applies the actual migration and runs `tests/portal-passkeys.sql`. This does not replace testing against the full recovery schema.
 - Existing MFA, notifications, navigation, dialer authentication and document API tests; syntax checks and dependency audit.
@@ -32,3 +32,5 @@ The owner explicitly approved applying the security changes to recovery and prod
 4. Verify existing password + TOTP sign-in, Face ID enrollment, returning sign-in, cancellation, removal and permission scope on a real iPhone. The native Face ID prompt cannot be certified by DOM tests.
 
 References: https://simplewebauthn.dev/docs/packages/server · https://supabase.com/docs/guides/auth/passkeys · https://support.apple.com/guide/iphone/iphf538ea8d0/ios
+
+October 21 challenge correction: option generation now receives raw random bytes. Previously the stored base64url string was encoded again by SimpleWebAuthn, so actual iPhone responses failed the challenge comparison. The regression test reproduced the production 403 before this correction and passes for both setup and authentication after it. Existing origin, device verification, session binding and replay checks remain enforced.
