@@ -24,7 +24,83 @@ chatPage=function(){let html=pcBase.chatPage();html=html.replace('<div class="ch
 function pcPaintSidebar(){const el=q('.pc-chats');if(!el)return;const focused=document.activeElement===q('#pcChatSearch'),term=q('#pcChatSearch')?.value||'';el.outerHTML=pcSidebar();q('#pcChatSearch').value=term;if(focused)q('#pcChatSearch').focus();pcBindSidebar();qa('[data-chat-room]').forEach(b=>{b.querySelector('.pc-unread')?.remove();b.classList.toggle('selected',!PC.group&&b.dataset.chatRoom===CHAT.room);});q('#pcChatSearch')?.dispatchEvent(new Event('input'));}
 function pcBindSidebar(){if(q('#pcNewChat'))q('#pcNewChat').onclick=()=>pcCreateChat();qa('[data-pc-room]').forEach(b=>b.onclick=async()=>{if(CHAT.sending)return;stopChat();PC.request++;PC.group=b.dataset.pcRoom;CHAT.rows=[];PC.rows=[];PC.error='';render();await refreshChat();});if(q('#pcChatSearch'))q('#pcChatSearch').oninput=e=>{const term=e.target.value.toLowerCase();qa('[data-pc-room]').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(term));};}
 async function pcMarkRead(){const box=q('#chatMessages');if(document.hidden||S.tab!=='live-chat'||!box||box.scrollHeight-box.scrollTop-box.clientHeight>100)return;const key=PC.group?'group:'+PC.group:'channel:'+CHAT.room;const rows=PC.group?PC.rows:CHAT.rows;const last_id=Math.max(0,...rows.map(r=>Number(r.id)));if(last_id)await collab('read',{key,last_id});}
-async function pcCreateChat(add=false){const owner=S.profile.id,id=PC.group;try{const people=await collab('people');if(owner!==S.profile?.id)return;const current=PC.chats.find(c=>c.id===id),eligible=add?people.filter(p=>!current?.members.includes(p.id)):people;modal('<h2>'+(add?'Add members':'Create a chat')+'</h2><form id="pcCreateForm" class="stack">'+(add?'':'<label id="pcNameLabel">Chat name<input id="pcName" maxlength="80" placeholder="Vivid leadership"></label>')+'<label>Add members<input id="pcMemberSearch" type="search" placeholder="Search members…"></label><div id="pcSelectedMembers" class="pc-member-chips"></div><div class="pc-member-list" hidden>'+eligible.map(p=>'<label data-member-name="'+esc(p.name.toLowerCase())+'"><input type="checkbox" name="members" value="'+esc(p.id)+'"><span>'+esc(p.name)+'<small>'+esc(divisionLabel(p.division))+'</small></span></label>').join('')+'</div>'+(add?'':'<label>Chat type<select id="pcKind"><option value="group">Private group</option><option value="direct">Direct message</option></select></label>')+'<p id="pcCreateError" role="alert"></p><div class="row"><button type="button" id="pcCancel" class="btn secondary">Cancel</button><button class="btn primary" id="pcCreateSave">'+(add?'Add members':'Create chat')+'</button></div></form>');const box=q('#modal');pcPositionPanel(box);q('#pcCancel').onclick=closeModal;q('#pcMemberSearch').onfocus=()=>{q('.pc-member-list').hidden=false;};q('#pcMemberSearch').oninput=e=>qa('[data-member-name]').forEach(l=>l.hidden=!l.dataset.memberName.includes(e.target.value.toLowerCase()));const paintMembers=()=>{const selected=qa('.pc-member-list input:checked');q('#pcSelectedMembers').innerHTML=selected.map(i=>'<span>'+esc(people.find(p=>p.id===i.value)?.name||'Member')+'<button type="button" data-remove-member="'+esc(i.value)+'" aria-label="Remove member">×</button></span>').join('');qa('[data-remove-member]').forEach(b=>b.onclick=()=>{const input=qa('.pc-member-list input').find(i=>i.value===b.dataset.removeMember);if(input)input.checked=false;paintMembers();});};qa('.pc-member-list input').forEach(i=>i.onchange=paintMembers);if(!add)q('#pcKind').onchange=()=>{q('#pcNameLabel').hidden=q('#pcKind').value==='direct';};let busy=false;q('#pcCreateForm').onsubmit=async e=>{e.preventDefault();if(busy)return;const members=qa('.pc-member-list input:checked').map(i=>i.value),kind=add?'group':q('#pcKind').value,name=kind==='direct'?people.find(p=>p.id===members[0])?.name:q('#pcName')?.value.trim();if(!members.length||(!add&&kind==='direct'&&members.length!==1)||(!add&&!name)){q('#pcCreateError').textContent='Enter a name and choose members. Direct messages need exactly one recipient.';return;}busy=true;q('#pcCreateSave').disabled=true;try{const r=await collab(add?'add_members':'create',add?{id,members}:{members,kind,name});if(owner!==S.profile?.id)return;await pcList();if(box.isConnected)closeModal();PC.group=add?id:r.id;CHAT.rows=[];PC.rows=[];render();await refreshChat();}catch(e){if(box.isConnected)q('#pcCreateError').textContent=e.message;}finally{busy=false;if(box.isConnected)q('#pcCreateSave').disabled=false;}};}catch(e){flash(e.message,true);}}
+function pcMemberSearchText(value){return String(value||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' ');}
+async function pcCreateChat(add=false){
+ const owner=S.profile.id,id=PC.group;
+ if(q('#pcCreateForm')){q('#pcMemberSearch')?.focus();return;}
+ try{
+  const people=await collab('people');
+  if(owner!==S.profile?.id||q('#pcCreateForm'))return;
+  const current=PC.chats.find(c=>c.id===id),eligible=add?people.filter(p=>!current?.members.includes(p.id)):people;
+  closeModal();
+  modal('<h2>'+(add?'Add members':'Create a chat')+'</h2><form id="pcCreateForm" class="stack">'+
+   (add?'':'<label id="pcNameLabel">Chat name<input id="pcName" type="text" maxlength="80" placeholder="Vivid leadership"></label>')+
+   '<label>Add members<input id="pcMemberSearch" type="search" placeholder="Search by name or agency…" autocomplete="off" aria-describedby="pcMemberHelp"></label>'+
+   '<p id="pcMemberHelp" class="small muted"></p><div id="pcSelectedMembers" class="pc-member-chips"></div><div class="pc-member-list">'+
+   eligible.map(p=>'<label data-member-name="'+esc(String(p.name||'').toLowerCase())+'" data-member-search="'+esc(pcMemberSearchText(p.name+' '+divisionLabel(p.division)))+'"><input type="checkbox" name="members" value="'+esc(p.id)+'"><span>'+esc(p.name||'Member')+'<small>'+esc(divisionLabel(p.division))+'</small></span></label>').join('')+
+   '<p id="pcMemberEmpty" class="small muted" role="status" hidden>No members match your search.</p></div>'+
+   (add?'':'<label>Chat type<select id="pcKind"><option value="group">Private group</option><option value="direct">Direct message</option></select></label>')+
+   '<p id="pcCreateError" role="alert"></p><div class="row"><button type="button" id="pcCancel" class="btn secondary">Cancel</button><button type="submit" class="btn primary" id="pcCreateSave">'+(add?'Add members':'Create chat')+'</button></div></form>');
+  const box=q('#modal'),form=box.querySelector('#pcCreateForm'),find=s=>form.querySelector(s),all=s=>[...form.querySelectorAll(s)];
+  const search=find('#pcMemberSearch'),list=find('.pc-member-list'),error=find('#pcCreateError'),save=find('#pcCreateSave');
+  let busy=false,savedId=null;
+  const direct=()=>!add&&find('#pcKind').value==='direct';
+  const selected=()=>all('.pc-member-list input:checked');
+  const paintMembers=()=>{
+   const inputs=selected();
+   find('#pcSelectedMembers').innerHTML=inputs.map(i=>'<span>'+esc(people.find(p=>p.id===i.value)?.name||'Member')+'<button type="button" data-remove-member="'+esc(i.value)+'" aria-label="Remove member">×</button></span>').join('');
+   find('#pcMemberHelp').textContent=direct()?'Select one person to start a direct message.':inputs.length+' selected · Choose up to '+(add?Math.max(0,50-(current?.members.length||0)):49)+' people.';
+   all('[data-remove-member]').forEach(b=>{b.disabled=busy||!!savedId;b.onclick=()=>{const input=all('.pc-member-list input').find(i=>i.value===b.dataset.removeMember);if(input)input.checked=false;error.textContent='';paintMembers();};});
+  };
+  const filterMembers=()=>{
+   const terms=pcMemberSearchText(search.value).split(' ').filter(Boolean);let count=0;
+   all('[data-member-search]').forEach(row=>{row.hidden=!terms.every(t=>row.dataset.memberSearch.includes(t));if(!row.hidden)count++;});
+   find('#pcMemberEmpty').hidden=count>0;
+   find('#pcMemberEmpty').textContent=eligible.length?'No members match your search.':'No eligible members are available to add.';
+   list.scrollTop=0;
+  };
+  pcPositionPanel(box);find('#pcCancel').onclick=()=>box.remove();
+  search.oninput=filterMembers;
+  all('.pc-member-list input').forEach(input=>input.onchange=()=>{error.textContent='';paintMembers();});
+  if(!add)find('#pcKind').onchange=()=>{
+   const isDirect=direct(),checked=selected(),keep=checked[0];
+   find('#pcNameLabel').hidden=isDirect;
+   if(isDirect)checked.slice(1).forEach(i=>i.checked=false);
+   all('.pc-member-list input').forEach(i=>i.type=isDirect?'radio':'checkbox');
+   if(keep)keep.checked=true;
+   error.textContent=isDirect&&checked.length>1?'Direct messages allow one person. The first selected person was kept.':'';
+   paintMembers();
+  };
+  paintMembers();filterMembers();
+  form.onsubmit=async e=>{
+   e.preventDefault();if(busy)return;
+   const members=selected().map(i=>i.value),kind=add?'group':find('#pcKind').value;
+   const name=kind==='direct'?String(people.find(p=>p.id===members[0])?.name||'Direct message').slice(0,80):find('#pcName')?.value.trim();
+   if(!savedId){
+    if(!members.length){error.textContent=direct()?'Select a person from the results to start a direct message.':'Choose at least one member from the results.';search.focus();return;}
+    if(direct()&&members.length!==1){error.textContent='Select exactly one person for a direct message.';return;}
+    if(members.length>(add?50-(current?.members.length||0):49)){error.textContent='A chat can have up to 50 people, including you.';return;}
+    if(!add&&kind==='group'&&!name){error.textContent='Enter a name for this group.';find('#pcName').focus();return;}
+   }
+   busy=true;error.textContent='';save.disabled=true;save.textContent=savedId?'Opening…':add?'Adding…':'Creating…';
+   all('input,select,[data-remove-member]').forEach(el=>el.disabled=true);
+   try{
+    if(!savedId){const result=await collab(add?'add_members':'create',add?{id,members}:{members,kind,name});savedId=add?id:result?.id;if(!savedId)throw Error('The chat could not be confirmed. Refresh the chat list before trying again.');}
+    if(owner!==S.profile?.id||!box.isConnected)return;
+    await pcList();
+    if(owner!==S.profile?.id||!box.isConnected)return;
+    if(!PC.chats.some(c=>c.id===savedId))throw Error('The updated chat list is not available yet.');
+    stopChat();PC.group=savedId;CHAT.rows=[];PC.rows=[];PC.error='';
+    render();await refreshChat();
+    if(owner===S.profile?.id&&box.isConnected){box.remove();q('#chatInput')?.focus();}
+   }catch(e){if(owner===S.profile?.id&&box.isConnected)error.textContent=savedId?(add?'Members were added':'Your chat was saved')+', but it could not open. Select Open chat to retry. '+e.message:e.message;}
+   finally{
+    busy=false;
+    if(box.isConnected){save.disabled=false;save.textContent=savedId?'Open chat':add?'Add members':'Create chat';all('input,select,[data-remove-member]').forEach(el=>el.disabled=!!savedId);}
+   }
+  };
+ }catch(e){if(owner===S.profile?.id)flash(e.message,true);}
+}
 async function pcPreferences(){const group=PC.chats.find(c=>c.id===PC.group),key=PC.group?'group:'+PC.group:'channel:'+CHAT.room,current=group?.mode||PC.channels.find(c=>c.room===CHAT.room)?.mode||'all';modal('<h2>Chat notifications</h2><p>'+esc(group?.name||'#'+CHAT.room)+'</p><form id="pcPreferenceForm" class="stack">'+[['all','All messages'],['mentions','Mentions only'],['muted','Muted']].map(([v,l])=>'<label><input type="radio" name="mode" value="'+v+'" '+(current===v?'checked':'')+'> '+l+'</label>').join('')+'<p class="muted small">Unread badges remain visible. This controls in-portal message alerts; phone push notifications are separate.</p><p id="pcPreferenceError" role="alert"></p><div class="row"><button type="button" id="pcPreferenceCancel" class="btn secondary">Cancel</button><button class="btn primary">Save</button></div></form>');const box=q('#modal');pcPositionPanel(box,true);q('#pcPreferenceCancel').onclick=closeModal;q('#pcPreferenceForm').onsubmit=async e=>{e.preventDefault();try{await collab('preference',{key,mode:new FormData(e.target).get('mode')});if(box.isConnected)closeModal();await pcList();}catch(e){if(box.isConnected)q('#pcPreferenceError').textContent=e.message;}};}
 async function pcSend(e){e.preventDefault();if(CHAT.sending)return;const id=PC.group,key=chatKey(),owner=S.profile.id,epoch=CHAT.epoch,input=q('#chatInput'),body=input.value.trim(),media=CHAT_MEDIA.drafts[key];if(!body&&!media)return;const signature=JSON.stringify([body,media?.id]),pending=CHAT.pending[key]?.signature===signature?CHAT.pending[key]:{signature,id:crypto.randomUUID()};CHAT.pending[key]=pending;CHAT.sending=true;q('#chatSend').disabled=true;try{const outgoing=await chatMediaPrepare(media,body,id,'private',owner,epoch);if(id!==PC.group||owner!==S.profile?.id)throw Error('Chat changed. Return to your draft.');await collab('send',{id,body:outgoing,request_id:pending.id});if(owner!==S.profile?.id)return;delete CHAT.pending[key];chatMediaSent(key,media);CHAT.drafts[key]='';if(id===PC.group){q('#chatInput').value='';q('#chatSendStatus').textContent='';await refreshChat();}}catch(e){if(id===PC.group&&owner===S.profile?.id&&q('#chatSendStatus'))q('#chatSendStatus').textContent=e.message;}finally{if(owner===S.profile?.id){CHAT.sending=false;if(q('#chatSend'))q('#chatSend').disabled=false;}}}
 chatMediaPrepare=async function(d,caption,division,room,owner,epoch){if(!PC.group)return pcBase.chatMediaPrepare(d,caption,division,room,owner,epoch);if(!d)return caption;if(caption.length>3000)throw Error('Keep captions under 3,000 characters.');await syncSbSession();if(owner!==S.profile?.id||epoch!==CHAT.epoch||division!==PC.group)throw Error('Chat changed. Return to your draft.');if(!d.path){const path=division+'/'+owner+'/'+d.id+'.'+d.ext;const {error}=await SB.storage.from('private-chat-media').upload(path,d.file,{contentType:d.mime,upsert:false});if(error)throw error;d.path=path;}if(owner!==S.profile?.id||epoch!==CHAT.epoch)throw Error('Chat changed. Return to your draft.');return 'VIVID_MEDIA:'+JSON.stringify({path:d.path,name:d.file.name.slice(0,255),caption});};
