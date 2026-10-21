@@ -3,13 +3,16 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
 const tick=async()=>{for(let i=0;i<5;i++)await new Promise(r=>setImmediate(r));};
 const source=fs.readFileSync(__dirname+'/../portal-notifications.js','utf8');
 const event=(key='delivery:1',extra={})=>({key,category:'leads',title:'New leads assigned to you',body:'10 leads delivered',target:{tab:'my-leads'},at:'2026-10-20T10:00:00Z',read:false,...extra});
-function setup(role='agent',leader=false){
+function setup(role='agent',leader=false,options={}){
  const dom=new JSDOM('<body><header class="portal-topnav"></header></body>',{url:'https://www.lldportal.com',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
- const requests=[],navigation=[];let list=[event()],muted=[],popups=true,now='2026-10-20T10:01:00Z',hold=null,pending=null,blocked=false;
+ const requests=[],navigation=[];let list=options.items||[event()],muted=[],popups=true,now='2026-10-20T10:01:00Z',hold=null,pending=null,blocked=false;
  w.S={session:{},profile:{id:'agent-one',role,is_team_leader:leader,active:true},tab:'dashboard'};w.currentAal=()=> 'aal2';
  w.portalDialerInstance={canLeave:()=>!blocked,root:w.document.createElement('div')};w.portalDialerInstance.root.innerHTML='<button data-view="callbacks"></button><button data-view="billing"></button><button id="agentPriority"></button>';
  w.mountPortalDialer=async()=>{};w.navigatePortalTab=async tab=>{navigation.push(tab);w.S.tab=tab;};w.PC={chats:[{id:'private-chat'}]};w.CHAT={division:'mine'};w.pcList=async()=>{};w.render=()=>{};w.refreshChat=async()=>{};w.changeChatRoom=async(d,r)=>{w.CHAT.room=r;};
  const response=q=>{const all=list.filter(n=>!n.archived&&!muted.includes(n.category)),items=all.filter(n=>(!q.category||q.category==='all'||q.category===n.category)&&(!q.unread||!n.read));return JSON.parse(JSON.stringify({items:items.slice(q.offset||0,(q.offset||0)+50),total:items.length,unread:all.filter(n=>!n.read).length,as_of:now,preferences:{muted_categories:muted,toast_enabled:popups}}));};
+ const live={subscriptions:0,removed:0,event:null,state:null};
+ w.matchMedia=()=>({matches:!!options.reducedMotion});
+ if(options.live)w.SB={realtime:{async setAuth(){}},channel(){live.subscriptions++;return {on(type,config,fn){assert.equal(config.table,'leaderboard_updates');assert.equal(config.event,'UPDATE');live.event=fn;return this;},subscribe(fn){live.state=fn;return this;}};},async removeChannel(){live.removed++;}};
  w.api=async(path,{body})=>{assert.equal(path,'/rest/v1/rpc/portal_notifications');requests.push(body);const {p_action:a,p_data:q}=body;
   if(hold===a){hold=null;const snapshot=response(q);return new Promise(resolve=>{pending=()=>resolve(snapshot);});}
   if(['read','unread','archive'].includes(a))for(const item of q.items){const n=list.find(n=>n.key===item.key);if(n){if(a==='archive')n.archived=true;else n.read=a==='read';}}
@@ -20,7 +23,7 @@ function setup(role='agent',leader=false){
  let poll;const originalInterval=w.setInterval.bind(w);w.setInterval=(fn,ms)=>{poll=fn;return originalInterval(fn,ms);};
  w.eval(source);w.document.querySelector('header').innerHTML=w.PortalNotifications.buttonHtml();w.PortalNotifications.bind();
  const $=id=>w.document.getElementById(id),click=async id=>{$(id).click();await tick();};
- return {w,dom,$,click,requests,navigation,async poll(){poll();await tick();},setList(v){list=v;},setNow(v){now=v;},hold(a){hold=a;},release(){assert(pending);const p=pending;pending=null;p();},block(v){blocked=v;},async close(){w.PortalNotifications.reset();dom.window.close();}};
+ return {w,dom,$,click,requests,navigation,live,async poll(){poll();await tick();},setList(v){list=v;},setNow(v){now=v;},hold(a){hold=a;},release(){assert(pending);const p=pending;pending=null;p();},block(v){blocked=v;},async close(){w.PortalNotifications.reset();dom.window.close();}};
 }
 (async()=>{
  for(const [role,leader] of [['agent',false],['agent',true],['admin',false]]){const h=setup(role,leader);try{await tick();assert.equal(h.$('portalNotifications').getAttribute('aria-label'),'Notifications, 1 unread');assert.equal(h.w.document.querySelector('.pn-toast'),null);await h.click('portalNotifications');assert.equal(h.w.document.querySelectorAll('.pn-item').length,1);h.w.PortalNotifications.sync();assert.equal(h.w.document.querySelectorAll('#portalNotificationPanel').length,1);}finally{await h.close();}}
@@ -65,5 +68,23 @@ function setup(role='agent',leader=false){
   stack.block(false);stack.w.document.querySelector('.pn-toast-open').click();await tick();assert.equal(stack.navigation.at(-1),'my-leads');assert.equal(stack.w.document.querySelectorAll('.pn-toast').length,2,'opening one alert leaves the others');
   stack.w.PortalNotifications.reset();assert.equal(stack.w.document.querySelector('.pn-toast-stack'),null);
  }finally{await stack.close();}
- console.log('PASS: stacked alerts and burst queue, independent dismiss/open, active-call safety, all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
+ const deal=(key,at='2026-10-20T10:02:00Z',extra={})=>event(key,{category:'deals',title:'Agent closed a deal',body:'Agency · $1,440.00 annual premium',at,target:{tab:'leaderboard',celebration:'corner',agent_name:'Test Agent',agency_name:'Test Agency',annual_premium:1440,...extra}});
+ const c=setup('agent',false,{live:true,items:[deal('deal:history','2026-10-20T10:00:00Z')]});try{
+  await tick();assert.equal(c.w.document.querySelector('.pn-celebration'),null,'no historical celebration on initial load');assert.equal(c.live.subscriptions,1);c.w.PortalNotifications.sync();await tick();assert.equal(c.live.subscriptions,1);
+  c.setNow('2026-10-20T10:03:00Z');c.setList([deal('deal:new'),event('normal',{at:'2026-10-20T10:02:00Z'})]);
+  const before=c.requests.length;c.live.event();c.live.event();c.live.event();await new Promise(r=>setTimeout(r,300));await tick();assert.equal(c.requests.length,before+1,'agency signals coalesce into one refresh');
+  let card=c.w.document.querySelector('.pn-celebration');assert(card);assert.match(card.textContent,/Test Agent/);assert.match(card.textContent,/Test Agency/);assert.match(card.textContent,/\+ \$1,440/);assert.equal(card.querySelectorAll('.pn-confetti i').length,18);assert.equal(c.w.document.querySelectorAll('.pn-toast').length,2,'regular alerts stay visible');assert.equal(c.w.document.querySelector('audio,video,canvas'),null);
+  card.onmouseenter();assert(card.classList.contains('pn-paused'));card.onmouseleave();assert(!card.classList.contains('pn-paused'));
+  c.block(true);card.querySelector('.pn-toast-open').click();await tick();assert.equal(c.navigation.length,0,'celebration cannot leave an active call');
+  c.block(false);card.querySelector('.pn-toast-open').click();await tick();assert.equal(c.navigation.at(-1),'leaderboard');assert.equal(c.w.document.querySelector('.pn-celebration'),null);assert(c.w.document.querySelector('.pn-toast'),'other alert survives celebration navigation');c.w.document.querySelector('.pn-toast-close').click();
+  c.setNow('2026-10-20T10:04:00Z');c.setList([deal('deal:new','2026-10-20T10:02:00Z',{annual_premium:2400})]);await c.poll();assert.equal(c.w.document.querySelector('.pn-celebration'),null,'editing existing deal does not replay');
+  c.setNow('2026-10-20T10:05:00Z');c.setList([deal('deal:late','2026-10-20T10:03:30Z',{agent_name:'<img src=x onerror=alert(1)>',annual_premium:1440.48})]);await c.poll();card=c.w.document.querySelector('.pn-celebration');assert(card,'late transaction gets a small overlap window');assert.equal(card.querySelector('img'),null);assert.match(card.textContent,/\$1,440.48/);card.querySelector('.pn-toast-close').click();
+  c.setList([deal('deal:very-old','2026-10-20T09:59:00Z')]);await c.poll();assert.equal(c.w.document.querySelector('.pn-celebration'),null);
+  await c.click('portalNotifications');await c.click('pnSettings');c.w.document.querySelector('[name=category][value=deals]').checked=false;c.w.document.querySelector('.pn-primary').click();await tick();
+  c.setNow('2026-10-20T10:06:00Z');c.setList([deal('deal:muted','2026-10-20T10:05:30Z')]);await c.poll();assert.equal(c.w.document.querySelector('.pn-celebration'),null);
+  await c.click('pnSettings');c.w.document.querySelector('[name=category][value=deals]').checked=true;c.w.document.querySelector('.pn-primary').click();await tick();await c.poll();assert.equal(c.w.document.querySelector('.pn-celebration'),null,'unmuting does not replay earlier deals');
+  const oldEvent=c.live.event;c.w.PortalNotifications.reset();assert.equal(c.live.removed,1);const count=c.requests.length;oldEvent();await new Promise(r=>setTimeout(r,300));assert.equal(c.requests.length,count,'stale real-time event after logout is ignored');
+ }finally{await c.close();}
+ const reduced=setup('agent',false,{reducedMotion:true});try{await tick();reduced.setNow('2026-10-20T10:03:00Z');reduced.setList([deal('deal:reduced')]);await reduced.poll();assert(reduced.w.document.querySelector('.pn-celebration'));assert.equal(reduced.w.document.querySelector('.pn-confetti'),null,'reduced motion omits confetti');}finally{await reduced.close();}
+ console.log('PASS: corner celebrations, stable deal deduplication, delayed transactions, reduced motion, preferences, real-time coalescing/cleanup, stacked alerts and burst queue, independent dismiss/open, active-call safety, all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
