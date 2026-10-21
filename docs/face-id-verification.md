@@ -24,9 +24,7 @@ The iPhone chooses Face ID or its device passcode. The website never receives fa
 
 ## Release gate
 
-Automatic approval review rejected applying this security-boundary migration to recovery without explicit owner authorization. No migration or deployed login change has been made. Keep this draft unmerged.
-
-After explicit approval:
+The owner explicitly approved applying the security changes to recovery and production and deploying them on October 21, 2026. Both recovery and production migrations and full-schema fixtures passed. The updated MFA reset function is deployed to both projects. Release order:
 
 1. Apply `20261021165857_portal_face_id_verification.sql` to recovery; run the rolled-back `tests/portal-passkeys.sql` fixtures and security advisors against the full schema.
 2. Apply the same migration to MAIN and rerun the fixtures. No existing credentials or users are migrated or enrolled automatically.

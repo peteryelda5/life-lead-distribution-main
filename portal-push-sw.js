@@ -11,7 +11,7 @@ self.addEventListener('push',event=>{
  n=n&&typeof n==='object'?n:{};
  const navigate=destination(n.navigate);
  event.waitUntil(self.registration.showNotification(String(n.title||'Vivid Life Portal').slice(0,120),{
-  body:String(n.body||'Open the portal to see your new notification.').slice(0,180),icon:'/assets/vivid-life-app-192.png',
+  body:String(n.body||'Open the portal to see your new notification.').slice(0,650),icon:'/assets/vivid-life-app-192.png',
   tag:typeof n.tag==='string'?n.tag.slice(0,100):'vivid-update',data:{url:navigate},silent:false
  }));
 });

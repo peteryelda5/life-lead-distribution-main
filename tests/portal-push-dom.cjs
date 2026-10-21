@@ -34,6 +34,29 @@ function setup({installed=true,permission='default',url='https://www.lldportal.c
  const link=setup({url:'https://www.lldportal.com/?push='+pushId});try{link.block(true);link.w.PortalPush.sync();await tick();assert.equal(link.opened.length,0);link.block(false);link.w.PortalPush.sync();await tick();assert.equal(link.opened[0].target.tab,'leaderboard');assert.equal(new URL(link.w.location.href).search,'');}finally{link.close();}
  const logout=setup({existing:true});try{logout.w.PortalPush.sync();await tick();await logout.w.PortalPush.beforeLogout();assert(logout.actions.some(a=>a.action==='disable'));assert.equal(logout.unsubscribed,1);assert.equal(logout.w.localStorage.getItem('vivid_phone_notifications'),null);}finally{logout.close();}
  const swap=setup({existing:true});try{swap.w.localStorage.setItem('vivid_phone_notifications',JSON.stringify({owner:'other-user',id:deviceId}));swap.w.PortalPush.sync();await tick();assert.equal(swap.unsubscribed,1);assert(!swap.actions.some(a=>a.action==='sync'));assert.equal(swap.prompts,0);}finally{swap.close();}
+ // Saving sends a wake without enrolling the sender for phone notifications.
+ const sender=setup({installed:false});try{
+  const w=sender.w,requests=[];let throttled=true;
+  w.fetch=async(url,opt)=>{requests.push({url,opt,body:JSON.parse(opt.body)});const result=throttled?{accepted:false,retry_after_ms:100}:{accepted:true};throttled=false;return {ok:true,json:async()=>result};};
+  w.PortalPush.afterWrite('/rest/v1/rpc/portal_collaboration',{method:'POST',body:{p_action:'list'}});
+  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'GET'});
+  await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,0);
+  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});
+  await new Promise(r=>setTimeout(r,380));assert.equal(requests.length,2);assert.equal(requests[0].opt.keepalive,true);assert.deepEqual(requests[0].body,{action:'wake'});assert.equal(sender.registered,0);assert.equal(sender.prompts,0);
+  for(const [path,body] of [['close_lead',{}],['chat_standalone_deal',{}],['portal_collaboration',{p_action:'send'}]]){
+   w.PortalPush.afterWrite('/rest/v1/rpc/'+path,{method:'POST',body});await new Promise(r=>setTimeout(r,180));
+  }
+  assert.equal(requests.length,5);
+  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});w.S.profile.id='different-account';await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,5);
+  // Exercise the actual shared API success/failure boundary, including retries.
+  const appSource=fs.readFileSync(__dirname+'/../portal-app.js','utf8');
+  const rawSource=appSource.slice(appSource.indexOf('async function raw('),appSource.indexOf('let refreshPromise=null;'));
+  let wakes=0,ok=false;
+  const context={portalSessionEpoch:0,KEY:'public-fixture',BASE:'https://fixture.invalid',S:{session:{access_token:'fixture'}},window:{PortalPush:{afterWrite(){wakes++;}}},portalFetch:async()=>({ok,status:ok?200:400,text:async()=>JSON.stringify(ok?{saved:true}:{message:'Save failed'})})};
+  vm.createContext(context);vm.runInContext(rawSource,context);
+  await assert.rejects(context.raw('/rest/v1/rpc/close_lead',{method:'POST'}),/Save failed/);assert.equal(wakes,0);
+  ok=true;await context.raw('/rest/v1/rpc/close_lead',{method:'POST'});assert.equal(wakes,1);
+ }finally{sender.close();}
  // Worker always displays a visible notification; external URLs cannot be opened.
  const handlers={},shown=[],windows=[],messages=[];let wait;
  const self={location:{origin:'https://www.lldportal.com'},addEventListener(k,f){handlers[k]=f;},registration:{async showNotification(title,opt){shown.push({title,opt});}},clients:{async matchAll(){return [];},async openWindow(url){windows.push(url);}}};
