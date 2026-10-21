@@ -13,6 +13,7 @@ const $=id=>document.getElementById(id),labels={appointment_follow_up:'Appointme
 let states=[],stateOptions=[],filteredCount=0;
 let folders=[],rows=[],current=null,offset=0,folderIndex=0,busy=false,reviewing=false,selected=new Map(),owner=null,epoch=0;
 let callbacks=null,parallel=null,operations=null,conversation=null,callRecordId=null,incomingBusy=false,parallelBusy=false;
+let callHealth=null;
 let callDevice=null,activeCall=null,callStarting=false,pendingOutcome=false,queueRunning=false,callEpoch=0,callStartedAt=0,callSessionToken=null,callSessionUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 async function freshSession(){if(typeof realWindow.sessionExpiresWithin==='function'&&realWindow.sessionExpiresWithin(120)){if(typeof realWindow.refreshToken!=='function'||!await realWindow.refreshToken())throw Error('Your session expired. Sign in again.');}const s=session();if(!s?.access_token)throw Error('Sign in to the portal and complete two-step verification.');return s;}
@@ -71,6 +72,7 @@ async function save(next){
 }
 $('save').onclick=()=>save(false);$('savenext').onclick=()=>save(true);
 function finishCall(text,needsOutcome=true){
+ callHealth?.close();callHealth=null;
  recordSessionCall(needsOutcome);callEpoch++;activeCall=null;callStarting=false;callSessionToken=null;callSessionUser=null;callStartedAt=0;
  const d=callDevice;callDevice=null;if(d)d.destroy();pendingOutcome=needsOutcome;$('callmute').textContent='Mute';
  if(needsOutcome){$('outcome').value='';setTimeout(refreshUsage,2500)}
@@ -90,13 +92,15 @@ async function startCall(){
  if(ticket!==callEpoch)return;if(!r.ok)throw Error(d.error||'Call authorization failed.');
  if(!session()?.access_token||session()?.user?.id!==s.user?.id)throw Error('Your portal session changed. Reload before calling.');
  callRecordId=d.callId;$('callingnumber').textContent=d.callerId;$('phone').textContent=d.destination;$('callstatus').textContent='Calling '+d.destination+'…';
+ callHealth=realWindow.VividCallHealth?.create({kind:'call',id:d.callId,session:s,getSession:freshSession,notice:message});
  callDevice=new Twilio.Device(d.token,{logLevel:0,closeProtection:true,enableImprovedSignalingErrorPrecision:true,maxCallSignalingTimeoutMs:30000});
- callDevice.on('error',e=>{if(ticket===callEpoch){queueRunning=false;finishCall(callError(e),attempted)}});
+ callHealth?.bindDevice(callDevice);
+ callDevice.on('error',e=>{if(ticket===callEpoch){queueRunning=false;if(realWindow.VividCallHealth?.live(activeCall)){message('Calling connection needs attention. Keeping your current call open while it recovers.',true);return;}finishCall(callError(e),attempted)}});
  attempted=true;const c=await callDevice.connect({params:{CallGrant:d.callGrant}});
- if(ticket!==callEpoch){c.disconnect();return}activeCall=c;callStarting=false;controls();
+ if(ticket!==callEpoch){c.disconnect();return}activeCall=c;callHealth?.bindCall(c);callStarting=false;controls();
  c.on('accept',()=>{if(ticket===callEpoch){callStartedAt=Date.now();$('callstatus').textContent='Connected';controls()}});
  for(const event of ['disconnect','cancel','reject'])c.on(event,()=>{if(ticket===callEpoch)finishCall('Call ended.')});
- c.on('error',e=>{if(ticket===callEpoch){queueRunning=false;finishCall(callError(e))}});
+ c.on('error',e=>{if(ticket===callEpoch){queueRunning=false;if(realWindow.VividCallHealth?.live(c)){message('The call reported a connection problem. Keeping it open while the connection recovers.',true);return;}finishCall(callError(e))}});
  if(c.status()==='open'){callStartedAt=Date.now();$('callstatus').textContent='Connected';controls()}
  }catch(e){if(ticket===callEpoch){queueRunning=false;finishCall(e.message||'Could not place call.',attempted)}}
 }
@@ -104,12 +108,12 @@ $('calllead').onclick=()=>{queueRunning=false;startCall()};
 $('startqueue').onclick=()=>{if(!allowChange()||!selected.size)return;const next=reviewing&&current&&selected.has(current.id)?current:[...selected.values()][0];reviewing=true;queueRunning=true;render();show(next);startCall()};
 $('pausequeue').onclick=()=>{queueRunning=false;message('Queue paused. Finish this call and save its outcome. The next call will wait for you.');controls()};
 $('callmute').onclick=()=>{if(activeCall){const muted=!activeCall.isMuted();activeCall.mute(muted);$('callmute').textContent=muted?'Unmute':'Mute'}};
-$('callhangup').onclick=()=>{const ticket=callEpoch,attempted=!!activeCall||!!callDevice;if(activeCall)activeCall.disconnect();else if(callDevice)callDevice.disconnectAll();if(ticket===callEpoch)finishCall('Call ended.',attempted)};
+$('callhangup').onclick=()=>{callHealth?.record('user_hangup');const ticket=callEpoch,attempted=!!activeCall||!!callDevice;if(activeCall)activeCall.disconnect();else if(callDevice)callDevice.disconnectAll();if(ticket===callEpoch)finishCall('Call ended.',attempted)};
 for(const digit of ['1','2','3','4','5','6','7','8','9','*','0','#']){const b=document.createElement('button');b.textContent=digit;b.setAttribute('aria-label','Dial '+digit);b.onclick=()=>{if(activeCall?.status()==='open')activeCall.sendDigits(digit)};$('keypad').append(b)}
 setInterval(()=>{if(callStartedAt){const sec=Math.floor((Date.now()-callStartedAt)/1000);$('calltimer').textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
  if(callSessionToken&&(!session()?.access_token||session()?.user?.id!==callSessionUser)){queueRunning=false;if(activeCall)activeCall.disconnect();finishCall('Your session changed. Sign in again.',false)}
 },1000);
-window.addEventListener('pagehide',()=>{queueRunning=false;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy()});
+window.addEventListener('pagehide',()=>{callHealth?.record('page_exit');callHealth?.flush(true);queueRunning=false;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy()});
 
 let accountBusy=false,accountRefresh=null,accountOwner=session()?.user?.id,accountState=null,numberPreference=null;
 const money=c=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(c||0)/100);
@@ -154,6 +158,7 @@ controls();if(session()?.access_token){loadDisplayProfile();$('load').click();}e
 'use strict';
 const $=id=>document.getElementById('manual-'+id);window.manualCalling=()=>busy||!!activeCall;
 let connectedAt=0,manualRecordId=null;window.manualConversation=()=>manualRecordId?{kind:'call',id:manualRecordId,active:!!activeCall&&activeCall.status()==='open',label:$('destination').value}:null;
+let manualHealth=null;
 let device=null,activeCall=null,busy=false,ready=false,callEpoch=0,startingToken=null,startingUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
@@ -167,7 +172,7 @@ async function authorization(){
 function display(data){}
 async function checkSetup(){const sess=await freshSession();if(!sess?.access_token)throw Error('Sign in to the portal first.');const response=await fetch('/api/dialer/account',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+sess.access_token},body:JSON.stringify({action:'state'}),cache:'no-store',signal:AbortSignal.timeout(60000)});const data=await response.json();if(!response.ok)throw Error(data.error||'Account unavailable.');if(session()?.user?.id!==sess.user?.id)throw Error('Session changed.');const select=$('caller');select.replaceChildren();for(const number of data.numbers||[]){if(number.state==='active'){const o=document.createElement('option');o.value=String(number.slot);o.textContent=number.phoneNumber;select.append(o);}}if(!data.entitled||!data.realCallingAllowed)throw Error('An active calling subscription is required. Agent calling is unavailable in Stripe test mode.');if(!select.options.length)throw Error('Activate a number in Numbers & billing first.');}
 window.disposeManual=()=>{if(activeCall)activeCall.disconnect();cleanup();};
-function cleanup(){connectedAt=0;callEpoch++;activeCall=null;busy=false;startingToken=null;$('mute').textContent='Mute';if(device){device.destroy();device=null}controls();}
+function cleanup(){manualHealth?.close();manualHealth=null;connectedAt=0;callEpoch++;activeCall=null;busy=false;startingToken=null;$('mute').textContent='Mute';if(device){device.destroy();device=null}controls();}
 $('check').onclick=async()=>{busy=true;ready=false;controls();status('Checking your portal login and calling setup…');try{if(!window.Twilio?.Device)throw new Error('Calling support did not load. Check your internet connection and refresh.');await checkSetup();ready=true;status('Setup is ready. Click Call now and allow microphone access.');}catch(e){status(e.message,true)}finally{busy=false;controls()}};
 $('call').onclick=async()=>{
   if(busy||activeCall||incomingBusy||parallelBusy||!ready||!$('permission').checked)return;
@@ -175,21 +180,23 @@ $('call').onclick=async()=>{
   busy=true;controls();const epoch=++callEpoch;
   try{
     $('test-timer').textContent='00:00';status('Preparing your call…');const data=await authorization();if(epoch!==callEpoch)return;display(data);manualRecordId=data.callId;startingToken=data.sessionToken;startingUser=session()?.user?.id;
+    manualHealth=realWindow.VividCallHealth?.create({kind:'call',id:data.callId,session:session(),getSession:freshSession,notice:status});
     device=new Twilio.Device(data.token,{logLevel:0,closeProtection:true,enableImprovedSignalingErrorPrecision:true,maxCallSignalingTimeoutMs:30000});
-    device.on('error',e=>{if(epoch!==callEpoch)return;status('Calling error '+(e.code||'')+': '+(e.message||'Check your Twilio settings.'),true);cleanup()});
+    manualHealth?.bindDevice(device);
+    device.on('error',e=>{if(epoch!==callEpoch)return;if(realWindow.VividCallHealth?.live(activeCall)){status('Calling connection needs attention. Keeping your current call open while it recovers.',true);return;}status('Calling error '+(e.code||'')+': '+(e.message||'Check your Twilio settings.'),true);cleanup()});
     const call=await device.connect({params:{CallGrant:data.callGrant}});
     if(epoch!==callEpoch){call.disconnect();return}
-    activeCall=call;busy=false;controls();status('Calling…');
+    activeCall=call;manualHealth?.bindCall(call);busy=false;controls();status('Calling…');
     call.on('ringing',()=>{if(epoch===callEpoch)status('Ringing…')});
     call.on('accept',()=>{if(epoch===callEpoch){connectedAt=Date.now();status('Call connected. Check that you can hear both directions.');}});
     for(const event of ['disconnect','cancel','reject'])call.on(event,()=>{if(epoch===callEpoch){status('Call ended. You can place another test call.');cleanup()}});
-    call.on('error',e=>{if(epoch===callEpoch){status('Call error '+(e.code||'')+': '+(e.message||'Please try again.'),true);cleanup()}});
+    call.on('error',e=>{if(epoch===callEpoch){if(realWindow.VividCallHealth?.live(call)){status('The call reported a connection problem. Keeping it open while the connection recovers.',true);return;}status('Call error '+(e.code||'')+': '+(e.message||'Please try again.'),true);cleanup()}});
   }catch(e){if(epoch===callEpoch){status(e.name==='NotAllowedError'?'Allow microphone access in your browser, then try again.':e.message,true);cleanup()}}
 };
 $('mute').onclick=()=>{if(!activeCall)return;const muted=!activeCall.isMuted();activeCall.mute(muted);$('mute').textContent=muted?'Unmute':'Mute'};
-$('hangup').onclick=()=>{if(activeCall)activeCall.disconnect();cleanup();status('Call ended.');};
+$('hangup').onclick=()=>{manualHealth?.record('user_hangup');if(activeCall)activeCall.disconnect();cleanup();status('Call ended.');};
 setInterval(()=>{if(startingToken&&(!session()?.access_token||session()?.user?.id!==startingUser)){if(activeCall)activeCall.disconnect();cleanup();ready=false;controls();status('Your portal session changed. Click Check setup to continue.',true)}},1000);
-window.addEventListener('pagehide',()=>{if(activeCall)activeCall.disconnect();cleanup()});
+window.addEventListener('pagehide',()=>{manualHealth?.record('page_exit');manualHealth?.flush(true);if(activeCall)activeCall.disconnect();cleanup()});
 $('clearphone').onclick=()=>{if(!busy&&!activeCall){$('destination').value='';controls();}};$('permission').onchange=controls;$('destination').oninput=controls;$('caller').onchange=controls;
 for(const [digit,letters] of [['1',''],['2','ABC'],['3','DEF'],['4','GHI'],['5','JKL'],['6','MNO'],['7','PQRS'],['8','TUV'],['9','WXYZ'],['*',''],['0','+'],['#','']]){const button=document.createElement('button');button.type='button';button.textContent=digit;button.setAttribute('aria-label','Send digit '+digit);const sub=document.createElement('small');sub.textContent=letters||' ';button.append(sub);button.onclick=()=>{if(activeCall?.status()==='open')activeCall.sendDigits(digit);else if(!busy){$('destination').value+=digit;controls();}};$('test-keypad').append(button);}
 setInterval(()=>{if(connectedAt){const seconds=Math.floor((Date.now()-connectedAt)/1000);$('test-timer').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}},1000);
@@ -209,7 +216,7 @@ conversation=window.createDialerConversations?.(root,{owner:session()?.user?.id,
  getCall:()=>[callbacks?.conversation?.(),parallel?.conversation?.(),window.manualConversation?.(),callRecordId?{kind:'call',id:callRecordId,active:!!activeCall&&activeCall.status()==='open',label:current?.phone}:null].find(c=>c?.active)||null,
  canAddNotes:id=>parallel?.lead()?.id===id||current?.id===id,
  addNotes(id,text){if(activeCall||incomingBusy||['dialing','on_call'].includes(parallel?.activity?.())||window.manualCalling?.())return false;if(parallel?.lead()?.id===id){const n=$('powerNotes');if(n.value.length+text.length+2>10000)return false;n.value+=(n.value?'\n\n':'')+text;n.dispatchEvent(new Event('input',{bubbles:true}));return true;}if(current?.id===id){const n=$('notes');if(n.value.length+text.length+2>10000)return false;n.value+=(n.value?'\n\n':'')+text;n.dispatchEvent(new Event('input',{bubbles:true}));return true;}return false;}})||null;
-function dispose(){if(disposed)return;conversation?.dispose();operations?.dispose();parallel?.dispose();callbacks?.dispose();noteBindings.forEach(fn=>fn());noteBindings=[];disposed=true;epoch++;queueRunning=false;callEpoch++;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy();window.disposeManual?.();for(const id of intervals)realWindow.clearInterval(id);for(const id of timeouts)realWindow.clearTimeout(id);for(const [name,fn] of listeners)realWindow.removeEventListener(name,fn);}
+function dispose(){if(disposed)return;callHealth?.record('page_exit');callHealth?.close();callHealth=null;conversation?.dispose();operations?.dispose();parallel?.dispose();callbacks?.dispose();noteBindings.forEach(fn=>fn());noteBindings=[];disposed=true;epoch++;queueRunning=false;callEpoch++;if(activeCall)activeCall.disconnect();if(callDevice)callDevice.destroy();window.disposeManual?.();for(const id of intervals)realWindow.clearInterval(id);for(const id of timeouts)realWindow.clearTimeout(id);for(const [name,fn] of listeners)realWindow.removeEventListener(name,fn);}
 return {root,dispose,isBusy:()=>!!(parallelBusy||incomingBusy||busy||accountBusy||callStarting||activeCall||pendingOutcome||window.manualCalling?.()||dirty()),setVisible(value){conversation?.setVisible(value);operations?.setVisible(value);callbacks?.setVisible(value);},canLeave(){if(parallelBusy||incomingBusy||busy||accountBusy||callStarting||activeCall||window.manualCalling?.()){message('Finish the current call or request before changing portal tabs.',true);return false;}if(!allowChange())return false;queueRunning=false;return true;}};
 };
 

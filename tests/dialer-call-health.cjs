@@ -1,0 +1,43 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{EventEmitter}=require('node:events'),{JSDOM}=require('jsdom');
+const {cleanEvent,action}=require('../lib/dialer-client-health');
+const owner='11111111-1111-4111-8111-111111111111',id='22222222-2222-4222-8222-222222222222';
+const flush=async()=>{for(let i=0;i<12;i++)await new Promise(r=>setImmediate(r));};
+(async()=>{
+ const clean=cleanEvent({id,type:'device_error',ms:1,code:31005,state:'open',warning:'high-rtt',message:'private customer text',token:'secret',metrics:{rtt:53.12345,mos:NaN,remoteAddress:'private'}});
+ assert.deepEqual(clean,{id,type:'device_error',ms:1,code:31005,state:'open',warning:'high-rtt',metrics:{rtt:53.123}});
+ assert.throws(()=>cleanEvent({id,type:'invented',ms:1}));assert.throws(()=>cleanEvent({id,type:'started',ms:-1}));
+ await assert.rejects(action({body:{kind:'call',id,events:Array(21).fill({id,type:'started',ms:1})}},{id:owner}),/Invalid call/);
+ const route=require('../api/dialer/client-health'),response=()=>({setHeader(){},status(n){this.code=n;return this;},json(v){this.body=v;return this;}});
+ let res=response();await route({method:'GET',headers:{}},res);assert.equal(res.code,405);
+ res=response();await route({method:'POST',headers:{origin:'https://other.example'},body:{}},res);assert.equal(res.code,403);
+ res=response();await route({method:'POST',headers:{origin:'https://www.lldportal.com'},body:{}},res);assert.equal(res.code,401);
+ process.env.SUPABASE_SECRET_KEY='sb_secret_fixture';let submitted;
+ global.fetch=async(url,opt)=>{assert(url.endsWith('/rpc/dialer_record_client_health'));submitted=JSON.parse(opt.body);return new Response('{"accepted":true}');};
+ await action({body:{kind:'parallel',id,events:[{id,type:'device_error',ms:1,code:31005,message:'private'}]}},{id:owner,sessionId:id});
+ assert.equal(submitted.p_user,owner);assert.equal(submitted.p_session,id);assert.deepEqual(submitted.p_events,[{id,type:'device_error',ms:1,code:31005}]);
+ const dom=new JSDOM('',{url:'https://www.lldportal.com',runScripts:'outside-only'}),w=dom.window;
+ try{
+  w.AbortSignal=AbortSignal;const timers=[];w.setInterval=fn=>{timers.push(fn);return timers.length;};w.clearInterval=()=>{};
+  let fail=false,account=owner;const requests=[],notices=[];
+  w.fetch=async(url,opt)=>{if(fail)throw Error('offline');requests.push({url,body:JSON.parse(opt.body)});return {ok:true,status:200};};
+  w.eval(fs.readFileSync(__dirname+'/../dialer-call-health.js','utf8'));
+  const session={user:{id:owner},access_token:'secret-token'},health=w.VividCallHealth.create({kind:'call',id,session,getSession:async()=>({...session,user:{id:account}}),notice:(...a)=>notices.push(a)});
+  const call=new EventEmitter();let state='open';call.status=()=>state;let disconnects=0;call.disconnect=()=>disconnects++;const device=new EventEmitter();
+  health.bindDevice(device);health.bindCall(call);
+  device.emit('error',{code:31005,message:'Customer private data'});await flush();
+  state='reconnecting';call.emit('reconnecting',{code:53405});await flush();assert.equal(w.VividCallHealth.live(call),true);
+  state='open';call.emit('reconnected');await flush();assert(notices.some(n=>/restored/.test(n[0])));
+  call.emit('warning','high-rtt');call.emit('warning','high-rtt');
+  for(let i=0;i<100;i++)call.emit('sample',{rtt:23,mos:4.2,bytesReceived:100,remoteAddress:'private'});
+  health.record('user_hangup');state='closed';call.emit('disconnect');await flush();health.close();await flush();
+  assert.equal(disconnects,0,'Diagnostics altered call lifecycle');
+  const events=requests.flatMap(r=>r.body.events);for(const type of ['started','device_error','reconnecting','reconnected','warning','audio_sample','user_hangup','sdk_disconnect','session_end'])assert(events.some(e=>e.type===type),type);
+  assert.equal(events.filter(e=>e.type==='warning').length,1);assert.equal(events.filter(e=>e.type==='audio_sample').length,1);
+  assert(!JSON.stringify(requests).includes('secret-token'));assert(!JSON.stringify(requests).includes('Customer private'));assert(!JSON.stringify(requests).includes('remoteAddress'));
+  assert(requests.every(r=>r.body.events.length<=20));assert.equal(call.listenerCount('sample'),0);
+  const other=w.VividCallHealth.create({kind:'call',id,session,getSession:async()=>({...session,user:{id:account}})});account='another-user';const before=requests.length;await other.flush();other.close();await flush();assert.equal(requests.length,before,'Sent old account diagnostics after account switch');
+  account=owner;fail=true;const outage=w.VividCallHealth.create({kind:'parallel',id,session,getSession:async()=>session});await outage.flush();assert.equal(disconnects,0);fail=false;await outage.flush();outage.close();await flush();assert(requests.some(r=>r.body.kind==='parallel'));
+  console.log('PASS: private diagnostic fields, bounded batches, ownership switch, failed-network recovery, quality throttling, reconnect events and no audio lifecycle side effects.');
+ }finally{w.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});
