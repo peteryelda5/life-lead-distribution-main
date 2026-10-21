@@ -46,6 +46,10 @@
     {
       "path": "/api/dialer/conversation-maintenance",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/dialer/health-maintenance",
+      "schedule": "*/5 * * * *"
     }
   ],
   "redirects": [
