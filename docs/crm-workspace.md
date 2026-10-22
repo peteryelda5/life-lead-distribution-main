@@ -107,3 +107,35 @@ compatibility, policy-labelled tasks/history, cancellation totals and authorizat
 multi-policy add/edit, error recovery, independent stage moves, shared contact edits,
 policy-specific notes, CSV identities and desktop/mobile rendering. Push DOM tests cover
 the new policy-write route without sending any real notifications.
+
+## Carrier-confirmed status
+
+Agent pipeline stage and carrier-confirmed status are separate. Moving a card continues
+the existing agent-reported production accounting and never writes carrier confirmation.
+A carrier update never moves the pipeline, creates a deal, changes premiums or alters
+commission snapshots. Premium totals are labelled agent-reported. They are not a count or
+premium total of carrier-verified in-force policies.
+
+Open a client, expand a policy, and choose **Carrier-confirmed status → Record update**.
+Record a status, source (carrier portal, email, statement or phone confirmation), date,
+reference and optional notes. This is an attributed manual record, not a live carrier sync.
+There is no default date/source and no confirmation inferred from historical issued/active
+records. Every existing and new policy starts Unverified until evidence is entered.
+
+A confirmation snapshots the carrier, product and policy/application number. Changes to
+those identifiers show Needs recheck and preserve the previous confirmation for review.
+Choose Unverified with a reason to correct an unsupported entry. Activity and audit retain
+before/after evidence, actor and recording time. Status dates are historical observations,
+not guarantees of current coverage; the confirmation date is always shown in policy detail.
+
+`20261022180241_crm_carrier_status.sql` adds a private, RLS-enabled status table with no direct
+browser grants. The dedicated invoker RPC preserves book PIN/MFA, policy-level agency scope
+and optimistic version checks. Legacy generic saves cannot set these fields. Read RPCs append
+the independent status/provenance; CSV distinguishes agent status from carrier evidence.
+
+Run rollback-only `tests/crm-carrier-status.sql` on recovery then MAIN. It covers independence
+in both directions, siblings, unchanged production, required evidence, stale updates, identity
+changes, audit history, reset, owner/agent permissions and PIN/MFA. Re-run multiple-policy SQL
+regressions and Chromium fixtures (including evidence form, failed save, escaping, desktop/mobile).
+
+Apply the companion `20261022180753_crm_carrier_status_deal_version.sql` before deployment; it also checks the linked deal version so external Closed Business edits cannot be confirmed from a stale open profile.
