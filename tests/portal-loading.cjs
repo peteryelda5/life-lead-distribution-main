@@ -12,7 +12,7 @@ function setup(role='admin',tab='dashboard'){
   api:async path=>{calls.push(path);return response(path)},
   loadDivisionRegistry:async()=>{calls.push('registry')},loadPortalAnnouncements:async()=>{calls.push('announcements')},
   loadTabData:async()=>{calls.push('tab:'+S.tab)},console};
- vm.createContext(context);vm.runInContext(core,context);return{context,calls,S,pending};
+ context.portalVerified=()=>context.currentAal()==='aal2';vm.createContext(context);vm.runInContext(core,context);return{context,calls,S,pending};
 }
 (async()=>{
  const {context:c,calls,S}=setup();await c.loadCore();
