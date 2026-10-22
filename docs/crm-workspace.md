@@ -74,3 +74,36 @@ is additive; old clients keep using the original workspace RPC. Run `tests/crm-p
 unchanged on recovery and production: all test rows are rolled back. The Chromium fixture
 covers desktop name/grip drag, real touch events and edge scrolling, keyboard moves,
 failed-save recovery, date confirmation, Board/List filters and task completion.
+
+## Multiple policies per client
+
+Clients is now a person-level list. Open a client and choose **Add policy** to add another
+carrier/product without re-entering the shared contact. Each policy has its own premium,
+application date, effective date, policy number, stage, notes, linked deal and commission
+estimate. Estimates use the existing comp grid/snapshots and do not represent confirmed
+carrier payments. Pipeline cards and stage counters represent policies. CSV exports remain
+one row per policy and include both Client ID and Policy ID.
+
+The profile sidebar groups policy cards, shows the active/issued monthly total, and lets
+users edit policies independently. Contact edits apply across the person's policies.
+Follow-up tasks and activity are collected in the profile but retain their policy identity;
+new notes/tasks explicitly select the policy they refer to.
+
+`20261022172331_crm_multiple_policies.sql` adds private profiles and links existing CRM rows
+one-to-one using their existing IDs. Historical policy rows, task/activity references,
+production links, dates, statuses and commission snapshots remain intact. Existing rows
+are not automatically combined by name or phone. Additional policies reuse the existing
+policy save/production routines with separate IDs. Existing open tabs and closed-business
+inserts remain compatible through a private contact synchronization trigger. The shared
+profile table denies direct access; RPCs preserve the existing PIN/MFA and agency scope,
+with every returned policy individually authorized. Only accounts authorized to manage the
+client's agent can add policies or edit the shared contact through the new APIs.
+
+Validation: rollback-only `tests/crm-multiple-policies.sql` covers two carrier/product pairs,
+independent premiums/dates/stages/commission estimates, idempotent create retry, production
+once per policy, stale edits, shared contacts and linked-deal contact snapshots, legacy API
+compatibility, policy-labelled tasks/history, cancellation totals and authorization gates.
+`tests/crm-workspace.sql` verifies original workflows still work. Chromium tests include
+multi-policy add/edit, error recovery, independent stage moves, shared contact edits,
+policy-specific notes, CSV identities and desktop/mobile rendering. Push DOM tests cover
+the new policy-write route without sending any real notifications.
