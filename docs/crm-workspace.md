@@ -139,3 +139,38 @@ changes, audit history, reset, owner/agent permissions and PIN/MFA. Re-run multi
 regressions and Chromium fixtures (including evidence form, failed save, escaping, desktop/mobile).
 
 Apply the companion `20261022180753_crm_carrier_status_deal_version.sql` before deployment; it also checks the linked deal version so external Closed Business edits cannot be confirmed from a stale open profile.
+
+## Agency branding and compact layout
+
+The approved Clean & compact design puts each agency's logo, CRM navigation and actions in
+one header. A slim stage/count strip replaces the large cards. Search stays above the client
+list and the wide profile sidebar starts alongside it. The Pipeline board, tasks, policy
+editing, separate carrier confirmation and agent-reported accounting retain their behavior.
+
+Open **Settings → Agency logo** to preview, upload or replace a logo. PNG, JPG and WebP up to
+2 MB are supported, with content signature and browser image-decode checks. Agency admins
+manage only their current agency; active Super Masters can select all non-archived agencies.
+Agents and team leaders only see branding. No extra lead-management scope grants logo edits.
+The branding context resolves membership on each CRM load; transferred agents receive their
+new agency's branding. Without an upload, show the agency name. Vivid Life uses the exact
+user-supplied Vivid Life Advisors PNG as its default logo. Reset restores that default (or the
+agency name elsewhere). Image-load failures fall back to text; branding API errors don't block
+CRM data and provide a retry action. Account-switch responses are discarded.
+
+`20261022183654_crm_agency_branding.sql` adds a private RLS table and the public `agency-logos`
+Storage bucket. These are public brand assets, never client documents. Upload paths include
+agency, actor and unique file ID; uploads cannot overwrite existing objects. The dedicated
+save RPC validates membership, uploaded object metadata and optimistic version before linking
+it to an agency. Logo changes are audited. Only unused files uploaded by the current permitted
+admin are eligible for Storage API cleanup. Historical assets are retained; Reset unlinks them.
+No direct private table access or anonymous RPC access is granted. Brand editing requires the
+portal's existing verified session; the CRM itself retains its separate Book PIN.
+
+Validation: rollback-only `tests/crm-agency-branding.sql` exercises real authenticated-role
+Storage insert/update policies plus cleanup predicate, admin/agent/Super Master scopes,
+version conflicts, missing-object rejection, reset, membership transfer and MFA gates.
+Storage deletions must go through the Storage API; tests do not disable its SQL-delete guard.
+Chromium fixtures exercise actual file input, signature checks, decoding, preview, successful
+upload/save, failed-save retry without duplicate upload, reset, role/agency display, graceful
+branding failure and existing CRM desktop/mobile workflows. The Storage SDK upload transport
+uses the portal's existing authenticated client; the browser suite mocks its network response.
