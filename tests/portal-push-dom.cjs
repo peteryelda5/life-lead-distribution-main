@@ -43,11 +43,11 @@ function setup({installed=true,permission='default',url='https://www.lldportal.c
   await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,0);
   w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});
   await new Promise(r=>setTimeout(r,380));assert.equal(requests.length,2);assert.equal(requests[0].opt.keepalive,true);assert.deepEqual(requests[0].body,{action:'wake'});assert.equal(sender.registered,0);assert.equal(sender.prompts,0);
-  for(const [path,body] of [['close_lead',{}],['chat_standalone_deal',{}],['portal_collaboration',{p_action:'send'}]]){
+  for(const [path,body] of [['book_crm_save',{}],['book_crm_save_v2',{}],['close_lead',{}],['chat_standalone_deal',{}],['portal_collaboration',{p_action:'send'}]]){
    w.PortalPush.afterWrite('/rest/v1/rpc/'+path,{method:'POST',body});await new Promise(r=>setTimeout(r,180));
   }
-  assert.equal(requests.length,5);
-  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});w.S.profile.id='different-account';await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,5);
+  assert.equal(requests.length,7);
+  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});w.S.profile.id='different-account';await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,7);
   // Exercise the actual shared API success/failure boundary, including retries.
   const appSource=fs.readFileSync(__dirname+'/../portal-app.js','utf8');
   const rawSource=appSource.slice(appSource.indexOf('async function raw('),appSource.indexOf('let refreshPromise=null;'));
