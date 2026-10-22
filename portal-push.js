@@ -33,7 +33,7 @@
  function afterWrite(path,opt={}){
   if(opt.method!=='POST'||!eligible())return;
   const route=path.split('?')[0];
-  const direct=['/rest/v1/rpc/chat_send_social','/rest/v1/rpc/chat_standalone_deal','/rest/v1/rpc/close_lead','/rest/v1/rpc/book_crm_save','/rest/v1/rpc/book_crm_save_v2','/rest/v1/closed_business','/rest/v1/portal_announcements'];
+  const direct=['/rest/v1/rpc/chat_send_social','/rest/v1/rpc/chat_standalone_deal','/rest/v1/rpc/close_lead','/rest/v1/rpc/book_crm_save','/rest/v1/rpc/book_crm_save_v2','/rest/v1/rpc/book_crm_policy_save','/rest/v1/closed_business','/rest/v1/portal_announcements'];
   if(!direct.includes(route)&&!(route==='/rest/v1/rpc/portal_collaboration'&&opt.body?.p_action==='send'))return;
   wakeOwner=S.profile.id;wakeDirty=true;wakeRetries=0;clearTimeout(wakeTimer);
   wakeTimer=setTimeout(wake,150);
