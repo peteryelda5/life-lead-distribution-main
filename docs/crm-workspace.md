@@ -50,3 +50,27 @@ It is additive and preserves the old RPCs for existing open tabs and rollback co
 The migration was applied and verified on recovery before production. Existing unrelated
 Supabase advisor warnings are unchanged; the new private tables intentionally deny direct
 access and therefore have no client RLS policies.
+
+## Pipeline board refinement
+
+Pipeline uses five equal-height columns and compact cards matching the selected board
+reference. Agent/carrier filters and search apply on the server before the per-column
+25-card cap. Counts cover every matching client; View all opens the filtered, paginated
+List inside Pipeline. CSV export respects these same filters. Clients retains its summary.
+
+Drag the card, client name or grip on desktop. On touch devices, drag the grip; the board
+scrolls at its edges. Drop zones highlight and a status confirms the saved stage. The
+three-dot menu exposes a native stage selector for keyboard use. Failed or conflicting
+writes retain the previous card stage. Moving a client to In force without a valid date
+asks only for the actual coverage start date, then sends a partial, version-checked update.
+Existing production, audit and activity routines remain unchanged.
+
+Today's follow-ups uses the browser's local midnight boundaries (including DST), limited
+to eight open tasks with a total and View all tasks link. It includes tasks for matching
+clients beyond the first 25 cards. Completing a task uses the existing version check.
+
+Apply `20261022161843_crm_pipeline_board.sql` before this frontend release. The new read RPC
+is additive; old clients keep using the original workspace RPC. Run `tests/crm-pipeline.sql`
+unchanged on recovery and production: all test rows are rolled back. The Chromium fixture
+covers desktop name/grip drag, real touch events and edge scrolling, keyboard moves,
+failed-save recovery, date confirmation, Board/List filters and task completion.

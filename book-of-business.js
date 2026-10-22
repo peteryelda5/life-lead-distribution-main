@@ -3,8 +3,8 @@
  const stages=[['new','New prospect'],['contacted','Contacted'],['submitted','Application submitted'],['approved','Approved'],['in_force','In force'],['lapsed','Lapsed'],['cancelled','Cancelled']];
  const types=['Final Expense','Term','IUL','Mortgage Protection','Whole Life','Other'];
  const carriers=['Americo','Transamerica','Ethos','Corebridge Financial','Foresters Financial','Combined Insurance','SBLI','Aetna','Aflac','American Home Life','F&G','InstaBrain','Baltimore Life'];
- const initial=()=>({user:null,access:null,book:null,grid:null,page:1,search:'',agent:'',stage:'',selectedId:null,detail:null,detailError:'',tab:'clients',taskStatus:'open',error:'',busy:false,timer:null});
- let B=initial(),request=0,detailRequest=0;
+ const initial=()=>({user:null,access:null,book:null,grid:null,page:1,search:'',agent:'',stage:'',carrier:'',pipelineView:'board',notice:'',selectedId:null,detail:null,detailError:'',tab:'clients',taskStatus:'open',error:'',busy:false,timer:null});
+ let B=initial(),request=0,detailRequest=0,drag=null,suppressClickUntil=0;
  const rpc=(name,body)=>api('/rest/v1/rpc/'+name,{method:'POST',body});
  const stageLabel=value=>stages.find(s=>s[0]===value)?.[1]||'New prospect';
  const options=(rows,val,empty)=>'<option value="">'+esc(empty)+'</option>'+rows.map(x=>'<option value="'+esc(x.id)+'" '+(val===x.id?'selected':'')+'>'+esc(x.full_name)+'</option>').join('');
@@ -16,10 +16,11 @@
  const dateText=value=>value?new Date(value+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'Not recorded';
  const timeText=value=>value?new Date(value).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—';
  function closeCrmModal(){if(q('#modal .bob-client-modal'))closeModal();}
- function reset(){clearTimeout(B.timer);closeCrmModal();B=initial();request++;detailRequest++;}
- function expire(){clearTimeout(B.timer);request++;detailRequest++;closeCrmModal();B.access={has_pin:true,unlocked:false};B.book=null;B.grid=null;B.detail=null;B.selectedId=null;if(S.tab==='book-business')render();}
+ function reset(){clearDrag();clearTimeout(B.timer);closeCrmModal();B=initial();request++;detailRequest++;}
+ function expire(){clearDrag();clearTimeout(B.timer);request++;detailRequest++;closeCrmModal();B.access={has_pin:true,unlocked:false};B.book=null;B.grid=null;B.detail=null;B.selectedId=null;if(S.tab==='book-business')render();}
  function setAccess(a){B.access=a;clearTimeout(B.timer);if(a.unlocked&&a.expires_at)B.timer=setTimeout(expire,Math.max(0,new Date(a.expires_at).getTime()-Date.now()));}
  const valid=user=>user===B.user&&user===S.profile?.id&&B.access?.unlocked;
+ function pipelineParams(){const start=new Date();start.setHours(0,0,0,0);const end=new Date(start);end.setDate(end.getDate()+1);return {p_page:B.page,p_search:B.search,p_agent:B.agent||null,p_carrier:B.carrier,p_stage:B.pipelineView==='list'?B.stage:'',p_limit:50,p_view:B.pipelineView,p_today_start:start.toISOString(),p_today_end:end.toISOString()};}
  function filterParams(){return {p_page:B.page,p_search:B.search,p_agent:B.agent||null,p_stage:B.stage,p_limit:50,p_view:B.tab==='grid'?'clients':B.tab,p_task_status:B.taskStatus};}
  async function load(){
   if(B.user!==S.profile?.id){reset();B.user=S.profile?.id;}
@@ -27,7 +28,7 @@
   try{
    const access=await rpc('book_access',{p_action:'status'});if(n!==request||user!==S.profile?.id)return;setAccess(access);
    if(!access.unlocked){B.book=null;B.grid=null;B.detail=null;return;}
-   const [book,grid]=await Promise.all([rpc('book_crm_workspace',filterParams()),rpc('book_grid',{p_action:'list'})]);
+   const [book,grid]=await Promise.all([rpc(B.tab==='pipeline'?'book_crm_pipeline':'book_crm_workspace',B.tab==='pipeline'?pipelineParams():filterParams()),rpc('book_grid',{p_action:'list'})]);
    if(n!==request||!valid(user))return;B.book=book;B.grid=grid;
    if(B.selectedId)await fetchDetail(B.selectedId,false);
   }catch(e){if(n===request&&user===S.profile?.id){B.error=e.message;B.book=null;B.detail=null;}}
@@ -47,19 +48,25 @@
  }
  function pipelineSummary(){const counts=B.book?.stage_counts||{};return '<div class="bob-stage-summary" aria-label="Pipeline overview">'+stages.slice(0,5).map(([id,title])=>'<button class="stage-'+id+(B.stage===id?' selected':'')+'" data-bob-filter="'+id+'"><span><i></i>'+title+'</span><strong>'+Number(counts[id]||0).toLocaleString()+'</strong></button>').join('')+'</div>';}
  function toolbar(){return '<form id="bobSearch" class="bob-board-toolbar"><input name="search" value="'+esc(B.search)+'" maxlength="100" placeholder="Search clients, phone, policy type or carrier…" aria-label="Search clients"><select name="stage" aria-label="Filter by pipeline stage"><option value="">All stages</option>'+stageOptions(B.stage)+'</select>'+(S.profile.role==='admin'?'<select name="agent" aria-label="Filter by agent">'+options(B.grid?.agents||[],B.agent,'All permitted agents')+'</select>':'')+(B.tab==='tasks'?'<select name="taskStatus" aria-label="Task status"><option value="open" '+(B.taskStatus==='open'?'selected':'')+'>Open tasks</option><option value="completed" '+(B.taskStatus==='completed'?'selected':'')+'>Completed tasks</option></select>':'')+'<button class="btn secondary">Search</button><button type="button" class="bob-link" id="bobClearFilters">Clear</button><button type="button" class="bob-link" id="bobRefresh">Refresh</button></form>';}
+ function pipelineToolbar(){
+  const carrierOptions=[...new Set([...(B.book.carriers||[]),B.carrier].filter(Boolean))];
+  return '<form id="bobSearch" class="bob-board-toolbar bob-pipeline-toolbar">'+(S.profile.role==='admin'?'<select name="agent" aria-label="Filter by agent">'+options(B.grid?.agents||[],B.agent,'All agents')+'</select>':'')+'<select name="carrier" aria-label="Filter by carrier"><option value="">All carriers</option>'+carrierOptions.map(c=>'<option value="'+esc(c)+'" '+(B.carrier===c?'selected':'')+'>'+esc(c)+'</option>').join('')+'</select>'+(B.pipelineView==='list'?'<select name="stage" aria-label="Filter by pipeline stage"><option value="">All stages</option>'+stageOptions(B.stage)+'</select>':'')+'<div class="bob-pipeline-search"><input name="search" value="'+esc(B.search)+'" maxlength="100" placeholder="Search clients…" aria-label="Search clients"><button type="submit" aria-label="Search clients">⌕</button></div><button type="button" class="bob-link" id="bobClearFilters">Clear</button><button type="button" class="bob-link" id="bobRefresh">Refresh</button><div class="bob-view-switch" role="group" aria-label="Pipeline display">'+[['board','▥ Board'],['list','☰ List']].map(([id,label])=>'<button type="button" data-bob-display="'+id+'" aria-pressed="'+(B.pipelineView===id)+'">'+label+'</button>').join('')+'</div></form>';
+ }
  function workspace(){
   if(!B.book)return '<div class="empty">'+(B.error?'Your client list could not load. Use Retry above.':'Loading clients…')+'</div>';
-  const d=B.book;
-  return pipelineSummary()+'<div class="bob-totals"><span><b>'+Number(d.count).toLocaleString()+'</b> clients</span><span><b>'+money(d.monthly_payment)+'</b> active / issued monthly premium</span><span><b>'+money(d.estimated_advance)+'</b> estimated advance</span><button class="bob-link" data-bob-tab="tasks">'+Number(d.followups_due||0)+' follow-ups due</button></div>'+toolbar()+'<div class="bob-workspace'+(B.selectedId?' has-detail':'')+'"><div class="bob-content">'+(B.tab==='pipeline'?pipelinePage(d):B.tab==='tasks'?tasksPage(d):clientListHTML(d))+'</div>'+(B.selectedId?detailPanel():'')+'</div>';
+  const d=B.book,pipeline=B.tab==='pipeline';
+  const top=pipeline?pipelineToolbar():pipelineSummary()+'<div class="bob-totals"><span><b>'+Number(d.count).toLocaleString()+'</b> clients</span><span><b>'+money(d.monthly_payment)+'</b> active / issued monthly premium</span><span><b>'+money(d.estimated_advance)+'</b> estimated advance</span><button class="bob-link" data-bob-tab="tasks">'+Number(d.followups_due||0)+' follow-ups due</button></div>'+toolbar();
+  return top+'<div class="bob-workspace'+(pipeline?' bob-board-workspace':'')+(B.selectedId?' has-detail':'')+'"><div class="bob-content">'+(pipeline?'<div class="bob-board-message"><span id="bobMoveStatus" role="status" aria-live="polite">'+esc(B.notice)+'</span><span>Move a client to update their pipeline stage</span></div>'+(B.pipelineView==='board'?pipelinePage(d):clientListHTML(d))+todayFollowups(d):B.tab==='tasks'?tasksPage(d):clientListHTML(d))+'</div>'+(B.selectedId?detailPanel():'')+'</div>';
  }
  function pager(count,noun){return '<div class="bob-pager"><span>'+(!count?'No '+noun:'Showing '+((B.page-1)*50+1)+'–'+Math.min(B.page*50,count)+' of '+Number(count).toLocaleString()+' '+noun)+'</span><button class="btn secondary" id="bobPrev" '+(B.page<=1?'disabled':'')+'>Previous</button><span>Page '+B.page+'</span><button class="btn secondary" id="bobNext" '+(B.page*50>=count?'disabled':'')+'>Next</button></div>';}
  function clientListHTML(d){return '<div class="bob-client-table table"><table><thead><tr><th>Client name</th><th>Policy type</th><th>Carrier</th><th>Effective date</th><th>Pipeline stage</th></tr></thead><tbody>'+d.rows.map(r=>'<tr class="'+(B.selectedId===r.id?'bob-selected':'')+'"><td><button class="bob-select-client" data-id="'+esc(r.id)+'" aria-pressed="'+(B.selectedId===r.id)+'"><span class="bob-avatar small">'+esc(initials(r.client_name))+'</span><span>'+esc(r.client_name)+'<small>'+esc(r.agent_name)+'</small></span></button></td><td>'+esc(r.policy_type||'—')+'</td><td>'+esc(r.carrier||'—')+'</td><td class="'+(!r.effective_date?'muted':'')+'">'+dateText(r.effective_date)+'</td><td>'+badge(r.pipeline_stage)+'</td></tr>').join('')+(!d.rows.length?'<tr><td colspan="5" class="empty">No matching clients. Add a client or clear your filters.</td></tr>':'')+'</tbody></table></div>'+pager(d.count,'clients');}
- function pipelineCard(r){return '<article class="bob-pipeline-card" draggable="true" data-drag-client="'+esc(r.id)+'"><button class="bob-select-client" data-id="'+esc(r.id)+'"><span class="bob-avatar small">'+esc(initials(r.client_name))+'</span><span>'+esc(r.client_name)+'</span></button><dl><div><dt>Policy type</dt><dd>'+esc(r.policy_type||'—')+'</dd></div><div><dt>Carrier</dt><dd>'+esc(r.carrier||'—')+'</dd></div><div><dt>Effective date</dt><dd>'+dateText(r.effective_date)+'</dd></div></dl><small class="muted">'+esc(r.agent_name)+'</small>'+(r.next_task_title?'<button class="bob-next-task bob-select-client" data-id="'+esc(r.id)+'">'+esc(r.next_task_title)+'<small>'+timeText(r.next_task_due)+'</small></button>':'')+'<label class="bob-move"><span>Move to</span><select data-bob-move="'+esc(r.id)+'" aria-label="Pipeline stage for '+esc(r.client_name)+'">'+stageOptions(r.pipeline_stage)+'</select></label></article>';}
+ function pipelineCard(r){return '<article class="bob-pipeline-card" draggable="true" data-drag-client="'+esc(r.id)+'" aria-label="'+esc(r.client_name)+'"><div class="bob-card-heading"><button class="bob-select-client" draggable="true" data-id="'+esc(r.id)+'"><span class="bob-avatar small">'+esc(initials(r.client_name))+'</span><span>'+esc(r.client_name)+'</span></button><details class="bob-card-menu"><summary aria-label="Actions for '+esc(r.client_name)+'">⋮</summary><div><label class="bob-field"><span>Move to stage</span><select data-bob-move="'+esc(r.id)+'" aria-label="Pipeline stage for '+esc(r.client_name)+'">'+stageOptions(r.pipeline_stage)+'</select></label></div></details></div><dl><div><dt>Policy type</dt><dd>'+esc(r.policy_type||'—')+'</dd></div><div><dt>Carrier</dt><dd>'+esc(r.carrier||'—')+'</dd></div><div><dt>Effective date</dt><dd>'+dateText(r.effective_date)+'</dd></div></dl>'+(r.next_task_title?'<button class="bob-next-task bob-select-client" data-id="'+esc(r.id)+'"><span aria-hidden="true">◷</span> '+esc(r.next_task_title)+'<small>'+timeText(r.next_task_due)+'</small></button>':'')+'<footer class="bob-card-footer"><small>'+esc(r.agent_name)+'</small><button type="button" class="bob-drag-handle" draggable="true" aria-label="Drag '+esc(r.client_name)+' to another stage, or click for move options" title="Drag to move; click for options">⠿</button></footer></article>';}
  function pipelinePage(d){
-  const column=([id,title])=>{const rows=(d.pipeline||[]).filter(r=>r.pipeline_stage===id),total=Number(d.stage_counts?.[id]||0);return '<section class="bob-pipeline-column stage-'+id+'" data-drop-stage="'+id+'"><header><h2><i></i>'+title+'</h2><span>'+total+'</span></header>'+rows.map(pipelineCard).join('')+(!rows.length?'<p class="bob-column-empty">No clients in this stage</p>':'')+(total>rows.length?'<button class="bob-link" data-bob-view-stage="'+id+'">View all '+total+' clients →</button>':'')+'</section>';};
-  const active=stages.slice(0,5).filter(([id])=>!B.stage||B.stage===id),inactive=stages.slice(5).filter(([id])=>(!B.stage||B.stage===id)&&Number(d.stage_counts?.[id]||0)>0);
-  return '<p class="bob-board-hint">Drag a card or use “Move to” to update its stage. Open a client for notes and follow-ups.</p>'+(active.length?'<div class="bob-pipeline">'+active.map(column).join('')+'</div>':'')+(inactive.length?'<details class="bob-inactive" '+(B.stage?'open':'')+'><summary>Lapsed & cancelled policies</summary><div class="bob-pipeline">'+inactive.map(column).join('')+'</div></details>':'')+(!active.length&&!inactive.length?'<p class="empty">No matching policies in this stage.</p>':'');
+  const column=([id,title])=>{const rows=(d.pipeline||[]).filter(r=>r.pipeline_stage===id),total=Number(d.stage_counts?.[id]||0);return '<section class="bob-pipeline-column stage-'+id+'" data-drop-stage="'+id+'" aria-label="'+title+'"><header><h2><i></i>'+title+'</h2><span>'+total+'</span></header><div class="bob-column-cards">'+rows.map(pipelineCard).join('')+(!rows.length?'<p class="bob-column-empty">Drop a client here</p>':'')+'</div>'+(total>rows.length?'<button class="bob-link bob-view-all" data-bob-view-stage="'+id+'">View all '+total+' clients →</button>':'')+'</section>';};
+  const inactive=stages.slice(5).filter(([id])=>Number(d.stage_counts?.[id]||0)>0);
+  return '<div class="bob-pipeline">'+stages.slice(0,5).map(column).join('')+'</div>'+(inactive.length?'<details class="bob-inactive"><summary>Lapsed & cancelled policies</summary><div class="bob-pipeline">'+inactive.map(column).join('')+'</div></details>':'');
  }
+ function todayFollowups(d){return '<section class="bob-today"><div class="bob-section-heading"><div><h2>Today’s follow-ups <span>'+Number(d.today_task_count||0)+'</span></h2><p>'+new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+'</p></div><button class="bob-link" data-bob-tab="tasks">View all tasks →</button></div>'+(d.today_tasks||[]).map(t=>taskRow(t,true)).join('')+(!(d.today_tasks||[]).length?'<p class="bob-today-empty">No follow-ups scheduled for today'+(B.search||B.agent||B.carrier||B.stage?' with these filters':'')+'.</p>':'')+((d.today_task_count||0)>8?'<p class="bob-form-hint">Showing the first 8 follow-ups. Open Tasks to see all.</p>':'')+'</section>';}
  function taskRow(t,showClient=false){const done=Boolean(t.completed_at),late=!done&&new Date(t.due_at)<new Date();return '<div class="bob-task-row"><button class="bob-task-check '+(done?'done':'')+'" data-bob-task="'+esc(t.id)+'" data-client="'+esc(t.client_id)+'" aria-label="'+(done?'Reopen':'Complete')+' task: '+esc(t.title)+'">'+(done?'✓':'')+'</button><div><strong>'+esc(t.title)+'</strong>'+(showClient?'<button class="bob-link bob-select-client" data-id="'+esc(t.client_id)+'">'+esc(t.client_name)+' · '+esc(t.agent_name)+'</button>':'')+'<small class="'+(late?'overdue':'muted')+'">'+(done?'Completed · ':late?'Overdue · ':'Due · ')+timeText(done?t.completed_at:t.due_at)+'</small></div></div>';}
  function tasksPage(d){return '<div class="bob-tasks"><div class="bob-section-heading"><h2>'+ (B.taskStatus==='completed'?'Completed tasks':'Follow-ups & tasks')+'</h2><span>'+Number(d.task_count||0)+'</span></div>'+(d.tasks||[]).map(t=>taskRow(t,true)).join('')+(!(d.tasks||[]).length?'<p class="empty">No '+B.taskStatus+' tasks. Open a client and choose Create task.</p>':'')+'</div>'+pager(d.task_count||0,'tasks');}
  function detailPanel(){
@@ -72,9 +79,9 @@
  function csvCell(value){let s=String(value??'');if(/^[\s\u0000-\u001f]*[=+@-]|^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}
  function csvRows(rows){const columns=[['Client name','client_name'],['Closing agent name','agent_name'],['Phone','phone'],['Alternate phone','alternate_phone'],['Email','email'],['Address','address_line1'],['Address line 2','address_line2'],['City','city'],['State','state'],['ZIP','zip'],['Date of birth','date_of_birth'],['Mortgage balance','mortgage_balance'],['Carrier','carrier'],['Policy type','policy_type'],['Monthly premium','monthly_payment'],['Policy number','policy_number'],['Application date','application_date'],['Policy effective date','effective_date'],['Pipeline stage','pipeline_stage'],['Policy status','status'],['Comp percent','comp_percent'],['Advance percent','advance_percent'],['Estimated advance','estimated_advance'],['Next follow-up','next_task_due'],['Notes','notes']];return [columns.map(([h])=>csvCell(h)).join(','),...rows.map(r=>columns.map(([,key])=>csvCell(key==='pipeline_stage'?stageLabel(r[key]):r[key])).join(','))].join('\r\n');}
  async function exportCSV(){
-  if(B.busy)return;B.busy=true;const user=B.user,filter={...filterParams(),p_view:'clients',p_limit:2000},rows=[],seen=new Set();
+  if(B.busy)return;B.busy=true;const user=B.user,pipeline=B.tab==='pipeline',name=pipeline?'book_crm_pipeline':'book_crm_workspace',filter={...(pipeline?pipelineParams():filterParams()),p_view:pipeline?'list':'clients',p_limit:2000},rows=[],seen=new Set();
   const button=q('#bobExport');if(button){button.disabled=true;button.textContent='Exporting…';}
-  try{let page=1,total=0;do{if(!valid(user))throw Error('Unlock your book to export.');const result=await rpc('book_crm_workspace',{...filter,p_page:page});if(!valid(user))return;if(page===1)total=Number(result.count);else if(total!==Number(result.count))throw Error('Client list changed during export. Refresh and try again.');for(const row of result.rows){if(seen.has(row.id))throw Error('Client list changed during export. Refresh and try again.');seen.add(row.id);}rows.push(...result.rows);if(!result.rows.length&&rows.length<total)throw Error('Client list changed during export. Refresh and try again.');page++;}while(rows.length<total);
+  try{let page=1,total=0;do{if(!valid(user))throw Error('Unlock your book to export.');const result=await rpc(name,{...filter,p_page:page});if(!valid(user))return;if(page===1)total=Number(result.count);else if(total!==Number(result.count))throw Error('Client list changed during export. Refresh and try again.');for(const row of result.rows){if(seen.has(row.id))throw Error('Client list changed during export. Refresh and try again.');seen.add(row.id);}rows.push(...result.rows);if(!result.rows.length&&rows.length<total)throw Error('Client list changed during export. Refresh and try again.');page++;}while(rows.length<total);
    const blob=new Blob(['\uFEFF'+csvRows(rows)],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='vivid-life-crm-'+localDate()+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(e){if(valid(user)){B.error=e.message;render();}}finally{if(user===B.user){B.busy=false;const current=q('#bobExport');if(current){current.disabled=false;current.textContent='Export CSV';}}}
  }
@@ -95,12 +102,60 @@
    catch(x){if(valid(user)&&q('#bobClientError')){q('#bobClientError').textContent=x.message;q('#bobSaveClient').disabled=false;}}finally{saving=false;}
   };
  }
- async function moveClient(id,stage){
-  if(B.busy)return;const r=B.detail?.client?.id===id?B.detail.client:[...(B.book?.rows||[]),...(B.book?.pipeline||[])].find(c=>c.id===id);if(!r||r.pipeline_stage===stage)return;
-  if(stage==='in_force'&&(!r.effective_date||r.effective_date>localDate())){clientForm(r,stage);return;}
-  const user=B.user;B.busy=true;qa('[data-bob-move]').forEach(e=>e.disabled=true);
-  try{await rpc('book_crm_save_v2',{p_id:id,p_fields:{pipeline_stage:stage},p_expected_updated_at:r.updated_at,p_expected_deal:r.deal_version});if(!valid(user))return;await refresh();flash('Pipeline updated.');}
-  catch(e){if(valid(user)){B.error=e.message;render();}}finally{if(user===B.user){B.busy=false;qa('[data-bob-move]').forEach(e=>e.disabled=false);}}
+ function confirmEffectiveDate(r,stage){
+  const user=B.user;
+  openModal('<div class="bob-modal-heading"><div><h2>Confirm coverage start</h2><p>'+esc(r.client_name)+' · Move to In force</p></div></div><form id="bobEffectiveForm" class="stack">'+input('Policy effective date','effective_date','type="date" required max="'+localDate()+'" value="'+esc(r.effective_date||'')+'"')+'<p class="bob-form-hint">Enter the actual date coverage started. Future coverage should stay Approved.</p><div id="bobEffectiveError" role="alert"></div><footer class="bob-modal-footer"><button type="button" class="btn secondary" id="bobCancel">Cancel</button><button class="btn primary" id="bobConfirmEffective">Confirm & move</button></footer></form>');
+  q('#modal .modalbox').classList.add('bob-effective-modal');q('#bobCancel').onclick=()=>{closeModal();render();};
+  const form=q('#bobEffectiveForm');form.onsubmit=async e=>{e.preventDefault();if(!valid(user)||B.busy||!form.reportValidity())return;q('#bobConfirmEffective').disabled=true;const ok=await moveClient(r.id,stage,{effective_date:form.elements.effective_date.value});if(!valid(user))return;if(ok)closeModal();else if(q('#bobEffectiveError')){q('#bobEffectiveError').textContent=B.error;q('#bobConfirmEffective').disabled=false;}};
+ }
+ async function moveClient(id,stage,extra={}){
+  if(B.busy||!valid(B.user)||!stages.some(s=>s[0]===stage))return false;
+  const r=B.detail?.client?.id===id?B.detail.client:[...(B.book?.rows||[]),...(B.book?.pipeline||[])].find(c=>c.id===id);if(!r||r.pipeline_stage===stage)return false;
+  const effective=extra.effective_date||r.effective_date;
+  if(stage==='in_force'&&(!effective||effective>localDate())){confirmEffectiveDate(r,stage);return false;}
+  const user=B.user;B.busy=true;B.error='';B.notice='Saving '+r.client_name+'…';render();
+  let saved=false;
+  try{await rpc('book_crm_save_v2',{p_id:id,p_fields:{pipeline_stage:stage,...extra},p_expected_updated_at:r.updated_at,p_expected_deal:r.deal_version});if(!valid(user))return false;saved=true;B.notice=r.client_name+' moved to '+stageLabel(stage)+'.';await refresh();flash(B.notice);}
+  catch(e){if(valid(user)){B.error=e.message;B.notice='Move not saved. '+r.client_name+' remains in '+stageLabel(r.pipeline_stage)+'.';}}
+  finally{if(user===B.user){B.busy=false;if(valid(user)&&S.tab==='book-business')render();}}
+  return saved;
+ }
+ // Native dragging works from the name, body or grip. Touch uses the grip so the
+ // rest of each card remains scrollable. Menus provide the same move by keyboard.
+ function clearDrag(){if(!drag)return;const d=drag;drag=null;cancelAnimationFrame(d.frame);d.cleanup?.();d.ghost?.remove();qa('.bob-is-dragging,.bob-drop-active').forEach(e=>e.classList.remove('bob-is-dragging','bob-drop-active'));document.body.classList.remove('bob-dragging');}
+ function dragTarget(x,y){return document.elementFromPoint(x,y)?.closest('[data-drop-stage]');}
+ function highlightDrop(col){qa('.bob-drop-active').forEach(e=>{if(e!==col)e.classList.remove('bob-drop-active');});col?.classList.add('bob-drop-active');}
+ function dragScroll(){
+  if(!drag)return;const d=drag,board=d.board,rect=board.getBoundingClientRect();
+  if(d.y>=rect.top&&d.y<=rect.bottom){const edge=48;board.scrollLeft+=d.x<rect.left+edge?-12:d.x>rect.right-edge?12:0;}
+  if(d.y<70)window.scrollBy(0,-10);else if(d.y>innerHeight-70)window.scrollBy(0,10);
+  if(d.touch)highlightDrop(dragTarget(d.x,d.y));d.frame=requestAnimationFrame(dragScroll);
+ }
+ function beginDrag(card,x,y,touch=false){
+  clearDrag();drag={id:card.dataset.dragClient,board:card.closest('.bob-pipeline'),x,y,touch};card.classList.add('bob-is-dragging');document.body.classList.add('bob-dragging');suppressClickUntil=Date.now()+300;
+  if(touch){const ghost=document.createElement('div');ghost.className='bob-page bob-drag-ghost';ghost.style.width=card.getBoundingClientRect().width+'px';ghost.appendChild(card.cloneNode(true));ghost.querySelectorAll('[id]').forEach(e=>e.removeAttribute('id'));ghost.setAttribute('aria-hidden','true');document.body.appendChild(ghost);drag.ghost=ghost;ghost.style.left=x+12+'px';ghost.style.top=y+12+'px';}
+  drag.frame=requestAnimationFrame(dragScroll);return drag;
+ }
+ function bindDrag(){
+  qa('[data-drag-client]').forEach(card=>{
+   card.ondragstart=e=>{if(B.busy||e.target.closest('.bob-card-menu,.bob-next-task')){e.preventDefault();return;}beginDrag(card,e.clientX,e.clientY);e.dataTransfer.setData('text/plain',card.dataset.dragClient);e.dataTransfer.effectAllowed='move';e.dataTransfer.setDragImage(card,Math.min(70,card.clientWidth/2),25);};
+   card.ondragend=()=>{suppressClickUntil=Date.now()+300;clearDrag();};
+   const handle=card.querySelector('.bob-drag-handle');
+   handle.onclick=()=>{if(Date.now()<suppressClickUntil)return;const menu=card.querySelector('.bob-card-menu');menu.open=!menu.open;if(menu.open)menu.querySelector('select').focus();};
+   handle.onpointerdown=e=>{
+    if(e.pointerType==='mouse'||B.busy)return;e.preventDefault();const x=e.clientX,y=e.clientY,pointer=e.pointerId;let started=false;
+    const cleanup=()=>{document.removeEventListener('pointermove',move);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',cancel);try{handle.releasePointerCapture(pointer);}catch{}};
+    const move=ev=>{if(ev.pointerId!==pointer)return;if(!started&&Math.hypot(ev.clientX-x,ev.clientY-y)<8)return;ev.preventDefault();if(!started){beginDrag(card,x,y,true).cleanup=cleanup;started=true;}if(!drag)return;drag.x=ev.clientX;drag.y=ev.clientY;drag.ghost.style.left=ev.clientX+12+'px';drag.ghost.style.top=ev.clientY+12+'px';highlightDrop(dragTarget(ev.clientX,ev.clientY));};
+    const up=ev=>{if(ev.pointerId!==pointer)return;const id=drag?.id,target=started?dragTarget(ev.clientX,ev.clientY)?.dataset.dropStage:null;cleanup();if(started){suppressClickUntil=Date.now()+300;clearDrag();if(id&&target)moveClient(id,target);}else handle.click();};
+    const cancel=()=>{cleanup();clearDrag();};
+    handle.setPointerCapture(pointer);document.addEventListener('pointermove',move,{passive:false});document.addEventListener('pointerup',up);document.addEventListener('pointercancel',cancel);
+   };
+  });
+  qa('[data-drop-stage]').forEach(col=>{
+   col.ondragover=e=>{if(!drag||B.busy)return;e.preventDefault();drag.x=e.clientX;drag.y=e.clientY;e.dataTransfer.dropEffect='move';highlightDrop(col);};
+   col.ondragleave=e=>{if(!col.contains(e.relatedTarget))col.classList.remove('bob-drop-active');};
+   col.ondrop=e=>{if(!drag)return;e.preventDefault();const id=drag.id;clearDrag();suppressClickUntil=Date.now()+300;moveClient(id,col.dataset.dropStage);};
+  });
  }
  function activityForm(kind){
   const client=B.detail?.client;if(!client)return;const user=B.user,id=crypto.randomUUID(),task=kind==='task';
@@ -110,25 +165,25 @@
    catch(x){if(valid(user)&&q('#bobActivityError')){q('#bobActivityError').textContent=x.message;q('#bobActivitySave').disabled=false;}}finally{saving=false;}
   };
  }
- async function toggleTask(button){const id=button.dataset.bobTask,t=[...(B.detail?.tasks||[]),...(B.book?.tasks||[])].find(t=>t.id===id);if(!t)return;const user=B.user;button.disabled=true;try{await rpc('book_crm_action',{p_client:t.client_id,p_action:t.completed_at?'reopen':'complete',p_id:t.id,p_expected_updated_at:t.updated_at});if(valid(user))await refresh();}catch(e){if(valid(user)){B.error=e.message;render();}}}
+ async function toggleTask(button){const id=button.dataset.bobTask,t=[...(B.detail?.tasks||[]),...(B.book?.tasks||[]),...(B.book?.today_tasks||[])].find(t=>t.id===id);if(!t)return;const user=B.user;button.disabled=true;try{await rpc('book_crm_action',{p_client:t.client_id,p_action:t.completed_at?'reopen':'complete',p_id:t.id,p_expected_updated_at:t.updated_at});if(valid(user))await refresh();}catch(e){if(valid(user)){B.error=e.message;render();}}}
  function gridPage(){const rows=B.grid?.rows||[];return (S.profile.is_super_admin?'<div class="card"><h2>Set agent compensation</h2><p class="muted small">Match the carrier and policy type used on the deal. Add a new effective date for rate changes. Existing priced deals keep their saved rates; this fills deals that still need setup.</p><form id="bobGridForm" class="bob-grid-form"><label class="bob-field"><span>Agent / admin</span><select name="agent" required>'+options(B.grid?.agents||[],'','Choose agent')+'</select></label>'+input('Carrier','carrier','list="bobCarriers" maxlength="100" required')+'<datalist id="bobCarriers">'+carriers.map(c=>'<option value="'+esc(c)+'">').join('')+'</datalist><label class="bob-field"><span>Policy type</span><select name="type" required>'+types.map(t=>'<option>'+esc(t)+'</option>').join('')+'</select></label>'+input('Agent comp %','comp','type="number" min="0" max="200" step="0.001" placeholder="e.g. 80" required')+input('Advance %','advance','type="number" min="0" max="100" step="0.001" placeholder="e.g. 75" required')+input('Effective from','effective','type="date" required')+'<div class="bob-form-actions"><button class="btn primary">Save comp rate</button><button type="button" class="btn secondary" id="bobResetPin">Reset selected agent PIN</button></div><div id="bobGridError" role="alert"></div></form></div>':'<p class="muted">Your assigned rates are set by Peter. Contact him for changes.</p>')+'<div class="table"><table><thead><tr><th>Agent</th><th>Carrier</th><th>Policy type</th><th>Comp %</th><th>Advance %</th><th>Effective from</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+esc(r.agent_name)+'</td><td>'+esc(r.carrier)+'</td><td>'+esc(r.policy_type)+'</td><td>'+esc(r.comp_percent)+'%</td><td>'+esc(r.advance_percent)+'%</td><td>'+esc(r.effective_date)+'</td></tr>').join('')+(!rows.length?'<tr><td colspan="6" class="empty">No compensation rates entered yet.</td></tr>':'')+'</tbody></table></div>';}
  function bind(){
-  if(S.tab!=='book-business')return;
+  clearDrag();if(S.tab!=='book-business')return;
   if(q('#bobRetry'))q('#bobRetry').onclick=refresh;
   const f=q('#bobPinForm');if(f)f.onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(f)),create=!B.access.has_pin,err=q('#bobPinError');if(create&&v.pin!==v.confirm){err.textContent='PINs must match.';return;}f.querySelector('button').disabled=true;try{const a=await rpc('book_access',{p_action:create?'set':'unlock',p_pin:v.pin});f.reset();if(a.error)throw new Error(a.error);await refresh();}catch(e){err.textContent=e.message;f.querySelector('button').disabled=false;}};
   if(!B.access?.unlocked)return;
-  qa('[data-bob-tab]').forEach(b=>b.onclick=async()=>{B.tab=b.dataset.bobTab;B.page=1;B.selectedId=null;B.detail=null;detailRequest++;await refresh();});
+  qa('[data-bob-tab]').forEach(b=>b.onclick=async()=>{B.tab=b.dataset.bobTab;if(B.tab==='pipeline')B.stage='';B.notice='';B.page=1;B.selectedId=null;B.detail=null;detailRequest++;await refresh();});
   q('#bobLock').onclick=async()=>{try{await rpc('book_access',{p_action:'lock'});expire();}catch(e){B.error=e.message;render();}};
   q('#bobChangePin').onclick=()=>{openModal('<h2>Change Book PIN</h2><form id="bobChangeForm" class="stack">'+input('Current PIN','old','type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required')+input('New six-digit PIN','pin','type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required')+input('Confirm new PIN','confirm','type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required')+'<div id="bobChangeError" role="alert"></div><button class="btn primary">Save PIN</button><button type="button" class="btn secondary" id="bobCancel">Cancel</button></form>');q('#bobCancel').onclick=closeModal;q('#bobChangeForm').onsubmit=async e=>{e.preventDefault();const f=e.target,v=Object.fromEntries(new FormData(f));if(v.pin!==v.confirm){q('#bobChangeError').textContent='PINs must match.';return;}f.querySelector('button').disabled=true;try{const a=await rpc('book_access',{p_action:'change',p_pin:v.pin,p_old_pin:v.old});if(a.error)throw new Error(a.error);closeModal();await refresh();}catch(x){q('#bobChangeError').textContent=x.message;f.querySelector('button').disabled=false;}};};
   q('#bobAddClient').onclick=()=>clientForm();q('#bobExport').onclick=exportCSV;
-  if(q('#bobSearch'))q('#bobSearch').onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target));B.search=v.search;B.agent=v.agent||'';B.stage=v.stage||'';B.taskStatus=v.taskStatus||B.taskStatus;B.page=1;await refresh();};
+  if(q('#bobSearch'))q('#bobSearch').onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.target));B.search=v.search;B.agent=v.agent||'';B.stage=v.stage||'';B.carrier=v.carrier||'';B.taskStatus=v.taskStatus||B.taskStatus;B.page=1;await refresh();};
   if(q('#bobRefresh'))q('#bobRefresh').onclick=refresh;
   if(q('#bobPrev'))q('#bobPrev').onclick=async()=>{B.page=Math.max(1,B.page-1);await refresh();};
   if(q('#bobNext'))q('#bobNext').onclick=async()=>{B.page++;await refresh();};
-  if(q('#bobClearFilters'))q('#bobClearFilters').onclick=async()=>{B.stage='';B.search='';B.agent='';B.page=1;await refresh();};
+  if(q('#bobClearFilters'))q('#bobClearFilters').onclick=async()=>{B.stage='';B.search='';B.agent='';B.carrier='';B.page=1;await refresh();};
   qa('[data-bob-filter]').forEach(b=>b.onclick=async()=>{B.stage=B.stage===b.dataset.bobFilter?'':b.dataset.bobFilter;B.page=1;await refresh();});
-  qa('[data-bob-view-stage]').forEach(b=>b.onclick=async()=>{B.stage=b.dataset.bobViewStage;B.tab='clients';B.page=1;await refresh();});
-  qa('.bob-select-client').forEach(b=>b.onclick=()=>fetchDetail(b.dataset.id));
+  qa('[data-bob-view-stage]').forEach(b=>b.onclick=async()=>{B.stage=b.dataset.bobViewStage;B.tab='pipeline';B.pipelineView='list';B.page=1;await refresh();});
+  qa('.bob-select-client').forEach(b=>b.onclick=()=>{if(Date.now()>=suppressClickUntil)fetchDetail(b.dataset.id);});
   if(q('#bobCloseDetail'))q('#bobCloseDetail').onclick=()=>{const id=B.selectedId;B.selectedId=null;B.detail=null;detailRequest++;render();qa('.bob-select-client').find(b=>b.dataset.id===id)?.focus({preventScroll:true});};
   if(q('#bobDetailRetry'))q('#bobDetailRetry').onclick=()=>fetchDetail(B.selectedId);
   if(q('#bobEditClient'))q('#bobEditClient').onclick=()=>clientForm(B.detail.client);
@@ -136,8 +191,10 @@
   if(q('#bobAddTask'))q('#bobAddTask').onclick=()=>activityForm('task');
   qa('[data-bob-move]').forEach(e=>e.onchange=()=>moveClient(e.dataset.bobMove,e.value));
   qa('[data-bob-task]').forEach(b=>b.onclick=()=>toggleTask(b));
-  qa('[data-drag-client]').forEach(card=>card.ondragstart=e=>{if(e.target.closest('select,button,a')){e.preventDefault();return;}e.dataTransfer.setData('text/plain',card.dataset.dragClient);e.dataTransfer.effectAllowed='move';});
-  qa('[data-drop-stage]').forEach(col=>{col.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';};col.ondrop=e=>{e.preventDefault();moveClient(e.dataTransfer.getData('text/plain'),col.dataset.dropStage);};});
+  qa('[data-bob-move]').forEach(e=>e.disabled=B.busy);
+  qa('[data-bob-display]').forEach(b=>b.onclick=async()=>{B.pipelineView=b.dataset.bobDisplay;B.page=1;B.stage='';await refresh();});
+  if(B.tab==='pipeline')qa('#bobSearch select').forEach(e=>e.onchange=()=>q('#bobSearch').requestSubmit());
+  bindDrag();
  const gf=q('#bobGridForm');if(gf){gf.onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(gf)),err=q('#bobGridError');gf.querySelector('button').disabled=true;try{await rpc('book_grid',{p_action:'save',p_agent:v.agent,p_carrier:v.carrier,p_policy_type:v.type,p_comp:Number(v.comp),p_advance:Number(v.advance),p_effective:v.effective});await refresh();flash('Comp rate saved. Unpriced matching deals updated.');}catch(x){err.textContent=x.message;gf.querySelector('button').disabled=false;}};q('#bobResetPin').onclick=()=>{const id=gf.elements.agent.value;if(!id){q('#bobGridError').textContent='Choose an agent first.';return;}const name=B.grid.agents.find(a=>a.id===id)?.full_name||'agent';modal('<h2>Reset '+esc(name)+'’s Book PIN?</h2><p>They will set a new personal PIN next time they open their book.</p><div id="bobResetError" role="alert"></div><button class="btn primary" id="bobConfirmReset">Reset PIN</button><button class="btn secondary" id="bobCancel">Cancel</button>');q('#bobCancel').onclick=closeModal;q('#bobConfirmReset').onclick=async e=>{e.target.disabled=true;try{await rpc('book_grid',{p_action:'reset-pin',p_agent:id});closeModal();await refresh();flash('Book PIN reset.');}catch(x){q('#bobResetError').textContent=x.message;e.target.disabled=false;}};};} }
  window.PORTAL_CRM_CSV={cell:csvCell,rows:csvRows};window.bobLoad=load;window.bobPage=page;window.bobBind=bind;window.bobReset=reset;
 })();
