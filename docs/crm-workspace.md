@@ -1,5 +1,31 @@
 # Book of Business CRM
 
+## Client deletion and carrier follow-ups
+
+Open a client in Clients and choose **Delete client** in the profile header. The
+confirmation lists all policies being removed. This removes that CRM profile,
+its policy records, notes and tasks; it does not cancel carrier coverage or delete
+recorded Closed Business, leads or commission snapshots. The operation retains
+an audit snapshot. The API requires the current profile and every policy/deal
+version, the existing Book PIN/MFA, and permission to manage the whole profile.
+An unrelated or recently changed client cannot be deleted from a stale dialog.
+
+Carrier-confirmed **Initial premium failed, Grace period, Late offer period,
+Lapsed, Cancelled and Declined** create a red, high-priority task for the policy's
+assigned agent. These appear in CRM Tasks and the client sidebar, with a link
+back to the client and policy. Urgent tasks sort before normal tasks. Each policy
+has one automated task; a changed problem reuses/reopens it. Re-recording the same
+status does not duplicate a task or reopen one the agent already completed.
+Recording a status outside those six completes an open automated task, while
+manual tasks stay unchanged. Existing identity-matched problem statuses are
+included once during migration. No carrier status changes agent stage or production.
+
+Apply both `20261023172948_crm_client_deletion_and_carrier_tasks.sql` and
+`20261023173539_crm_client_delete_lock_alias.sql` before deploying the frontend.
+Run `tests/crm-client-actions.sql` as a rollback-only check, plus the carrier and
+multiple-policy SQL regressions. Chromium coverage is in
+`tests/crm-client-actions-browser.cjs` and `tests/crm-workspace-browser.cjs`.
+
 The existing Book of Business entry now contains Clients, Pipeline, Tasks and Comp grid.
 Clients uses the approved list with a profile sidebar; Pipeline uses the approved five-column board.
 
