@@ -2,11 +2,12 @@
  'use strict';
  const stages=[['new','New prospect'],['contacted','Contacted'],['submitted','Application submitted'],['approved','Approved'],['in_force','In force'],['lapsed','Lapsed'],['cancelled','Cancelled']];
  const carrierStatuses=[['unverified','Unverified'],['pending','Pending'],['underwriting','Underwriting'],['approved','Approved'],['issued','Issued'],['in_force','In force'],['initial_premium_failed','Initial premium failed'],['grace_period','Grace period'],['late_offer_period','Late offer period'],['lapsed','Lapsed'],['cancelled','Cancelled'],['declined','Declined']];
+ const carrierProblems=['initial_premium_failed','grace_period','late_offer_period','lapsed','cancelled','declined'];
  const carrierSources=[['carrier_portal','Carrier portal'],['carrier_email','Carrier email'],['carrier_statement','Carrier statement'],['carrier_phone','Carrier phone confirmation']];
  const carrierLabel=value=>carrierStatuses.find(s=>s[0]===value)?.[1]||'Unverified';
  const carrierSource=value=>carrierSources.find(s=>s[0]===value)?.[1]||'—';
  const carrierRecheck=r=>r.carrier_status&&r.carrier_status!=='unverified'&&!r.carrier_status_current;
- const carrierBadge=r=>'<span class="bob-carrier-badge '+(carrierRecheck(r)?'needs-review':r.carrier_status_current&&r.carrier_status!=='unverified'?'recorded':'')+'">Carrier: '+(carrierRecheck(r)?'Needs recheck':carrierLabel(r.carrier_status))+'</span>';
+ const carrierBadge=r=>'<span class="bob-carrier-badge '+(carrierRecheck(r)?'needs-review':r.carrier_status_current&&carrierProblems.includes(r.carrier_status)?'action-required':r.carrier_status_current&&r.carrier_status!=='unverified'?'recorded':'')+'">Carrier: '+(carrierRecheck(r)?'Needs recheck':carrierLabel(r.carrier_status))+'</span>';
  const types=['Final Expense','Term','IUL','Mortgage Protection','Whole Life','Other'];
  const originalCarriers=['Americo','Transamerica','Ethos','Corebridge Financial','Foresters Financial','Combined Insurance','SBLI','Aetna','Aflac','American Home Life','F&G','InstaBrain','Baltimore Life'];
  const productCatalog=window.PORTAL_CRM_PRODUCTS||[];
@@ -97,7 +98,7 @@
   return '<div class="bob-pipeline">'+stages.slice(0,5).map(column).join('')+'</div>'+(inactive.length?'<details class="bob-inactive"><summary>Lapsed & cancelled policies</summary><div class="bob-pipeline">'+inactive.map(column).join('')+'</div></details>':'');
  }
  function todayFollowups(d){return '<section class="bob-today"><div class="bob-section-heading"><div><h2>Today’s follow-ups <span>'+Number(d.today_task_count||0)+'</span></h2><p>'+new Date().toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+'</p></div><button class="bob-link" data-bob-tab="tasks">View all tasks →</button></div>'+(d.today_tasks||[]).map(t=>taskRow(t,true)).join('')+(!(d.today_tasks||[]).length?'<p class="bob-today-empty">No follow-ups scheduled for today'+(B.search||B.agent||B.carrier||B.stage?' with these filters':'')+'.</p>':'')+((d.today_task_count||0)>8?'<p class="bob-form-hint">Showing the first 8 follow-ups. Open Tasks to see all.</p>':'')+'</section>';}
- function taskRow(t,showClient=false){const done=Boolean(t.completed_at),late=!done&&new Date(t.due_at)<new Date();return '<div class="bob-task-row"><button class="bob-task-check '+(done?'done':'')+'" data-bob-task="'+esc(t.id)+'" data-client="'+esc(t.client_id)+'" aria-label="'+(done?'Reopen':'Complete')+' task: '+esc(t.title)+'">'+(done?'✓':'')+'</button><div><strong>'+esc(t.title)+'</strong>'+(showClient?'<button class="bob-link bob-select-client" data-id="'+esc(t.client_id)+'">'+esc(t.client_name)+' · '+esc(t.agent_name)+'</button>':'')+'<small class="'+(late?'overdue':'muted')+'">'+(done?'Completed · ':late?'Overdue · ':'Due · ')+timeText(done?t.completed_at:t.due_at)+'</small>'+(t.carrier?'<small class="bob-task-policy">'+esc(policyLabel(t))+'</small>':'')+'</div></div>';}
+ function taskRow(t,showClient=false){const done=Boolean(t.completed_at),urgent=!done&&t.priority==='high',late=!done&&new Date(t.due_at)<new Date();return '<div class="bob-task-row'+(urgent?' bob-task-urgent':'')+'"><button class="bob-task-check '+(done?'done':'')+'" data-bob-task="'+esc(t.id)+'" data-client="'+esc(t.client_id)+'" aria-label="'+(done?'Reopen':'Complete')+' task: '+esc(t.title)+'">'+(done?'✓':'')+'</button><div>'+(urgent?'<span class="bob-task-priority">Action required'+(t.carrier_status?' · '+esc(carrierLabel(t.carrier_status)):'')+'</span>':'')+'<strong>'+esc(t.title)+'</strong>'+(showClient?'<button class="bob-link bob-select-client" data-id="'+esc(t.client_id)+'">'+esc(t.client_name)+' · '+esc(t.agent_name)+'</button>':'')+'<small class="'+(late?'overdue':'muted')+'">'+(done?'Completed · ':late?'Overdue · ':'Due · ')+timeText(done?t.completed_at:t.due_at)+'</small>'+(t.carrier?'<small class="bob-task-policy">'+esc(policyLabel(t))+'</small>':'')+'</div></div>';}
  function policyLabel(p){return [p.carrier,p.policy_type,p.policy_number?('#'+p.policy_number):''].filter(Boolean).join(' · ')||'Policy';}
  function tasksPage(d){return '<div class="bob-tasks"><div class="bob-section-heading"><h2>'+ (B.taskStatus==='completed'?'Completed tasks':'Follow-ups & tasks')+'</h2><span>'+Number(d.task_count||0)+'</span></div>'+(d.tasks||[]).map(t=>taskRow(t,true)).join('')+(!(d.tasks||[]).length?'<p class="empty">No '+B.taskStatus+' tasks. Open a client and choose Create task.</p>':'')+'</div>'+pager(d.task_count||0,'tasks');}
  function carrierPanel(r){
@@ -127,7 +128,7 @@
   q('#bobCancel').onclick=q('#bobCancelTop').onclick=closeModal;
   const form=q('#bobCarrierForm'),sync=()=>{const needs=form.elements.status.value!=='unverified';q('#bobCarrierEvidence').hidden=!needs;for(const key of ['source','confirmed_on']){form.elements[key].required=needs;form.elements[key].disabled=!needs;}q('#bobCarrierReferenceLabel').textContent=needs?'Carrier reference *':'Reason for marking unverified *';};form.elements.status.onchange=sync;sync();let saving=false;
   form.onsubmit=async e=>{e.preventDefault();if(saving||!valid(user)||!form.reportValidity())return;saving=true;q('#bobSaveCarrier').disabled=true;
-   try{await rpc('book_crm_carrier_status_save',{p_policy:r.id,p_status:form.elements.status.value,p_source:form.elements.source.disabled?null:form.elements.source.value,p_confirmed_on:form.elements.confirmed_on.disabled?null:form.elements.confirmed_on.value,p_reference:form.elements.reference.value,p_notes:form.elements.notes.value,p_expected_updated_at:r.updated_at,p_expected_deal:r.deal_version||null});if(!valid(user))return;closeModal();B.selectedId=r.id;await refresh();flash('Carrier status saved. Agent stage unchanged.');}
+   try{await rpc('book_crm_carrier_status_save',{p_policy:r.id,p_status:form.elements.status.value,p_source:form.elements.source.disabled?null:form.elements.source.value,p_confirmed_on:form.elements.confirmed_on.disabled?null:form.elements.confirmed_on.value,p_reference:form.elements.reference.value,p_notes:form.elements.notes.value,p_expected_updated_at:r.updated_at,p_expected_deal:r.deal_version||null});if(!valid(user))return;closeModal();B.selectedId=r.id;await refresh();flash(carrierProblems.includes(form.elements.status.value)?'Carrier status saved. Follow-up is in the assigned agent’s Tasks.':'Carrier status saved. Agent stage unchanged.');}
    catch(x){if(valid(user)&&q('#bobCarrierError')){q('#bobCarrierError').textContent=x.message;q('#bobSaveCarrier').disabled=false;}}finally{saving=false;}
   };
  }
@@ -137,7 +138,7 @@
  }
  function detailPanel(){
   const d=B.detail,r=d?.client,person=d?.profile;
-  const header='<header><h2>Client profile</h2><button class="bob-detail-close" id="bobCloseDetail" aria-label="Close client profile">×</button></header>';
+  const header='<header><h2>Client profile</h2><div class="bob-detail-header-actions">'+(r&&person&&d.can_delete_profile?'<button class="bob-delete-client" id="bobDeleteClient">Delete client</button>':'')+'<button class="bob-detail-close" id="bobCloseDetail" aria-label="Close client profile">×</button></div></header>';
   if(!r||!person)return '<aside class="bob-detail" aria-label="Client profile">'+header+'<p role="status">'+esc(B.detailError||'Loading client…')+'</p>'+(B.detailError?'<button class="btn secondary" id="bobDetailRetry">Retry</button>':'')+'</aside>';
   const policies=d.policies||[],active=policies.filter(p=>['active','issued'].includes(p.status)),total=active.reduce((n,p)=>n+Number(p.monthly_payment||0),0);
   const item=(title,value)=>'<div class="bob-detail-item"><dt>'+title+'</dt><dd>'+esc(value??'—')+'</dd></div>';
@@ -288,6 +289,17 @@
   };
  }
  async function toggleTask(button){const id=button.dataset.bobTask,t=[...(B.detail?.tasks||[]),...(B.book?.tasks||[]),...(B.book?.today_tasks||[])].find(t=>t.id===id);if(!t)return;const user=B.user;button.disabled=true;try{await rpc('book_crm_action',{p_client:t.client_id,p_action:t.completed_at?'reopen':'complete',p_id:t.id,p_expected_updated_at:t.updated_at});if(valid(user))await refresh();}catch(e){if(valid(user)){B.error=e.message;render();}}}
+ function deleteClientForm(){
+  const d=B.detail,person=d?.profile,user=B.user;if(!person||!d.can_delete_profile||!valid(user))return;
+  const policies=d.policies||[],versions=policies.map(p=>({id:p.id,updated_at:p.updated_at,deal_version:p.deal_version||null}));
+  openModal('<div class="bob-modal-heading"><div><h2>Delete '+esc(person.client_name)+'?</h2><p>Remove this client from your CRM.</p></div><button type="button" class="bob-detail-close" id="bobCancelTop" aria-label="Close">×</button></div><div class="bob-delete-warning"><strong>This removes '+policies.length+' '+(policies.length===1?'policy':'policies')+', notes, and tasks from the CRM.</strong><p>Recorded closed deals and commission history stay in production records. This does not cancel coverage with the carrier.</p></div><ul class="bob-delete-policies">'+policies.map(p=>'<li>'+esc(policyLabel(p))+'</li>').join('')+'</ul><div id="bobDeleteError" role="alert"></div><footer class="bob-modal-footer"><button class="btn secondary" id="bobCancel">Keep client</button><button class="btn bob-danger-button" id="bobConfirmDelete">Delete client</button></footer>');
+  q('#bobCancel').onclick=q('#bobCancelTop').onclick=closeModal;let saving=false;
+  q('#bobConfirmDelete').onclick=async()=>{
+   if(saving||!valid(user))return;saving=true;q('#bobConfirmDelete').disabled=true;
+   try{await rpc('book_crm_profile_delete',{p_id:person.id,p_expected_updated_at:person.updated_at,p_expected_policies:versions});if(!valid(user))return;closeModal();B.selectedId=null;B.detail=null;B.detailError='';detailRequest++;B.page=1;await refresh();flash('Client deleted from CRM. Recorded production retained.');}
+   catch(e){if(valid(user)&&q('#bobDeleteError')){q('#bobDeleteError').textContent=e.message;q('#bobConfirmDelete').disabled=false;}}finally{saving=false;}
+  };
+ }
  function compAgents(){const rows=B.grid?.agents||[];return rows.some(a=>a.id===S.profile.id)?rows:[{id:S.profile.id,full_name:S.profile.full_name||'My rates'},...rows];}
  function compAgent(){return B.compAgent||S.profile.id;}
  function compGroups(){
@@ -365,6 +377,7 @@
   if(q('#bobCloseDetail'))q('#bobCloseDetail').onclick=()=>{const id=B.selectedId;B.selectedId=null;B.detail=null;detailRequest++;render();qa('.bob-select-client').find(b=>b.dataset.id===id)?.focus({preventScroll:true});};
   if(q('#bobDetailRetry'))q('#bobDetailRetry').onclick=()=>fetchDetail(B.selectedId);
   if(q('#bobAddPolicy'))q('#bobAddPolicy').onclick=()=>policyForm();
+  if(q('#bobDeleteClient'))q('#bobDeleteClient').onclick=deleteClientForm;
   if(q('#bobEditContact'))q('#bobEditContact').onclick=contactForm;
   qa('[data-bob-carrier-status]').forEach(b=>b.onclick=()=>carrierStatusForm(B.detail.policies.find(p=>p.id===b.dataset.bobCarrierStatus)));
   qa('[data-bob-edit-policy]').forEach(b=>b.onclick=()=>policyForm(B.detail.policies.find(p=>p.id===b.dataset.bobEditPolicy)));

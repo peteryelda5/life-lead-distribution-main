@@ -73,7 +73,8 @@ const fixture=()=>{
  };
  window.render=()=>{q('#app').innerHTML=bobPage();bobBind();};
 };
-(async()=>{
+module.exports={fixture,baseStyle,logoLoader};
+if(require.main===module)(async()=>{
  const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  try{
   const context=await browser.newContext({viewport:{width:1600,height:1000},timezoneId:'America/Detroit'}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
