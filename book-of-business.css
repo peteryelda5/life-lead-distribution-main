@@ -30,3 +30,32 @@
 
 /* Center the PIN card beneath the CRM header on every screen size. */
 .bob-compact>.bob-lock{width:calc(100% - 40px);max-width:410px;margin:35px auto}
+
+/* Policy cards: carrier identity, recorded evidence and estimated commission. */
+.bob-policy-insights{display:grid;gap:14px;margin-top:18px}
+.bob-compact .bob-policy-insights .bob-carrier-panel,.bob-policy-insights .bob-policy-commission{margin:0;padding:18px;border:1px solid #dfe7f1;border-radius:12px;background:#fff;box-shadow:0 2px 5px #173b6810;min-width:0}
+.bob-carrier-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:16px;border-bottom:1px solid #edf1f6;margin-bottom:16px}
+.bob-policy-logo{display:flex;align-items:center;min-width:0;max-width:165px;min-height:38px;color:#233d60;font-size:15px;font-weight:700;line-height:1.3;overflow-wrap:anywhere}
+.bob-policy-logo img{display:block;width:auto;max-width:100%;height:34px;object-fit:contain;object-position:left center}
+.bob-policy-logo-dark{padding:8px 12px;border-radius:7px;background:#16394a}.bob-policy-logo-dark img{height:26px}
+.bob-policy-logo [hidden]{display:none}
+.bob-compact .bob-carrier-update{padding:8px 10px;min-height:36px;font-size:12px;white-space:nowrap;flex-shrink:0;background:#f4f8ff;color:#175bb3;border-color:#d9e5f6;box-shadow:none}
+.bob-compact .bob-carrier-update:hover{background:#e8f1ff;border-color:#a6c6ee}
+.bob-carrier-status-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bob-policy-insights h4{margin:0;color:#203754;font-size:13px;font-weight:650;line-height:1.4}
+.bob-compact .bob-carrier-panel .bob-carrier-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;font-size:11px;font-weight:600;background:#f0f3f7;color:#576880;line-height:1.4}
+.bob-carrier-panel .bob-carrier-badge:before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.bob-compact .bob-carrier-panel .bob-carrier-badge.recorded{color:#245d94;background:#eaf3ff}.bob-compact .bob-carrier-panel .bob-carrier-badge.needs-review{color:#875e13;background:#fff3d9}
+.bob-carrier-empty{font-size:12px;line-height:1.6;color:#687b94;margin:10px 0 0}
+.bob-carrier-panel .bob-carrier-evidence{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;margin:16px 0 0;padding-top:15px;border-top:1px solid #edf1f6}
+.bob-carrier-evidence>div{min-width:0}.bob-carrier-evidence .bob-carrier-reference{grid-column:1/-1}
+.bob-carrier-evidence dt{font-size:11px;color:#6c7e96;margin-bottom:4px}.bob-carrier-evidence dd{font-size:12px;line-height:1.5;font-weight:550;color:#263f60;margin:0;overflow-wrap:anywhere}
+.bob-carrier-panel .bob-carrier-caption{font-size:11px;line-height:1.6;margin-top:13px}.bob-carrier-panel .bob-detail-notes{font-size:12px;padding:10px 12px;background:#f7f9fc;border-radius:7px}
+.bob-carrier-panel .bob-carrier-warning{padding:10px 12px;background:#fff8e9;border:1px solid #f1dfb7;border-radius:7px;margin:12px 0 0;overflow-wrap:anywhere}
+.bob-carrier-footnote{font-size:10px;line-height:1.6;color:#6d8099;padding-top:13px;margin-top:14px;border-top:1px solid #edf1f6}
+.bob-policy-insights .bob-policy-commission{background:linear-gradient(135deg,#f4f8ff 0%,#fff 85%);border-color:#dbe6f7}
+.bob-commission-heading{display:flex;align-items:center;gap:9px}.bob-commission-icon{display:flex;align-items:center;justify-content:center;width:27px;height:27px;background:#e4eeff;color:#2664bc;border-radius:8px;font-size:16px;font-weight:650}
+.bob-advance-total{margin-top:17px;display:flex;flex-direction:column;gap:5px}.bob-advance-total>span{font-size:11px;color:#647b99}.bob-advance-total strong{font-size:28px;line-height:1.2;font-weight:700;letter-spacing:-.7px;color:#153b6a;font-variant-numeric:tabular-nums}.bob-advance-total .bob-advance-missing{font-size:19px;letter-spacing:-.2px;color:#405773}
+.bob-policy-commission .bob-commission-rates{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 0}.bob-commission-rates>div{padding:11px 12px;background:#ffffffb3;border:1px solid #e3eaf5;border-radius:8px;min-width:0}.bob-commission-rates dt{font-size:11px;color:#657b96;margin:0 0 5px}.bob-commission-rates dd{margin:0;font-size:16px;line-height:1.2;color:#284a74;font-weight:650;font-variant-numeric:tabular-nums}
+.bob-policy-commission .bob-commission-footnote{font-size:10px;line-height:1.6;color:#6a7e98;margin:14px 0 0;padding-top:12px;border-top:1px solid #e2eaf6}
+@media(max-width:600px){.bob-compact .bob-policy-insights .bob-carrier-panel,.bob-policy-insights .bob-policy-commission{padding:14px}.bob-carrier-card-head{gap:8px;flex-wrap:wrap}.bob-policy-logo{max-width:140px}.bob-policy-logo img{height:30px}.bob-policy-logo-dark img{height:23px}.bob-carrier-status-line{align-items:flex-start;gap:8px}.bob-carrier-status-line h4{flex-basis:100%}}
