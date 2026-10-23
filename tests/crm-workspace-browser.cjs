@@ -4,6 +4,7 @@
 const {chromium}=require('playwright'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.join(__dirname,'..'),out=process.env.CRM_QA_DIR||'/tmp/vivid-crm-qa';fs.mkdirSync(out,{recursive:true});
 const index=fs.readFileSync(path.join(root,'index.html'),'utf8'),baseStyle=[...index.matchAll(/<style>([\s\S]*?)<\/style>|<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/g)].map(m=>m[1]||fs.readFileSync(path.join(root,m[2].split('?')[0]),'utf8')).join('\n');
+const logoLoader=fs.readFileSync(path.join(root,'portal-app.js'),'utf8').match(/^let carrierLogosPromise;\nfunction loadCarrierLogos\(\)[^\n]+/m)?.[0];assert(logoLoader,'use the portal’s actual shared logo loader');
 const fixture=()=>{
  window.q=s=>document.querySelector(s);window.qa=s=>[...document.querySelectorAll(s)];
  window.esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -78,7 +79,10 @@ const fixture=()=>{
   const context=await browser.newContext({viewport:{width:1600,height:1000},timezoneId:'America/Detroit'}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const testHtml='<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+baseStyle+'</style></head><body style="background:#f2f5fa"><main id="app" style="padding:24px;max-width:1800px;margin:auto"></main></body></html>';
   await page.route('https://crm.test/**',route=>route.fulfill({contentType:'text/html',body:testHtml}));await page.route('https://crm.test/assets/vivid-life-advisors.png',route=>route.fulfill({contentType:'image/png',body:fs.readFileSync(path.join(root,'assets/vivid-life-advisors.png'))}));await page.route('https://fixture.supabase.test/**',route=>route.fulfill({contentType:'image/png',body:fs.readFileSync(path.join(root,'assets/vivid-life-advisors.png'))}));await page.goto('https://crm.test/');
-  await page.evaluate(fixture);await page.addScriptTag({path:path.join(root,'book-of-business.js')});await page.evaluate(async()=>{await bobLoad();render();});
+  let logoRequests=0,releaseLogos;const logoGate=new Promise(resolve=>releaseLogos=resolve);
+  await page.route('https://crm.test/carrier-logos.js?*',async route=>{logoRequests++;await logoGate;await route.fulfill({contentType:'application/javascript',body:fs.readFileSync(path.join(root,'carrier-logos.js'),'utf8')});});
+  await page.evaluate(fixture);await page.addScriptTag({content:logoLoader});await page.addScriptTag({path:path.join(root,'book-of-business.js')});await page.evaluate(async()=>{await bobLoad();render();});
+  assert.equal(logoRequests,0,'carrier assets do not block or load with the client list');
   assert.equal(await page.locator('.bob-client-table tbody tr').count(),5);
   await page.locator('[data-bob-brand-image]').waitFor();assert(await page.locator('[data-bob-brand-image]').evaluate(img=>img.naturalWidth>0));assert.equal(await page.locator('.head .bob-tabs').count(),1);assert.equal(await page.locator('.bob-overview-strip').count(),1);
   // Real file input/preview, safe upload parameters, error recovery and per-agency branding.
@@ -92,6 +96,20 @@ const fixture=()=>{
   await page.evaluate(async()=>{fixture.failBrand=true;await bobLoad();render();});assert.equal(await page.locator('.bob-client-table tbody tr').count(),5,'branding error does not block CRM');await page.locator('#bobBrandRetry').waitFor();await page.evaluate(async()=>{fixture.failBrand=false;S.profile.division='vivid_life';S.profile.role='admin';S.profile.is_super_admin=true;await bobLoad();render();});
 
   await page.locator('.bob-select-client[data-id="client-0"]').first().click();await page.locator('#bobAddPolicy').waitFor();assert.match(await page.locator('.bob-detail').innerText(),/Policy details/);
+  // A delayed logo must not replace the sidebar or discard an in-progress status form.
+  await page.locator('[data-bob-carrier-status=client-0]').click();await page.locator('#bobCarrierForm [name=reference]').fill('Keep this unsaved reference');releaseLogos();
+  await page.waitForFunction(()=>document.querySelector('[data-bob-carrier-logo] img')?.naturalWidth>0);assert.equal(await page.locator('#bobCarrierForm [name=reference]').inputValue(),'Keep this unsaved reference');await page.locator('#bobCancel').click();
+  assert.equal(await page.locator('[data-bob-carrier-logo] img').getAttribute('alt'),'Aetna logo');assert.equal(logoRequests,1);
+  await page.locator('.bob-policy-insights').screenshot({path:path.join(out,'policy-cards-desktop.png')});
+  // Missing comp, unfamiliar carriers and broken images keep useful text instead of fake values or broken logos.
+  await page.evaluate(async()=>{Object.assign(fixture.rows[0],{carrier:'Custom <carrier>',estimated_advance:null,comp_percent:null,advance_percent:null});await bobLoad();render();});
+  assert.equal(await page.locator('[data-bob-carrier-logo]').innerText(),'Custom <carrier>');assert.equal(await page.locator('[data-bob-carrier-logo] img').count(),0);assert.equal(await page.locator('.bob-advance-total strong').innerText(),'Needs comp setup');assert.deepEqual(await page.locator('.bob-commission-rates dd').allTextContents(),['—','—']);
+  await page.evaluate(async()=>{fixture.rows[0].carrier='Aetna';window.goodAetna=PORTAL_CARRIER_LOGOS.Aetna.src;PORTAL_CARRIER_LOGOS.Aetna.src='data:image/png;base64,broken';await bobLoad();render();});
+  await page.waitForFunction(()=>document.querySelector('[data-bob-carrier-logo] img')?.complete);assert(await page.locator('[data-bob-carrier-logo] img').isHidden());assert.equal(await page.locator('[data-bob-carrier-logo]').innerText(),'Aetna');
+  await page.evaluate(async()=>{PORTAL_CARRIER_LOGOS.Aetna.src=goodAetna;await bobLoad();render();});await page.waitForFunction(()=>document.querySelector('[data-bob-carrier-logo] img')?.naturalWidth>0);
+  await page.locator('.bob-policy-insights').screenshot({path:path.join(out,'policy-cards-missing-comp.png')});
+  await page.setViewportSize({width:390,height:844});await page.locator('.bob-policy-insights').screenshot({path:path.join(out,'policy-cards-mobile.png')});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.setViewportSize({width:1600,height:1000});
+  await page.evaluate(async()=>{Object.assign(fixture.rows[0],{estimated_advance:900,comp_percent:80,advance_percent:75});await bobLoad();render();});assert.equal(logoRequests,1,'the logo bundle is shared across renders');
   await page.screenshot({path:path.join(out,'clients-desktop.png'),fullPage:true});
   await page.locator('#bobAddNote').click();await page.locator('[name=body]').fill('<script>unsafe</script> Real client note');await page.locator('#bobActivitySave').click();await page.locator('#bobAddNote').waitFor();assert.match(await page.locator('.bob-timeline').innerText(),/Real client note/);assert.equal(await page.locator('.bob-timeline script').count(),0);
   await page.locator('#bobAddTask').click();await page.locator('[name=title]').fill('Welcome call');await page.locator('[name=due]').fill('2026-11-02T10:30');await page.locator('#bobActivitySave').click();await page.locator('.bob-task-row').waitFor();assert.match(await page.locator('.bob-task-row').innerText(),/Welcome call/);
@@ -122,6 +140,7 @@ const fixture=()=>{
   await page.locator('[name=agent_id]').selectOption('agent');await page.locator('#bobClientForm [name=carrier]').selectOption('Ethos');await page.locator('[name=policy_type]').selectOption('Term');await page.locator('.bob-extra summary').click();await page.locator('[name=alternate_phone]').fill('2025550198');await page.locator('[name=date_of_birth]').fill('1980-04-15');await page.locator('[name=mortgage_balance]').fill('150000');
   await page.evaluate(()=>fixture.failSave=true);await page.locator('#bobSaveClient').click();await page.locator('#bobClientError').getByText(/Client changed/).waitFor();assert.equal(await page.locator('[name=client_name]').inputValue(),'Taylor Morgan');await page.evaluate(()=>fixture.failSave=false);await page.locator('#bobSaveClient').click();await page.locator('.bob-detail h3').getByText('Taylor Morgan',{exact:true}).waitFor();
   const saved=await page.evaluate(()=>fixture.rows.find(r=>r.client_name==='Taylor Morgan'));assert.equal(saved.agent_id,'agent');assert.equal(saved.application_date,'2026-10-22');assert.equal(saved.effective_date,'2026-11-01');assert.equal(saved.alternate_phone,'2025550198');assert.equal(saved.mortgage_balance,'150000');
+  await page.waitForFunction(()=>document.querySelector('[data-bob-carrier-logo="Ethos"] img')?.naturalWidth>0);assert(await page.locator('[data-bob-carrier-logo="Ethos"]').evaluate(e=>e.classList.contains('bob-policy-logo-dark')),'white carrier logos get a dark background');
   // A second policy remains under the same person, with independent edits and stage.
   await page.locator('#bobAddPolicy').click();assert.equal(await page.locator('#bobPolicyForm [name=client_name]').count(),0);
   for(const [key,value] of Object.entries({monthly_payment:'85.50',application_date:'2026-10-21',effective_date:'2026-11-02',policy_number:'AETNA-TEST',notes:'Aetna policy only'}))await page.locator('#bobPolicyForm [name='+key+']').fill(value);
