@@ -97,3 +97,5 @@
 .bob-delete-warning{padding:16px;border-radius:10px;background:#fff4f3;border:1px solid #f5c2bd;color:#7c322b;font-size:13px;line-height:1.6}.bob-delete-warning p{margin:8px 0 0}.bob-delete-policies{padding-left:20px;font-size:12px;line-height:1.8;color:#536b87}.btn.bob-danger-button{background:#c52e25;border-color:#c52e25;color:#fff}.btn.bob-danger-button:hover{background:#a8231c}.btn.bob-danger-button:disabled{opacity:.55;cursor:wait}
 @media(max-width:600px){.bob-detail-header-actions{gap:10px}.bob-task-row.bob-task-urgent{padding:12px}.bob-delete-client{font-size:12px}}
 .bob-board-workspace .bob-pipeline-column.stage-chargeback{background:#fff3f4;border-color:#f2d9dd}
+
+.bob-contact-missing{border:1px solid #f1d493;border-radius:9px;padding:14px;margin-bottom:16px;background:#fff9eb;color:#79551b}.bob-contact-missing strong{font-size:14px}.bob-contact-missing p{font-size:12px;margin:6px 0 12px}.bob-contact-missing .btn{font-size:12px}
