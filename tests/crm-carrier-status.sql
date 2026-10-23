@@ -2,7 +2,7 @@
 begin;
 do $$
 declare a uuid; b uuid; owner uuid; sid uuid:=gen_random_uuid(); one uuid:=gen_random_uuid(); two uuid:=gen_random_uuid();
- r jsonb; before_row jsonb; version timestamptz; denied boolean; before_deals bigint;
+ r jsonb; before_row jsonb; version timestamptz; denied boolean; before_deals bigint; payment_status text;
 begin
  select p.id into a from public.profiles p join public.divisions d on d.id=p.division where p.role='agent' and p.active and not coalesce(p.archived,false) and not d.archived and p.division='vivid_life' limit 1;
  select p.id into b from public.profiles p join public.divisions d on d.id=p.division where p.role='agent' and p.active and not coalesce(p.archived,false) and not d.archived and p.id<>a limit 1;
@@ -50,6 +50,17 @@ begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',owner,'aal','aal2','session_id',sid)::text,true);
  perform public.book_crm_carrier_status_save(one,'unverified',null,null,'Confirmation entered for wrong policy','',version,r->'deal_version');
  r:=public.book_crm_profile_detail(one)->'client';if r->>'carrier_status'<>'unverified' or r->>'carrier_confirmed_on' is not null or r->>'carrier_status_source' is not null or r->>'pipeline_stage'<>'in_force' then raise exception 'Reset invalid';end if;
+ -- Additional carrier payment states retain evidence and do not change the sale.
+ foreach payment_status in array array['initial_premium_failed','grace_period','late_offer_period'] loop
+  before_row:=r;
+  denied:=false;begin perform public.book_crm_carrier_status_save(one,payment_status,null,current_date,'Missing source','',(r->>'updated_at')::timestamptz,r->'deal_version');exception when raise_exception then denied:=true;end;if not denied then raise exception 'Payment status accepted missing evidence';end if;
+  perform public.book_crm_carrier_status_save(one,payment_status,'carrier_portal',current_date,'Payment status test','',(r->>'updated_at')::timestamptz,r->'deal_version');
+  r:=public.book_crm_profile_detail(one)->'client';
+  if r->>'carrier_status'<>payment_status or not (r->>'carrier_status_current')::boolean or r->>'pipeline_stage'<>before_row->>'pipeline_stage' or r->'deal_version' is distinct from before_row->'deal_version' or r->'estimated_advance' is distinct from before_row->'estimated_advance' then raise exception 'Payment status changed policy accounting or failed to persist';end if;
+  if not exists(select 1 from jsonb_array_elements(public.book_crm_profiles_list(1,'__CARRIER_STATUS_TEST__')->'rows'->0->'policies')x where x->>'id'=one::text and x->>'carrier_status'=payment_status) then raise exception 'Grouped list missing payment status';end if;
+  if not exists(select 1 from jsonb_array_elements(public.book_crm_pipeline('__CARRIER_STATUS_TEST__')->'pipeline')x where x->>'id'=one::text and x->>'carrier_status'=payment_status) then raise exception 'Pipeline missing payment status';end if;
+ end loop;
+ denied:=false;begin perform public.book_crm_carrier_status_save(one,'unsupported_status','carrier_portal',current_date,'Invalid status','',(r->>'updated_at')::timestamptz,r->'deal_version');exception when raise_exception then denied:=true;end;if not denied then raise exception 'Unsupported carrier status accepted';end if;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'aal','aal1','session_id',sid)::text,true);
  denied:=false;begin perform public.book_crm_carrier_status_save(one,'unverified',null,null,'No MFA','',(r->>'updated_at')::timestamptz,r->'deal_version');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'MFA bypass';end if;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',a,'aal','aal2','session_id',gen_random_uuid())::text,true);
@@ -57,5 +68,5 @@ begin
  if has_table_privilege('authenticated','private.book_crm_carrier_status','select') or has_table_privilege('authenticated','private.book_crm_carrier_status','update') or has_function_privilege('anon','public.book_crm_carrier_status_save(uuid,text,text,date,text,text,timestamptz,jsonb)','execute') then raise exception 'Direct access leaked';end if;
  if (select count(*) from public.closed_business where agent_id=a)<>before_deals+1 then raise exception 'Carrier operations changed production';end if;
 end;$$;
-select 'PASS: independent agent/carrier states, per-policy evidence, history, identity recheck, validation, stale updates, agent/owner scope, PIN/MFA, and preserved production; rolled back' result;
+select 'PASS: three additional payment statuses, independent agent/carrier states, per-policy evidence, history, identity recheck, validation, stale updates, agent/owner scope, PIN/MFA, and preserved production; rolled back' result;
 rollback;
