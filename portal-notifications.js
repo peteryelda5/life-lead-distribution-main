@@ -2,6 +2,7 @@
 (() => {
  'use strict';
  const categories={leads:'Leads',requests:'Lead requests',calls:'Calls & follow-ups',deals:'Closed deals',chat:'Chat',announcements:'Announcements',team:'Team & goals',billing:'Billing'};
+ let failures=0,retryAt=0;
  let owner=null,epoch=0,revision=0,timer=null,flight=null,again=false,busy=false,panel=null,data=null,filter='all',unreadOnly=false,offset=0,lastSignature='',seen=null,seenAfter=0,toastQueue=[],toastCards=new Map(),toastRegion=null;
  let liveChannel=null,liveStarting=false,liveTimer=null,dealStart=0,chatSeen=new Map(),celebrationSound=null,soundEnabled=true;
  const soundKey=()=> 'lld_celebration_sound:'+owner;
@@ -16,7 +17,7 @@
  const rpc=(action,extra={})=>api('/rest/v1/rpc/portal_notifications',{method:'POST',body:{p_action:action,p_data:{...query(),...extra}}});
  const element=(tag,className,text)=>{const el=document.createElement(tag);if(className)el.className=className;if(text!==undefined)el.textContent=text;return el;};
  function button(text,action,className=''){const b=element('button',className,text);b.type='button';b.onclick=action;return b;}
- function reset(){epoch++;revision++;close(false);clearToasts();stopLive();celebrationSound?.dispose();celebrationSound=null;clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;chatSeen.clear();flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
+ function reset(){failures=0;retryAt=0;epoch++;revision++;close(false);clearToasts();stopLive();celebrationSound?.dispose();celebrationSound=null;clearInterval(timer);timer=null;owner=null;data=null;seen=null;seenAfter=0;dealStart=0;chatSeen.clear();flight=null;again=false;busy=false;offset=0;filter='all';unreadOnly=false;lastSignature='';paintBadge();}
  function stopLive(){clearTimeout(liveTimer);liveTimer=null;liveStarting=false;const channel=liveChannel;liveChannel=null;if(channel&&typeof SB!=='undefined')Promise.resolve(SB.removeChannel(channel)).catch(()=>{});}
  function queueLiveRefresh(id,ticket){if(!current(id,ticket)||document.hidden||liveTimer)return;liveTimer=setTimeout(()=>{liveTimer=null;if(current(id,ticket))refresh();},250);}
  async function connectLive(){
@@ -100,9 +101,9 @@
  }
  async function refresh(){
   if(!eligible()){reset();return;}if(owner!==S.profile.id){reset();owner=S.profile.id;loadSoundPreference();}
-  if(busy){again=true;return;}if(flight){again=true;return flight;}const id=owner,ticket=epoch,view=revision;
-  flight=(async()=>{try{const filtered=filter!=='all'||unreadOnly||offset!==0;const [d,feed]=await Promise.all([rpc('list'),filtered?rpc('list',{category:'all',unread:false,offset:0}):Promise.resolve(null)]);if(!current(id,ticket)||view!==revision){again=true;return;}data=d;paintBadge();paint();toast((feed||d).items||[]);status('');}
-   catch(e){if(current(id,ticket))status('Notifications could not refresh. '+e.message,true);}
+  if(Date.now()<retryAt)return;if(busy){again=true;return;}if(flight){again=true;return flight;}const id=owner,ticket=epoch,view=revision;
+  flight=(async()=>{try{const filtered=filter!=='all'||unreadOnly||offset!==0;const [d,feed]=await Promise.all([rpc('list'),filtered?rpc('list',{category:'all',unread:false,offset:0}):Promise.resolve(null)]);if(!current(id,ticket)||view!==revision){again=true;return;}failures=0;retryAt=0;data=d;paintBadge();paint();toast((feed||d).items||[]);status('');}
+   catch(e){if(current(id,ticket)){failures=Math.min(failures+1,4);retryAt=Date.now()+Math.min(120000,20000*2**(failures-1));status('Notifications could not refresh. Retrying shortly. '+e.message,true);}}
    finally{if(ticket===epoch){flight=null;if(again){again=false;refresh();}}}})();return flight;
  }
  async function change(action,extra={}){

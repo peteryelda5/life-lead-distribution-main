@@ -5,7 +5,7 @@ const source=fs.readFileSync(__dirname+'/../portal-notifications.js','utf8');
 const event=(key='delivery:1',extra={})=>({key,category:'leads',title:'New leads assigned to you',body:'10 leads delivered',target:{tab:'my-leads'},at:'2026-10-20T10:00:00Z',read:false,...extra});
 function setup(role='agent',leader=false,options={}){
  const dom=new JSDOM('<body><header class="portal-topnav"></header></body>',{url:'https://www.lldportal.com',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
- const requests=[],navigation=[];let list=options.items||[event()],muted=[],popups=true,now='2026-10-20T10:01:00Z',hold=null,pending=null,blocked=false;
+ const requests=[],navigation=[];let list=options.items||[event()],muted=[],popups=true,now='2026-10-20T10:01:00Z',hold=null,pending=null,blocked=false,failAction=null;
  w.S={session:{},profile:{id:'agent-one',role,is_team_leader:leader,active:true},tab:'dashboard'};w.currentAal=()=> 'aal2';
  w.portalDialerInstance={canLeave:()=>!blocked,root:w.document.createElement('div')};w.portalDialerInstance.root.innerHTML='<button data-view="callbacks"></button><button data-view="billing"></button><button id="agentPriority"></button>';
  w.mountPortalDialer=async()=>{};w.navigatePortalTab=async tab=>{navigation.push(tab);w.S.tab=tab;};w.PC={chats:[{id:'private-chat'}]};w.CHAT={division:'mine'};w.pcList=async()=>{};w.render=()=>{};w.refreshChat=async()=>{};w.changeChatRoom=async(d,r)=>{w.CHAT.room=r;};
@@ -13,7 +13,7 @@ function setup(role='agent',leader=false,options={}){
  const live={subscriptions:0,removed:0,event:null,state:null};
  w.matchMedia=()=>({matches:!!options.reducedMotion});
  if(options.live)w.SB={realtime:{async setAuth(){}},channel(){live.subscriptions++;return {on(type,config,fn){assert.equal(type,'postgres_changes');assert.equal(config.schema,'public');if(config.table==='leaderboard_updates'){assert.equal(config.event,'UPDATE');live.event=fn;}else{assert.equal(config.table,'chat_messages');assert(['INSERT','DELETE'].includes(config.event));live[config.event]=fn;}return this;},subscribe(fn){live.state=fn;return this;}};},async removeChannel(){live.removed++;}};
- w.api=async(path,{body})=>{assert.equal(path,'/rest/v1/rpc/portal_notifications');requests.push(body);const {p_action:a,p_data:q}=body;
+ w.api=async(path,{body})=>{assert.equal(path,'/rest/v1/rpc/portal_notifications');requests.push(body);const {p_action:a,p_data:q}=body;if(failAction===a)throw new Error('Portal request timed out');
   if(hold===a){hold=null;const snapshot=response(q);return new Promise(resolve=>{pending=()=>resolve(snapshot);});}
   if(['read','unread','archive'].includes(a))for(const item of q.items){const n=list.find(n=>n.key===item.key);if(n){if(a==='archive')n.archived=true;else n.read=a==='read';}}
   if(a==='read_all')list.forEach(n=>{if(n.at<=q.before)n.read=true;});
@@ -23,7 +23,7 @@ function setup(role='agent',leader=false,options={}){
  let poll;const originalInterval=w.setInterval.bind(w);w.setInterval=(fn,ms)=>{poll=fn;return originalInterval(fn,ms);};
  w.eval(source);w.document.querySelector('header').innerHTML=w.PortalNotifications.buttonHtml();w.PortalNotifications.bind();
  const $=id=>w.document.getElementById(id),click=async id=>{$(id).click();await tick();};
- return {w,dom,$,click,requests,navigation,live,async poll(){poll();await tick();},setList(v){list=v;},setNow(v){now=v;},hold(a){hold=a;},release(){assert(pending);const p=pending;pending=null;p();},block(v){blocked=v;},async close(){w.PortalNotifications.reset();dom.window.close();}};
+ return {w,dom,$,click,requests,navigation,live,async poll(){poll();await tick();},fail(a){failAction=a;},setList(v){list=v;},setNow(v){now=v;},hold(a){hold=a;},release(){assert(pending);const p=pending;pending=null;p();},block(v){blocked=v;},async close(){w.PortalNotifications.reset();dom.window.close();}};
 }
 (async()=>{
  for(const [role,leader] of [['agent',false],['agent',true],['admin',false]]){const h=setup(role,leader);try{await tick();assert.equal(h.$('portalNotifications').getAttribute('aria-label'),'Notifications, 1 unread');assert.equal(h.w.document.querySelector('.pn-toast'),null);await h.click('portalNotifications');assert.equal(h.w.document.querySelectorAll('.pn-item').length,1);h.w.PortalNotifications.sync();assert.equal(h.w.document.querySelectorAll('#portalNotificationPanel').length,1);}finally{await h.close();}}
@@ -111,5 +111,18 @@ function setup(role='agent',leader=false,options={}){
    const oldSignal=liveChat.live.INSERT;liveChat.w.PortalNotifications.reset();const count=liveChat.requests.length;oldSignal();await new Promise(r=>setTimeout(r,300));assert.equal(liveChat.requests.length,count);
   }finally{await liveChat.close();}
  }
+ // Failed background refreshes back off, preserve existing alerts and recover.
+ const outage=setup();try{
+  await tick();let clock=1000000;outage.w.Date.now=()=>clock;await outage.click('portalNotifications');
+  outage.fail('list');await outage.poll();const failed=outage.requests.length;
+  for(let i=0;i<8;i++)await outage.poll();assert.equal(outage.requests.length,failed,'no immediate retry loop');
+  assert.equal(outage.w.document.querySelectorAll('.pn-item').length,1,'keep last good notifications');
+  clock+=20000;await outage.poll();assert.equal(outage.requests.length,failed+1);
+  clock+=20000;await outage.poll();assert.equal(outage.requests.length,failed+1,'second failure waits 40 seconds');
+  outage.fail(null);clock+=20000;await outage.poll();assert.equal(outage.requests.length,failed+2);
+  clock+=20000;await outage.poll();assert.equal(outage.requests.length,failed+3,'success restores normal polling');
+  outage.fail('list');await outage.poll();outage.w.PortalNotifications.reset();outage.fail(null);
+  const before=outage.requests.length;outage.w.S.profile.id='new-account';outage.w.PortalNotifications.bind();await tick();assert.equal(outage.requests.length,before+1,'account change clears cooldown');
+ }finally{await outage.close();}
  console.log('PASS: corner celebrations, stable deal deduplication, delayed transactions, reduced motion, preferences, real-time coalescing/cleanup, stacked alerts and burst queue, independent dismiss/open, active-call safety, all roles, inbox and unread badge, safe text, filters, persisted action payloads, preferences, active-call protection, callback/chat navigation, stable focus, polling races, account cleanup and MFA gating.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
