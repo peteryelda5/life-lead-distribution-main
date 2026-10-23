@@ -1,5 +1,29 @@
 # Book of Business CRM
 
+## Missing client details
+
+The old “Client not linked” placeholder appeared when a closed deal lacked a client
+name, or when the lead name existed only in uploaded CSV columns. New closed deals
+read the exact linked lead’s standard fields and recognized CSV contact columns.
+AgentName and unrelated records are never used to infer a client. Later lead
+corrections and the legacy Book contact API fill missing CRM names while preserving
+known contacts, policy data, production and commission records.
+
+The migration repairs only profiles with missing names and an exact existing source,
+with an audit snapshot. Unknown clients show “Client details needed”; their sidebar
+provides **Add client details**, using the normal permission/PIN/version-checked
+shared-contact editor. Existing named clients are never merged or overwritten.
+
+Chat’s Log a closed deal form now requires the client name and accepts optional
+phone/email. The new RPC creates the deal and its private CRM contact atomically,
+retains agency/agent verification and idempotency, and does not require a Book PIN
+just to record a sale. Client contact information stays out of the public deal feed.
+Old API signatures remain available for compatibility.
+
+Apply `20261023180330_crm_client_contact_recovery.sql` first. Verify with rollback-only
+`tests/crm-client-linking.sql`, CRM regressions,
+`tests/crm-client-linking-browser.cjs` and the push DOM suite.
+
 ## Chargebacks
 
 Chargeback is a red pipeline column, always available as a drag target, and is
