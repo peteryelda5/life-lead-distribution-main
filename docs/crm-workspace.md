@@ -1,5 +1,20 @@
 # Book of Business CRM
 
+## Chargebacks
+
+Chargeback is a red pipeline column, always available as a drag target, and is
+included in stage selectors, client filters and CSV exports. Carrier status has
+its own Chargeback option with the same evidence requirements as other confirmed
+updates. A carrier-confirmed Chargeback creates/reuses the assigned agent's red
+automated follow-up task. Changing either status never changes the other.
+
+An agent pipeline Chargeback is excluded from agent-reported active/issued totals.
+Recorded Closed Business and commission snapshots remain intact; this status does
+not calculate a chargeback amount or deduct money. Apply
+`20261023174804_crm_chargeback_statuses.sql` before this frontend. Verify with
+`tests/crm-chargebacks.sql`, `tests/crm-chargebacks-browser.cjs` and the existing
+client-actions, carrier-status and pipeline regressions.
+
 ## Client deletion and carrier follow-ups
 
 Open a client in Clients and choose **Delete client** in the profile header. The
@@ -11,12 +26,12 @@ version, the existing Book PIN/MFA, and permission to manage the whole profile.
 An unrelated or recently changed client cannot be deleted from a stale dialog.
 
 Carrier-confirmed **Initial premium failed, Grace period, Late offer period,
-Lapsed, Cancelled and Declined** create a red, high-priority task for the policy's
+Lapsed, Cancelled, Declined and Chargeback** create a red, high-priority task for the policy's
 assigned agent. These appear in CRM Tasks and the client sidebar, with a link
 back to the client and policy. Urgent tasks sort before normal tasks. Each policy
 has one automated task; a changed problem reuses/reopens it. Re-recording the same
 status does not duplicate a task or reopen one the agent already completed.
-Recording a status outside those six completes an open automated task, while
+Recording a status outside those seven completes an open automated task, while
 manual tasks stay unchanged. Existing identity-matched problem statuses are
 included once during migration. No carrier status changes agent stage or production.
 
@@ -27,14 +42,14 @@ multiple-policy SQL regressions. Chromium coverage is in
 `tests/crm-client-actions-browser.cjs` and `tests/crm-workspace-browser.cjs`.
 
 The existing Book of Business entry now contains Clients, Pipeline, Tasks and Comp grid.
-Clients uses the approved list with a profile sidebar; Pipeline uses the approved five-column board.
+Clients uses the approved list with a profile sidebar; Pipeline uses the approved board with a sixth Chargeback column.
 
 Client entry includes name, phone, agent, carrier, policy type/product, monthly premium,
 application date and a separate policy effective date. Alternate phone, email, address,
 date of birth, mortgage balance, policy number and notes are optional. Prospects may
 leave the effective date blank. In force requires a recorded date that is not in the future.
 
-The pipeline supports New prospect, Contacted, Application submitted, Approved and In force.
+The pipeline supports New prospect, Contacted, Application submitted, Approved, In force and Chargeback.
 Lapsed/cancelled clients remain searchable and appear below the pipeline. Dragging and
 Move to controls use the same version-checked save. Each column initially displays at most
 25 cards, with View all linking to the paginated client list. Search, stage and agent filters

@@ -21,7 +21,7 @@ begin
  if exists(select 1 from private.book_crm_tasks where client_id in(one,two)) then raise exception 'Unverified policy created a task';end if;
  -- Owner-entered carrier statuses must create tasks under the policy's agent.
  perform set_config('request.jwt.claims',jsonb_build_object('sub',owner_id,'aal','aal2','session_id',sid)::text,true);
- foreach state in array array['initial_premium_failed','grace_period','late_offer_period','lapsed','cancelled','declined'] loop
+ foreach state in array array['initial_premium_failed','grace_period','late_offer_period','lapsed','cancelled','declined','chargeback'] loop
   r:=public.book_crm_profile_detail(one)->'client';
   perform public.book_crm_carrier_status_save(one,state,'carrier_portal',current_date,'Test reference','',(r->>'updated_at')::timestamptz,r->'deal_version');
   if (select count(*) from private.book_crm_tasks where client_id=one and source='carrier_status')<>1 then raise exception 'Duplicate or missing carrier task for %',state;end if;
@@ -84,5 +84,5 @@ begin
  if not exists(select 1 from public.audit_logs where action='crm_client_deleted' and entity_id=one::text and jsonb_array_length(details->'before'->'policies')=2 and jsonb_array_length(details->'before'->'tasks')=3) then raise exception 'Deletion audit snapshot missing';end if;
  if has_function_privilege('anon','public.book_crm_profile_delete(uuid,timestamptz,jsonb)','execute') or has_function_privilege('authenticated','private.book_crm_sync_carrier_task(uuid,text,uuid,boolean)','execute') or has_table_privilege('authenticated','private.book_crm_tasks','update') then raise exception 'Direct write permissions exposed';end if;
 end;$$;
-select 'PASS: all six carrier problems, agent assignment, urgent ordering, repeat protection, resolution/reopening, independent policies, deletion/version checks, audit snapshot, preserved production and PIN/MFA/scope gates; rolled back' result;
+select 'PASS: all seven carrier problems, agent assignment, urgent ordering, repeat protection, resolution/reopening, independent policies, deletion/version checks, audit snapshot, preserved production and PIN/MFA/scope gates; rolled back' result;
 rollback;
