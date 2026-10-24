@@ -7,7 +7,7 @@ const root=path.join(__dirname,'..'),out=process.env.CRM_QA_DIR||'/tmp/vivid-cha
  try{
   const page=await browser.newPage({viewport:{width:1700,height:1050},timezoneId:'America/Detroit'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('https://crm.test/**',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+baseStyle+'</style><main id="app" style="padding:20px"></main>'}));await page.goto('https://crm.test/');await page.evaluate(fixture);
-  for(const f of ['crm-products.js','carrier-logos.js','book-of-business.js'])await page.addScriptTag({path:path.join(root,f)});
+  for(const f of ['crm-products.js','carrier-logos.js','client-phone.js','book-of-business.js'])await page.addScriptTag({path:path.join(root,f)});
   await page.evaluate(async()=>{await bobLoad();render();});
   await page.locator('.bob-tabs [data-bob-tab=pipeline]').click();await page.locator('[data-drop-stage=chargeback]').waitFor();assert.equal(await page.locator('[data-drop-stage=chargeback] .bob-pipeline-card').count(),0);
   // An empty Chargeback column is available as a real drop target.

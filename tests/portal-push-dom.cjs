@@ -12,7 +12,7 @@ function setup({installed=true,permission='default',url='https://www.lldportal.c
  w.matchMedia=()=>({matches:installed});w.PushManager=function(){};w.Notification={permission,requestPermission(){prompts++;w.Notification.permission=permission==='denied'?'denied':'granted';return Promise.resolve(w.Notification.permission);}};
  const reg={pushManager:{async getSubscription(){return currentSub;},async subscribe(){subscribed++;return currentSub=subscription();}},async getNotifications(){return [];}};
  Object.defineProperty(w.navigator,'serviceWorker',{value:{async register(){registered++;return reg;},ready:Promise.resolve(reg),async getRegistration(){return reg;},addEventListener(type,fn){workerMessage=fn;}}});
- w.S={profile:{id,active:true},session:{access_token:'e30.'+Buffer.from(JSON.stringify({session_id:'fixture'})).toString('base64url')+'.x'},mfaMode:null};w.currentAal=()=> 'aal2';w.sessionExpiresWithin=()=>false;
+ w.S={profile:{id,active:true},session:{access_token:'e30.'+Buffer.from(JSON.stringify({session_id:'fixture'})).toString('base64url')+'.x'},mfaMode:null};w.ONBOARDING={complete:true,userId:id};w.currentAal=()=> 'aal2';w.sessionExpiresWithin=()=>false;
  w.portalDialerInstance={canLeave:()=>!blocked};w.PortalNotifications={async openItem(n){opened.push(n);return true;},open(){opened.push('inbox');}};
  w.fetch=async(url,opt={})=>{if(opt.method!=='POST')return {ok:true,json:async()=>({available:true,publicKey:'B'.repeat(87)})};const b=JSON.parse(opt.body);actions.push(b);
   let result;if(b.action==='subscribe')result={device:serverDevice={id:deviceId,enabled:true,categories:['deals','chat','leads']}};
@@ -43,16 +43,16 @@ function setup({installed=true,permission='default',url='https://www.lldportal.c
   await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,0);
   w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});
   await new Promise(r=>setTimeout(r,380));assert.equal(requests.length,2);assert.equal(requests[0].opt.keepalive,true);assert.deepEqual(requests[0].body,{action:'wake'});assert.equal(sender.registered,0);assert.equal(sender.prompts,0);
-  for(const [path,body] of [['book_crm_save',{}],['book_crm_save_v2',{}],['book_crm_policy_save',{}],['close_lead',{}],['chat_standalone_deal',{}],['chat_standalone_deal_with_client',{}],['portal_collaboration',{p_action:'send'}]]){
+  for(const [path,body] of [['submit_deal_with_client',{}],['book_crm_save',{}],['book_crm_save_v2',{}],['book_crm_policy_save',{}],['close_lead',{}],['chat_standalone_deal',{}],['chat_standalone_deal_with_client',{}],['portal_collaboration',{p_action:'send'}]]){
    w.PortalPush.afterWrite('/rest/v1/rpc/'+path,{method:'POST',body});await new Promise(r=>setTimeout(r,180));
   }
-  assert.equal(requests.length,9);
-  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});w.S.profile.id='different-account';await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,9);
+  assert.equal(requests.length,10);
+  w.PortalPush.afterWrite('/rest/v1/rpc/chat_send_social',{method:'POST'});w.S.profile.id='different-account';await new Promise(r=>setTimeout(r,180));assert.equal(requests.length,10);
   // Exercise the actual shared API success/failure boundary, including retries.
   const appSource=fs.readFileSync(__dirname+'/../portal-app.js','utf8');
   const rawSource=appSource.slice(appSource.indexOf('async function raw('),appSource.indexOf('let refreshPromise=null;'));
   let wakes=0,ok=false;
-  const context={portalSessionEpoch:0,KEY:'public-fixture',BASE:'https://fixture.invalid',S:{session:{access_token:'fixture'}},window:{PortalPush:{afterWrite(){wakes++;}}},portalFetch:async()=>({ok,status:ok?200:400,text:async()=>JSON.stringify(ok?{saved:true}:{message:'Save failed'})})};
+  const context={portalOnboardingError:()=>false,portalSessionEpoch:0,KEY:'public-fixture',BASE:'https://fixture.invalid',S:{session:{access_token:'fixture'}},window:{PortalPush:{afterWrite(){wakes++;}}},portalFetch:async()=>({ok,status:ok?200:400,text:async()=>JSON.stringify(ok?{saved:true}:{message:'Save failed'})})};
   vm.createContext(context);vm.runInContext(rawSource,context);
   await assert.rejects(context.raw('/rest/v1/rpc/close_lead',{method:'POST'}),/Save failed/);assert.equal(wakes,0);
   ok=true;await context.raw('/rest/v1/rpc/close_lead',{method:'POST'});assert.equal(wakes,1);

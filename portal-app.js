@@ -512,34 +512,19 @@ function removeClosedLeadFromLists(id){
  }
 }
 function closeLeadModal(id){
- const l=S.leads.find(x=>x.id===id);if(!l||l.status==='closed')return;
- const owner=S.profile,epoch=portalSessionEpoch;
- modal('<h2>Close '+esc((l.first_name||'')+' '+(l.last_name||''))+'</h2><div class="notice">Lead type: <strong>'+esc(l.lead_type||'Unlabeled')+'</strong></div><form id="cf" class="stack"><div class="row"><div class="field"><label>Carrier</label>'+portalCarrierSelectHtml('closedDealCarrier')+'</div><div class="field"><label>Policy type</label><select name="p_policy_type" required><option value="">Select…</option><option>Final Expense</option><option>Term</option><option>IUL</option><option>Mortgage Protection</option><option>Whole Life</option><option>Other</option></select></div></div><div class="row"><div class="field"><label>Monthly premium</label><input name="p_monthly_premium" type="number" min="0" step=".01" required></div><div class="field"><label>Application date</label><input name="p_application_date" type="date" value="'+new Date().toISOString().slice(0,10)+'" required></div></div><div class="field"><label>Policy / application #</label><input name="p_policy_number"></div><div class="field"><label>Notes</label><textarea name="p_notes"></textarea></div><div class="row"><button type="button" id="cancel" class="btn secondary">Cancel</button><button class="btn primary right">Save closed lead</button></div></form>');
- portalFillDealCarriers(q('#closedDealCarrier'));
- const form=q('#cf');let saving=false;
- q('#cancel').onclick=()=>{if(!saving)closeModal();};
- form.onsubmit=async e=>{
-  e.preventDefault();if(saving||owner!==S.profile||epoch!==portalSessionEpoch)return;
-  saving=true;const buttons=[...form.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
-  const p=Object.fromEntries(new FormData(form).entries());p.p_lead_id=id;p.p_monthly_premium=Number(p.p_monthly_premium);if(!p.p_policy_number)p.p_policy_number=null;if(!p.p_notes)p.p_notes=null;
-  const current=()=>owner===S.profile&&epoch===portalSessionEpoch;
-  try{
-   if(window.PortalCallNotes&&!await window.PortalCallNotes.flush(id))throw Error('Save or resolve the call notes before closing this lead.');
-   if(!current())return;
-   await api('/rest/v1/rpc/close_lead',{method:'POST',body:p});
-  }catch(x){if(current())flash(x.message,true);saving=false;buttons.forEach(b=>{if(b.isConnected)b.disabled=false;});return;}
-  if(!current())return;
-  if(form.isConnected)closeModal();
-  removeClosedLeadFromLists(id);
-  if(S.tab!=='my-leads')return;
-  S.err='';S.msg='Lead marked closed.';render();
-  // A failed refresh must never make a committed close look like a failed save.
+ const lead=S.leads.find(x=>x.id===id);if(!lead||lead.status==='closed')return;
+ const owner=S.profile,epoch=portalSessionEpoch,current=()=>owner===S.profile&&epoch===portalSessionEpoch;
+ PortalDealIntake.open({lead,beforeSave:async()=>{if(window.PortalCallNotes&&!await PortalCallNotes.flush(id))throw Error('Save or resolve the call notes before closing this lead.');},afterSave:async()=>{
+  if(!current())return;removeClosedLeadFromLists(id);
+  if(S.tab!=='my-leads'){flash('Deal submitted. Client and policy saved to the CRM.');return;}
+  S.err='';S.msg='Deal submitted. Client and policy saved to the CRM.';render();
   const results=await Promise.allSettled([loadMyFolders(),loadMyLeadsPage()]);
   if(!current()||S.tab!=='my-leads')return;
-  if(results.some(r=>r.status==='rejected'))flash('The deal is saved as closed. Some lead counts could not refresh; reload this page to update them.',true);
-  else{S.err='';S.msg='Lead marked closed.';render();scheduleFeedbackClear(2500);}
- };
+  if(results.some(r=>r.status==='rejected'))flash('Deal and CRM saved. Refresh to update the lead counts.',true);
+  else{render();scheduleFeedbackClear(2500);}
+ }});
 }
+
 async function reload(m){await loadCore();if(m)S.msg=m;render();if(m)scheduleFeedbackClear(2500)}
 setInterval(async()=>{if(S.session&&sessionExpiresWithin(300))await refreshToken()},60000);
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&S.session&&sessionExpiresWithin(300)){const ok=await refreshToken();if(ok&&S.profile){const ready=await ensureAgentMfa();if(ready)await loadCore()}render()}});

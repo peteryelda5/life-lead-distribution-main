@@ -25,7 +25,7 @@ const root=path.join(__dirname,'..'),out=process.env.CRM_QA_DIR||'/tmp/vivid-cli
     return result;
    };
   });
-  for(const f of ['crm-products.js','carrier-logos.js','book-of-business.js'])await page.addScriptTag({path:path.join(root,f)});
+  for(const f of ['crm-products.js','carrier-logos.js','client-phone.js','book-of-business.js'])await page.addScriptTag({path:path.join(root,f)});
   await page.evaluate(async()=>{await bobLoad();render();});await page.locator('.bob-select-client[data-id="client-0"]').first().click();await page.locator('#bobDeleteClient').waitFor();
   for(const [status,label] of [['initial_premium_failed','Initial premium failed'],['grace_period','Grace period'],['late_offer_period','Late offer period'],['lapsed','Lapsed'],['cancelled','Cancelled'],['declined','Declined'],['chargeback','Chargeback']]){
    await page.locator('[data-bob-carrier-status="client-0"]').click();await page.locator('#bobCarrierForm [name=status]').selectOption(status);await page.locator('#bobCarrierForm [name=source]').selectOption('carrier_portal');await page.locator('#bobCarrierForm [name=confirmed_on]').fill('2026-10-21');await page.locator('#bobCarrierForm [name=reference]').fill('Carrier follow-up test');await page.locator('#bobSaveCarrier').click();

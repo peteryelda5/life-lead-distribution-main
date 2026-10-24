@@ -27,7 +27,7 @@ const styles=[...index.matchAll(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>|<link[^>
   });
   await page.addScriptTag({path:path.join(root,'crm-products.js')});
   await page.addScriptTag({path:path.join(root,'carrier-logos.js')});
-  await page.addScriptTag({path:path.join(root,'book-of-business.js')});
+  await page.addScriptTag({path:path.join(root,'client-phone.js')});await page.addScriptTag({path:path.join(root,'book-of-business.js')});
   await page.evaluate(async()=>{await bobLoad();render();});
   await page.locator('.bob-select-client[data-id="client-0"]').first().click();
   await page.locator('#bobAddPolicy').waitFor();
