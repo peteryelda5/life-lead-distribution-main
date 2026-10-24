@@ -1,0 +1,18 @@
+{
+  "name": "life-lead-distribution-trial",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows trial of the existing Life Lead Distribution portal",
+  "main": "main.cjs",
+  "scripts": {
+    "prepare:ui": "node scripts/prepare-ui.cjs",
+    "test": "node --test tests/*.cjs",
+    "start": "npm run prepare:ui && electron .",
+    "package:windows": "npm run prepare:ui && npm test && node scripts/package-windows.cjs"
+  },
+  "devDependencies": {
+    "@electron/asar": "4.3.0",
+    "@supabase/supabase-js": "2.116.0",
+    "electron": "44.4.1"
+  }
+}
