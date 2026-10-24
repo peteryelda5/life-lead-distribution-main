@@ -7,7 +7,7 @@ async function testNavigation(){
  const wait=deferred(),S={profile:{id:'a'},session:{},tab:'dashboard',filter:'old',selected:new Set(['lead'])};let renders=0,loads=0;
  const surface=()=>({isConnected:true,setAttribute(){},removeAttribute(){},insertAdjacentHTML(){},remove(){}});
  const wrap=surface(),buttons=[{...surface(),dataset:{tab:'leads'}},{...surface(),dataset:{tab:'agents'}}];
- const c={S,portalSessionEpoch:0,q:s=>s==='.wrap'?wrap:surface(),qa:()=>buttons,render:()=>renders++,flash:()=>{},loadTabData:()=>{loads++;return wait.promise}};
+ const c={S,ONBOARDING:{userId:'a',complete:true},portalSessionEpoch:0,q:s=>s==='.wrap'?wrap:surface(),qa:()=>buttons,render:()=>renders++,flash:()=>{},loadTabData:()=>{loads++;return wait.promise}};
  vm.createContext(c);vm.runInContext(html.match(/let portalNavigationBusy=false;[\s\S]*?(?=function bindShell)/)[0],c);
  const first=c.navigatePortalTab('leads');assert.equal(S.tab,'leads');assert(wrap.inert);assert(buttons.every(b=>b.disabled));await c.navigatePortalTab('agents');assert.equal(loads,1);assert.equal(S.tab,'leads');wait.resolve();await first;assert.equal(renders,1);assert(!wrap.inert);assert(buttons.every(b=>!b.disabled));
  const failed=deferred();c.loadTabData=()=>failed.promise;let error='';c.flash=m=>error=m;const task=c.navigatePortalTab('agents');failed.reject(new Error('offline'));await task;assert.equal(S.tab,'leads');assert.equal(error,'offline');
