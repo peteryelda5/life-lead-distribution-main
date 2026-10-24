@@ -24,3 +24,9 @@ If an urgent rollback is necessary, disable the private gate flag before rolling
 - `node tests/onboarding-progress.test.cjs`, `node tests/signwell.test.cjs`: progress and existing signing behavior.
 - Existing portal loading/navigation, connection-error, push and passkey tests remain applicable.
 - `tests/sql/required-onboarding.sql`: all fixture writes and gate changes roll back.
+
+## Centered onboarding layout
+
+The October 24 centered design uses a horizontal six-step tracker and a single task card for Welcome, Licensing, Agreements, Training, Study and Exam. Full-name state tiles support search and expand/collapse; filtering never removes a checked state from the saved selection. Both signature statuses come from the existing agreement response. The final checklist stays on the exam page after saving, and the existing canonical gate controls Enter portal. Existing letters, signatures, saved progress, admin oversight and database rules are retained. This presentation release requires no migration.
+
+`NODE_PATH=<directory containing playwright> CHROMIUM_EXECUTABLE_PATH=<optional Chromium binary> node tests/centered-onboarding-browser.cjs` exercises the actual frontend with fictional API responses: all six desktop pages, 390px/320px layouts, licensing paths, all 51 state/DC choices, hidden selections, failed-save retry, signature statuses and final access. Screenshots go to `ONBOARDING_QA_DIR` or `/tmp/vivid-centered-onboarding-qa`; no real accounts, emails or signatures are changed.
