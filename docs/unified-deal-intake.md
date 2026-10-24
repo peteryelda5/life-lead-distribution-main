@@ -8,11 +8,9 @@ The database transaction creates the complete CRM policy first, then attaches th
 
 Request IDs plus a payload fingerprint make retries return the same deal. Changed payloads with the same request ID are rejected. Any downstream error rolls back the client, deal and request together. MFA, completed onboarding, assigned-lead ownership, agency access and eligible agent credit are checked on the server. No Book PIN is required to submit a deal; reading/editing the CRM still uses its existing gate.
 
-## Release status
+## Release order
 
-Prepared for review, not activated. Automatic approval review rejected the persistent migration to recovery because explicit authorization for the recovery/production database targets was required. No migration from this change has been applied to either remote database. Do not merge/deploy the new UI until the first migration is installed.
-
-## Release order after approval
+The user approved the Supabase rollout on October 24, 2026. Both migrations passed recovery verification, and the additive RPC passed production verification before UI deployment. Checks used transaction rollback, leaving no test clients, deals or announcements. Current deployment and enforcement status is recorded in PR #60.
 
 1. Recovery (`ebvubpcevljgjuhiraqn`): install `20261024195054_unified_deal_intake.sql`, then `20261024195553_enforce_complete_deal_intake.sql`. Verify with isolated rollback fixtures and review relevant database advisors.
 2. Production (`yfuuigykpihoetgaefmu`): install the first migration only. It adds one private request ledger, one public RPC with a private implementation, and an inactive validation trigger function. It does not change existing deals.
