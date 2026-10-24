@@ -99,3 +99,11 @@
 .bob-board-workspace .bob-pipeline-column.stage-chargeback{background:#fff3f4;border-color:#f2d9dd}
 
 .bob-contact-missing{border:1px solid #f1d493;border-radius:9px;padding:14px;margin-bottom:16px;background:#fff9eb;color:#79551b}.bob-contact-missing strong{font-size:14px}.bob-contact-missing p{font-size:12px;margin:6px 0 12px}.bob-contact-missing .btn{font-size:12px}
+
+/* Follow the page while keeping long client records independently scrollable.
+   overflow:clip preserves rounded edges without trapping sticky positioning. */
+.bob-page .bob-detail{scroll-margin-top:var(--bob-detail-top,92px)}
+@media(min-width:1051px){
+ .bob-page.bob-compact,.bob-page .bob-workspace{overflow:clip}
+ .bob-page .bob-workspace.has-detail>.bob-detail{position:sticky;align-self:start;top:var(--bob-detail-top,92px);max-height:calc(100vh - var(--bob-detail-top,92px) - 16px);max-height:calc(100dvh - var(--bob-detail-top,92px) - 16px);overflow-y:auto;scrollbar-gutter:stable}
+}
