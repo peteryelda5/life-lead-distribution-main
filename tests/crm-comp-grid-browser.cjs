@@ -27,7 +27,7 @@ const index=fs.readFileSync(path.join(root,'index.html'),'utf8'),styles=[...inde
     throw Error('Unexpected RPC '+n);
    };window.render=()=>{q('#app').innerHTML=bobPage();bobBind();};
   });
-  for(const file of ['crm-products.js','carrier-logos.js','book-of-business.js'])await page.addScriptTag({path:path.join(root,file)});
+  for(const file of ['crm-products.js','carrier-logos.js','client-phone.js','book-of-business.js'])await page.addScriptTag({path:path.join(root,file)});
   await page.evaluate(async()=>{await bobLoad();render();});await page.locator('[data-bob-tab=grid]').click();await page.locator('#bobCompResults').waitFor();
   const catalog=await page.evaluate(()=>PORTAL_CRM_PRODUCTS);assert.equal(catalog.length,15);assert(catalog.flatMap(c=>c.products).every(p=>p.every(v=>typeof v==='string')),'product catalog contains labels, never commission values');
   for(const c of catalog){assert(new Set(c.products.map(p=>p[0]+(p[1]?' — '+p[1]:''))).size===c.products.length);assert(c.products.every(p=>(p[0]+(p[1]?' — '+p[1]:'')).length<=100),'product name fits save RPC');}
