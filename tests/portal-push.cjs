@@ -14,6 +14,7 @@ global.fetch=async(url,opt)=>{
  calls.push({url,opt});
  if(url.endsWith('/auth/v1/user'))return json({id:u});
  if(url.endsWith('/require_portal_mfa'))return json(false,403);
+ if(url.endsWith('/require_portal_onboarding'))return json(true);
  if(url.endsWith('/portal_push_wake'))return json(wakeResult);
  if(url.endsWith('/portal_push_manage'))return json(manageResult);
  if(url.endsWith('/portal_push_batch'))return json([job]);
