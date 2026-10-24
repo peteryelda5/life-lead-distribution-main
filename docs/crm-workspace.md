@@ -43,9 +43,20 @@ client-actions, carrier-status and pipeline regressions.
 
 Open a client in Clients and choose **Delete client** in the profile header. The
 confirmation lists all policies being removed. This removes that CRM profile,
-its policy records, notes and tasks; it does not cancel carrier coverage or delete
-recorded Closed Business, leads or commission snapshots. The operation retains
-an audit snapshot. The API requires the current profile and every policy/deal
+its policy records, notes and tasks, and returns the contact to the same agent's
+My Leads. Linked clients keep their original lead folder, uploaded fields and call
+notes; manually entered clients use **Returned from CRM**. Updated CRM contact
+details replace corresponding CSV fields. Policy notes, client notes and open task
+reminders are copied into the returned lead's call notes. Multiple policies create
+one returned contact, marked **Call back** (known dead numbers remain marked dead).
+
+Recorded Closed Business and commission snapshots remain unchanged. A new working
+lead retains a private link to the original closed lead, so it can be worked and
+closed again without overwriting the previous sale. An already-open exact linked
+lead is reused. Returns never merge people by name or phone. The operation retains
+an audit snapshot and cannot delete the CRM profile unless the lead return succeeds.
+Repeating the same deletion returns the original result without creating another lead.
+This does not cancel carrier coverage. The API requires the current profile and every policy/deal
 version, the existing Book PIN/MFA, and permission to manage the whole profile.
 An unrelated or recently changed client cannot be deleted from a stale dialog.
 
@@ -64,6 +75,17 @@ Apply both `20261023172948_crm_client_deletion_and_carrier_tasks.sql` and
 Run `tests/crm-client-actions.sql` as a rollback-only check, plus the carrier and
 multiple-policy SQL regressions. Chromium coverage is in
 `tests/crm-client-actions-browser.cjs` and `tests/crm-workspace-browser.cjs`.
+
+The return behavior additionally requires
+`20261024212330_crm_deleted_clients_return_to_leads.sql`. Apply and verify in recovery,
+then production, before deploying the matching confirmation UI. This migration is
+currently blocked pending explicit approval after automatic approval review rejected
+the recovery database change. No remote changes from this migration have been made.
+The draft change has local PostgreSQL coverage in `tests/crm-delete-return-leads.cjs`
+(PGlite 0.5.11), plus the client-actions Chromium test. Lead upload and agency rules
+are preserved; only an exact, transaction-scoped private return record permits the
+CRM operation. No ordinary upload permissions are expanded and no old deletions are
+automatically restored.
 
 The existing Book of Business entry now contains Clients, Pipeline, Tasks and Comp grid.
 Clients uses the approved list with a profile sidebar; Pipeline uses the approved board with a sixth Chargeback column.
