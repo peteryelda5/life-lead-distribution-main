@@ -263,3 +263,35 @@ Chromium fixtures exercise actual file input, signature checks, decoding, previe
 upload/save, failed-save retry without duplicate upload, reset, role/agency display, graceful
 branding failure and existing CRM desktop/mobile workflows. The Storage SDK upload transport
 uses the portal's existing authenticated client; the browser suite mocks its network response.
+
+## Account consolidation and deletion choices
+
+Admins already have a personal **My deals** filter. Maintenance can consolidate a
+confirmed duplicate agent into its admin login with
+`private.consolidate_admin_agent`. This function is not exposed to portal/API roles.
+It archives the source profile, retains a private before-state snapshot, transfers
+clients/policies and production without recalculating captured commissions, and
+keeps lead agencies/folders intact. Exact portable assignments allow the admin to
+work those leads without receiving broad access to the source agency. Existing
+source JWTs fail active-profile checks. Legal records and unused billing setup
+remain historical; active provider assets stop the operation for separate handling.
+The four user-confirmed transfers were applied and verified in production.
+
+The CRM deletion dialog now offers **Delete & return to leads** and **Delete
+without returning to leads**. Both enforce current policy/profile versions,
+onboarding, MFA, Book PIN and ownership scope, and retain an audit snapshot.
+Delete-only leaves existing leads and recorded production unchanged. Old cached
+clients retain the default return behavior through the existing RPC.
+
+Deleting a deal through **Closed Business** now removes its exact linked CRM policy
+before the foreign key can detach it. Sibling policies remain; empty profiles are
+removed. Tasks, activity, carrier status and compensation are captured in the audit.
+The existing deal-removal flow reopens its linked lead, including active admin and
+portable assignments. Historical orphan policies are not mass-deleted by this change.
+
+Validation: `tests/admin-account-consolidation.sql` ran inside rolled-back recovery
+and production transfers and again in the committed transfer transaction.
+`tests/crm-deletion-options.sql` verifies real database RPCs in a rolled-back
+transaction. `tests/crm-client-actions-browser.cjs` covers both buttons, mobile
+layout, exact payloads, stale-dialog failure, duplicate-click protection and
+account changes while a request is pending.
