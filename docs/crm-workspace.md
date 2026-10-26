@@ -77,11 +77,13 @@ multiple-policy SQL regressions. Chromium coverage is in
 `tests/crm-client-actions-browser.cjs` and `tests/crm-workspace-browser.cjs`.
 
 The return behavior additionally requires
-`20261024212330_crm_deleted_clients_return_to_leads.sql`. Apply and verify in recovery,
-then production, before deploying the matching confirmation UI. This migration is
-currently blocked pending explicit approval after automatic approval review rejected
-the recovery database change. No remote changes from this migration have been made.
-The draft change has local PostgreSQL coverage in `tests/crm-delete-return-leads.cjs`
+`20261024212330_crm_deleted_clients_return_to_leads.sql`, followed by
+`20261026011323_crm_return_generated_lead_status.sql`. The correction respects the
+existing generated dead-number column. Apply both in one transaction on a fresh
+target, then verify before deploying the matching UI. The user approved recovery
+and production deployment; recovery integration passed with rollback-only fixtures.
+Current rollout status is recorded in PR #61.
+The change has local PostgreSQL coverage in `tests/crm-delete-return-leads.cjs`
 (PGlite 0.5.11), plus the client-actions Chromium test. Lead upload and agency rules
 are preserved; only an exact, transaction-scoped private return record permits the
 CRM operation. No ordinary upload permissions are expanded and no old deletions are
