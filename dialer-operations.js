@@ -16,6 +16,7 @@
   const dialog=document.createElement('dialog');dialog.className='agent-schedule-dialog';dialog.setAttribute('aria-labelledby','scheduleTitle');
   dialog.innerHTML='<form id="scheduleForm"><h2 id="scheduleTitle">Schedule callback</h2><p id="scheduleName"></p><label>Callback date &amp; time<input id="scheduleDue" type="datetime-local" required></label><small id="scheduleTimezone"></small><label>Reminder note<textarea id="scheduleNote" maxlength="1000" rows="3"></textarea></label><p id="scheduleMessage" role="status"></p><div><button id="scheduleCancel" type="button">Cancel</button><button id="scheduleSave" class="primary" type="submit">Save callback</button></div></form>';
   root.append(priority,team,dialog);
+  const liveMonitor=window.createDialerMonitor?.(team,options);
   async function request(action,extra={}){
    if(!sameOwner())throw Error('Your account changed. Reload the dialer.');const s=await options.getSession();
    if(!sameOwner())throw Error('Your account changed.');
@@ -24,7 +25,7 @@
    if(!sameOwner())throw Error('Your account changed.');if(!r.ok)throw Error(data.error||'Agent workspace unavailable.');return data;
   }
   function activity(){return options.getActivity()||'idle';}
-  function canDial(){return sameOwner()&&!changing&&verifiedAt>Date.now()-45000&&mode==='ready';}
+  function canDial(){return !liveMonitor?.active()&&sameOwner()&&!changing&&verifiedAt>Date.now()-45000&&mode==='ready';}
   function draw(){
    if(disposed)return;const current=activity(),fresh=verifiedAt>Date.now()-45000;
    const chosen=pendingMode??mode,status=current==='idle'?chosen:current;
@@ -74,7 +75,7 @@
   }
   async function loadPriorityAfter(){if(priorityFlight)await priorityFlight;return loadPriority();}
   async function loadTeam(){
-   if(!supervisor||supervisorFlight)return;supervisorFlight=true;
+   if(!supervisor||supervisorFlight)return;liveMonitor?.refresh();supervisorFlight=true;
    try{const d=await request('supervisor'),agents=d.agents||[];const rows=$('teamRows');rows.replaceChildren();
     for(const a of agents){const tr=document.createElement('tr'),name=document.createElement('td');name.append(textElement('strong',a.full_name||'Agent'),textElement('small',String(a.division||'').replace(/_/g,' ')));tr.append(name);
      const state=textElement('td',labels[a.state]||a.state);if(a.requested_mode&&a.requested_mode!=='ready'&&['on_call','dialing','wrap'].includes(a.state))state.append(textElement('small',labels[a.requested_mode]+' next'));tr.append(state);
@@ -96,7 +97,7 @@
    $('scheduleSave').disabled=true;try{await request('schedule',{id:scheduleId,leadId:scheduleLead.id,dueAt:due.toISOString(),note:$('scheduleNote').value});dialog.close();await loadPriorityAfter();}catch(error){$('scheduleMessage').textContent=error.message;}finally{$('scheduleSave').disabled=false;}
   };
   const timer=setInterval(()=>{if(!sameOwner()){dispose();return;}draw();options.onChange();presence();if(visible&&!document.hidden){loadPriority().catch(()=>{});if(activeView==='supervisor')loadTeam();}},15000);
-  function dispose(){if(disposed)return;visible=false;if(sameOwner())request('presence',{browserId,activity:'idle',visible:false}).catch(()=>{});disposed=true;clearInterval(timer);if(dialog.open)dialog.close();bar.remove();priority.remove();team.remove();dialog.remove();}
+  function dispose(){if(disposed)return;visible=false;if(sameOwner())request('presence',{browserId,activity:'idle',visible:false}).catch(()=>{});liveMonitor?.dispose();disposed=true;clearInterval(timer);if(dialog.open)dialog.close();bar.remove();priority.remove();team.remove();dialog.remove();}
   presence();loadPriority().catch(()=>{});
   return {canDial,changed,dispose,mode:()=>mode,setVisible(value){visible=value;presence();},show(view){activeView=view;if(view==='priority')loadPriority().catch(()=>{});if(view==='supervisor')loadTeam();},async beforeNext(){
    if(!canDial())return false;

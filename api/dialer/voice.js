@@ -7,6 +7,7 @@ module.exports=async function(req,res){
   if(req.method!=='POST'){res.setHeader('Allow','POST');return res.status(405).send('<Response><Hangup/></Response>');}
   try{
     const c=config(),b=req.body;
+    if(b?.MonitorGrant)return require('../../lib/dialer-monitor').voice(req,res);
     if(b?.ParallelGrant)return require('../../lib/dialer-parallel').voice(req,res);
     let audience;try{audience=JSON.parse(Buffer.from(String(b?.CallGrant).split(".")[1],"base64url")).aud}catch{}
     if(audience==="vivid_dialer_full_v1")return require("../../lib/dialer-full-voice")(req,res,await require("../../lib/dialer-at-cost-provider").callbackContext(b?.AccountSid));
