@@ -7,6 +7,7 @@ window.createParallelPilot=function(root,options){
  let health=null;
  let device=null,call=null,id=null,token=null,generation=0,muted=false,last=null,editor=null,canCall=false;
  let folders=[],rows=[],states=[],offset=0,count=0,folder=0,batchReady=false,presentedWinner=null,connectedAt=0,endedAt=0,returnFocus=null;
+ const batchOutcomes=new Map();let reviewedBatch=null;
  const selected=new Map(),known=new Map(),cards=new Map(),returned=new Map();
  const button=document.createElement('button');button.dataset.view='parallel';button.textContent='Power Dialer';button.setAttribute('aria-selected','false');button.onclick=()=>options.openView('parallel');root.querySelector('.workspace-tabs').append(button);
  const panel=document.createElement('main');panel.id='parallel';panel.className='secondary-view power-workspace';panel.hidden=true;
@@ -22,6 +23,7 @@ window.createParallelPilot=function(root,options){
  <p id="powerPoolInfo" class="power-hint" hidden></p>
  <p id="powerMessage" class="power-message" role="status" aria-live="polite">Load your leads to get started.</p>
  <div id="powerReturned" class="power-notice" role="status" hidden></div><div id="powerSkipped" class="power-notice" hidden></div><div id="powerCards" class="power-lines" aria-label="Live call lines"></div>
+ <section id="powerBatchReview" class="power-batch-review" hidden aria-label="Batch outcomes"><div><h3>Finish this batch</h3><p>Choose outcomes below. Keep automatic results for lines you did not speak with.</p></div><div id="powerBatchOutcomes"></div><button id="powerBatchSaveNext" class="primary">Save &amp; Call Next 3</button><p id="powerBatchSaveMessage" role="status"></p></section>
  <button id="powerReopen" class="primary power-reopen" hidden>Open connected lead</button>
  <dialog id="powerConnectedDialog" class="power-connected-dialog" aria-modal="false" aria-labelledby="powerConnectedTitle"><header class="power-dialog-header"><h2 id="powerConnectedTitle">Connected call</h2><div class="power-dialog-actions"><button id="powerDialogExpand" aria-expanded="false" aria-label="Expand call panel">Expand</button><button id="powerDialogMinimize" aria-label="Minimize call panel">Minimize</button></div></header><div id="powerDialogBody"></div><footer class="power-dialog-footer"><p id="powerDialogMessage" class="power-message" role="status" aria-live="polite"></p><div class="power-dialog-controls"><button id="powerDialogMute" disabled>Mute</button><button id="powerDialogStop" class="danger" disabled>End call</button><button id="powerDialogSave" class="primary" disabled>Save outcome</button></div></footer></dialog>
  <div class="power-columns"><section class="power-panel power-queue" aria-labelledby="powerQueueTitle"><div class="power-section-title"><div><h3 id="powerQueueTitle">Lead queue</h3><p id="powerCount">0 selected</p></div><button id="powerReload">Refresh leads</button></div>
@@ -64,12 +66,15 @@ window.createParallelPilot=function(root,options){
  async function request(path,body){ensure();const session=await options.getSession();ensure();token=session.access_token;const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(60000)});const data=await response.json();ensure();if(!response.ok){const error=Error(data.error||'The dialer could not complete this request. Please retry.');error.status=response.status;throw error;}return data;}
  const api=body=>request('/api/dialer/parallel',body),workspace=body=>request('/api/dialer/workspace-v2',body);
  function controls(){
-  const dirty=!!editor&&($('powerNotes').value!==(editor.call_notes||'')||!!$('powerOutcome').value);const locked=busy||loading||wrap;options.onBusyChange(busy||wrap||dirty);
+  const dirty=!!editor&&($('powerNotes').value!==(editor.call_notes||'')||!!$('powerOutcome').value);const locked=busy||loading||wrap||batchOutcomes.size>0;options.onBusyChange(busy||wrap||dirty||batchOutcomes.size>0);
   for(const el of panel.querySelectorAll('.power-toolbar select,.power-filters select,.power-filters input,.power-filters button,.power-queue-actions button'))el.disabled=locked;
   for(const el of panel.querySelectorAll('.power-rows input'))el.disabled=locked||el.dataset.callable!=='true';for(const el of panel.querySelectorAll('.power-rows button'))el.disabled=locked;
   for(const el of panel.querySelectorAll('.power-history button'))el.disabled=busy||wrap;
   $('powerReload').disabled=locked;$('powerPrevious').disabled=locked||offset===0;$('powerNext').disabled=locked||offset+500>=count;
   const size=Math.min(Number($('powerLines').value),selected.size);$('powerStart').textContent='Call next '+(size||$('powerLines').value);$('powerStart').disabled=locked||!canCall||!selected.size||!$('powerCaller').value||(options.canDial&&!options.canDial());
+  $('powerBatchSaveNext').disabled=busy||loading;
+  $('powerBatchSaveNext').textContent=selected.size?'Save & Call Next '+Math.min(Number($('powerLines').value),selected.size):'Save batch';
+  for(const input of $('powerBatchOutcomes').querySelectorAll('select'))input.disabled=busy||loading;
   $('powerReopen').hidden=!editor||dialog.open;$('powerReopen').textContent=busy?'Open connected lead':'Open lead summary';
   $('powerConnectedTitle').textContent=busy&&wrap?'Connected call':wrap?'Call summary':'Lead information';
   $('powerConnectedState').textContent=stopping&&busy?'Ending calls…':busy?'Connected to '+name(editor):wrap?'Call ended — save your notes and outcome.':presentedWinner?'Call summary':'Review lead details.';
@@ -128,7 +133,7 @@ window.createParallelPilot=function(root,options){
  function lineCard(position){let card=cards.get(position);if(!card){card=document.createElement('button');card.type='button';card.className='power-line';card.innerHTML='<span class="power-line-top"><span class="power-line-number"></span><span class="power-line-state"></span></span><span class="power-line-person"><span class="power-line-avatar" aria-hidden="true"></span><span class="power-line-info"><strong></strong><span class="power-line-phone"></span></span></span>';card.querySelector('.power-line-number').textContent='LINE '+position;cards.set(position,card);$('powerCards').append(card);}return card;}
  function idleLines(){if(last)return;const size=Number($('powerLines').value);for(let position=1;position<=3;position++){const card=lineCard(position);card.hidden=position>size;card.disabled=true;card.classList.add('is-idle');card.querySelector('.power-line-avatar').textContent='—';card.querySelector('strong').textContent='Line available';card.querySelector('.power-line-phone').textContent='Select leads to begin';card.querySelector('.power-line-state').textContent='Standby';}}
  async function loadRows(){const body={action:'leads',offset,states};if(folder>0)body.folder=folders[folder-1].lead_type;const d=await workspace(body);rows=d.leads||[];count=Number(d.count||0);rows.forEach(l=>known.set(l.id,l));const box=$('powerStateChoices');box.replaceChildren();for(const state of d.states||[]){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=state.state||'';input.checked=states.includes(input.value);label.append(input,document.createTextNode((state.state||'State not set')+' ('+Number(state.lead_count)+')'));box.append(label);}$('powerStateSummary').textContent=states.length?states.map(s=>s||'State not set').join(', '):'All states';renderRows();}
- async function work(fn){if(loading||busy||wrap)return;loading=true;controls();try{await fn();}catch(e){message(e.message,true);}finally{loading=false;renderRows();}}
+ async function work(fn){if(loading||busy||wrap||batchOutcomes.size)return;loading=true;controls();try{await fn();}catch(e){message(e.message,true);}finally{loading=false;renderRows();}}
  async function loadFolders(){const d=await workspace({action:'folders'});folders=d.folders||[];const select=$('powerFolder');select.replaceChildren(new Option('All my leads','0'));folders.forEach((f,i)=>select.add(new Option((f.lead_type||'Unlabeled')+' ('+f.lead_count+')',String(i+1))));folder=0;offset=0;states=[];selected.clear();await loadRows();}
  function render(s){
   if(!s)return;if(s.state==='complete'&&s.id===id)returnUnconnected(s);last=s;const labels={prepared:'Ready',creating:'Starting',queued:'Starting',ringing:'Ringing', 'in-progress':'Answered',completed:'Ended',busy:'Busy',failed:'Number could not connect','no-answer':'No answer',canceled:'Stopped'};
@@ -141,8 +146,41 @@ window.createParallelPilot=function(root,options){
   $('powerConnection').textContent=({prepared:'Connecting headset',ready:'Headset ready',dialing:'Calling',connected:'Connected',stopping:'Ending calls',complete:'Batch finished'}[s.state]||s.state);
   $('powerConnection').dataset.state=s.state;for(const row of $('powerRows').querySelectorAll('[data-lead-id]'))row.querySelector('input').checked=selected.has(row.dataset.leadId);updateRowStates();
   const winner=s.legs?.find(l=>l.id===s.winnerId);if(winner&&s.id===id){const lead=known.get(winner.leadId);openLead(lead,true);const key=s.id+':'+winner.id;if(lead&&editor?.id===lead.id&&presentedWinner!==key){presentedWinner=key;connectedAt=Date.now();endedAt=0;message('Connected to '+name(lead)+'. Your lead information is open.');showConnectedLead();}}
-  if(s.state==='complete'&&s.id===id){if(connectedAt&&!endedAt)endedAt=Date.now();id=null;stopping=false;release();renderRows();message(wrap?'Call ended. Save your notes and outcome to continue.':'Batch finished. Review the line results, then start your next batch.');refresh().catch(e=>message(e.message,true));}
+  if(s.state==='complete'&&s.id===id){if(connectedAt&&!endedAt)endedAt=Date.now();id=null;stopping=false;release();renderRows();showBatchReview(s);message(wrap?'Call ended. Save your notes and outcome to continue.':'Batch finished. Review the line results, then start your next batch.');refresh().catch(e=>message(e.message,true));}
  }
+ function showBatchReview(s){
+  if(reviewedBatch===s.id)return;reviewedBatch=s.id;batchOutcomes.clear();const box=$('powerBatchOutcomes');box.replaceChildren();
+  for(const leg of s.legs||[]){const lead=known.get(leg.leadId);if(!lead)continue;
+   const row=document.createElement('label'),title=document.createElement('strong'),result=document.createElement('span'),select=document.createElement('select');row.className='power-batch-outcome';title.textContent=name(lead);result.textContent=cards.get(leg.position)?.querySelector('.power-line-state').textContent||leg.state;select.dataset.leadId=lead.id;select.setAttribute('aria-label','Outcome for '+name(lead));
+   select.add(new Option(leg.id===s.winnerId?'Choose conversation outcome':'Keep automatic result',''));
+   for(const [value,label] of [['appointment_follow_up','Appointment / follow-up'],['call_back','Call back'],['not_interested','Not interested'],['dead_number','Dead number']])select.add(new Option(label,value));
+   if(editor?.id===lead.id)select.value=$('powerOutcome').value;
+   if(select.value)batchOutcomes.set(lead.id,select.value);
+   select.onchange=()=>{if(select.value)batchOutcomes.set(lead.id,select.value);else batchOutcomes.delete(lead.id);if(editor?.id===lead.id)$('powerOutcome').value=select.value;controls();};row.append(title,result,select);box.append(row);
+  }
+  $('powerBatchSaveMessage').textContent='';$('powerBatchReview').hidden=!box.children.length;controls();
+ }
+ async function saveBatchNext(){
+  if(busy||loading)return;
+  if(editor&&$('powerOutcome').value)batchOutcomes.set(editor.id,$('powerOutcome').value);
+  if(wrap&&editor&&!batchOutcomes.get(editor.id)){minimizeLead();$('powerBatchSaveMessage').textContent='Choose an outcome for '+name(editor)+'. The other lines can keep their automatic results.';return;}
+  if(editor&&$('powerNotes').value!==(editor.call_notes||'')&&!batchOutcomes.get(editor.id)){message('Choose an outcome for the lead with unsaved notes.',true);return;}
+  loading=true;controls();let complete=false;
+  try{
+   for(const [leadId,status] of [...batchOutcomes]){
+    const lead=editor?.id===leadId?editor:known.get(leadId);if(!lead)throw Error('Reload this lead before saving.');
+    const notes=editor?.id===leadId?$('powerNotes').value:(lead.call_notes||'');
+    const d=await workspace({action:'save',leadId,status,notes,expectedNotes:lead.call_notes,expectedStatus:lead.agent_status});rememberLeads([d.lead]);selected.delete(leadId);returned.delete(leadId);batchOutcomes.delete(leadId);
+    if(editor?.id===leadId){editor={...d.lead};wrap=false;$('powerNotes').value=d.lead.call_notes||'';$('powerOutcome').value='';}
+    const input=[...$('powerBatchOutcomes').querySelectorAll('select')].find(el=>el.dataset.leadId===leadId);if(input){input.value='';input.options[0].textContent='Saved · '+status.replace(/_/g,' ');}
+   }
+   complete=true;minimizeLead();$('powerBatchReview').hidden=true;message('Batch saved.');
+  }catch(e){$('powerBatchSaveMessage').textContent=e.message+' Saved outcomes are kept; retry the remaining outcomes.';}finally{loading=false;renderRows();}
+  if(!complete)return;if(!selected.size)return message('Batch saved. Your selected queue is finished.');
+  if(options.beforeNext&&!await options.beforeNext())return;
+  if(current()&&!busy&&!loading&&!wrap&&(!options.canDial||options.canDial()))await $('powerStart').onclick();
+ }
+ $('powerBatchSaveNext').onclick=saveBatchNext;
  async function refresh(){const d=await api({action:'options'});canCall=d.canCall===true;$('powerPoolInfo').hidden=!d.callerPool;$('powerPoolInfo').textContent=d.callerPool?'Shared caller IDs · '+d.callerPool.count+' numbers rotate per lead. Callbacks route to the original agent. Agency usage charges apply.':'';const old=$('powerCaller').value;$('powerCaller').replaceChildren();for(const phone of d.numbers||[])$('powerCaller').add(new Option((d.callerPool?'Shared pool · fallback ':'')+phone,phone));if(d.numbers?.includes(old))$('powerCaller').value=old;if(!d.numbers?.length)$('powerCaller').add(new Option('Activate a caller ID',''));$('powerSetup').hidden=canCall&&!!d.numbers?.length;
   const box=$('powerHistory');box.replaceChildren();for(const s of d.sessions||[]){const row=document.createElement('div');row.className='power-history-row';const label=document.createElement('span');label.textContent=new Date(s.created_at).toLocaleString()+' · '+s.state+(s.kind==='test'?' · Earlier test':'');const view=document.createElement('button');view.textContent='Review';view.disabled=busy||wrap;view.onclick=async()=>{try{const result=await api({action:'status',id:s.id,details:true});(result.leads||[]).forEach(l=>known.set(l.id,l));render(result.session);message('Select a line card to review that lead or save a follow-up.');}catch(e){message(e.message,true);}};row.append(label,view);if(s.state!=='complete'){const stop=document.createElement('button');stop.textContent='End batch';stop.onclick=async()=>{try{await api({action:'stop',id:s.id});await refresh();message('Batch stop requested. Refresh to check the result.');}catch(e){message(e.message,true);}};row.append(stop);}box.append(row);}if(!box.children.length)box.textContent='Your recent batches will appear here.';controls();
  }
@@ -151,10 +189,11 @@ window.createParallelPilot=function(root,options){
  $('powerStart').onclick=async()=>{
   if(options.canDial&&!options.canDial()){message('Set your agent status to Ready and wait for the connection before calling.',true);return;}
   if(busy||wrap||loading||options.isBusy()){message('Finish your current call and save its outcome before starting a batch.',true);return;}
+  if(batchOutcomes.size)return message('Save the batch outcomes before starting the next calls.',true);
   if(editor&&($('powerNotes').value!==(editor.call_notes||'')||$('powerOutcome').value))return message('Save this lead’s notes and outcome before starting a batch.',true);
   const unique=new Set(),batch=[];for(const lead of selected.values()){if(callable(lead)&&!unique.has(phone(lead))){batch.push(lead);unique.add(phone(lead));}if(batch.length===Number($('powerLines').value))break;}
   if(!batch.length)return message('Select at least one lead with a valid US phone number.',true);
-  const attempt=++generation;busy=true;stopping=false;batchReady=false;$('powerReturned').hidden=true;resetEditor();controls();message('Checking your microphone and calling access…');let prepared=false,target=null;
+  const attempt=++generation;busy=true;stopping=false;batchReady=false;$('powerReturned').hidden=true;resetEditor();batchOutcomes.clear();reviewedBatch=null;$('powerBatchReview').hidden=true;controls();message('Checking your microphone and calling access…');let prepared=false,target=null;
   try{ensure();if(!window.Twilio?.Device)throw Error('Calling support did not load. Refresh Agent Dialer.');if(!navigator.mediaDevices?.getUserMedia)throw Error('Microphone access is unavailable. Open this page in a supported browser.');const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());ensure();if(attempt!==generation)return;
    target=crypto.randomUUID();id=target;const d=await api({action:'prepareLeads',id:target,callerId:$('powerCaller').value,leadIds:batch.map(l=>l.id),connectMode:$('powerMode').value});prepared=true;batchReady=true;const skipped=$('powerSkipped');skipped.replaceChildren();skipped.hidden=!d.skipped?.length;for(const item of d.skipped||[]){const row=document.createElement('p');row.textContent=name(known.get(item.leadId))+' · Skipped: '+item.reason;skipped.append(row);}
    if(attempt!==generation){await stop();return;}(d.leads||batch).forEach(l=>known.set(l.id,l));for(const leg of d.session.legs||[]){selected.delete(leg.leadId);returned.delete(leg.leadId);}render(d.session);
@@ -166,6 +205,7 @@ window.createParallelPilot=function(root,options){
   if(busy||loading||!editor)return;const status=$('powerOutcome').value;if(!status)return $('powerSaveMessage').textContent='Choose an outcome before saving.';
   loading=true;controls();let saved=false;
   try{const d=await workspace({action:'save',leadId:editor.id,status,notes:$('powerNotes').value,expectedNotes:editor.call_notes,expectedStatus:editor.agent_status});
+   batchOutcomes.delete(d.lead.id);const batchSelect=[...$('powerBatchOutcomes').querySelectorAll('select')].find(el=>el.dataset.leadId===d.lead.id);if(batchSelect){batchSelect.value='';batchSelect.options[0].textContent='Saved outcome';}
    known.set(d.lead.id,d.lead);rows=rows.map(l=>l.id===d.lead.id?d.lead:l);editor={...d.lead};wrap=false;saved=true;
    $('powerNotes').value=d.lead.call_notes||'';$('powerOutcome').value='';$('powerLeadBadge').textContent='Saved';$('powerSaveMessage').textContent='Notes and outcome saved.';
    message('Saved. Start the next batch when you are ready.');minimizeLead();
@@ -174,7 +214,7 @@ window.createParallelPilot=function(root,options){
    if(!disposed&&!busy&&!loading&&!wrap&&(!options.canDial||options.canDial()))await $('powerStart').onclick();}
  }
  $('powerSave').onclick=$('powerDialogSave').onclick=()=>saveOutcome(false);$('powerSaveNext').onclick=()=>saveOutcome(true);
- $('powerNotes').oninput=controls;$('powerOutcome').onchange=controls;
+ $('powerNotes').oninput=controls;$('powerOutcome').onchange=()=>{const input=[...$('powerBatchOutcomes').querySelectorAll('select')].find(el=>el.dataset.leadId===editor?.id);if(input){input.value=$('powerOutcome').value;if(input.value)batchOutcomes.set(editor.id,input.value);else batchOutcomes.delete(editor.id);}controls();};
  $('powerStop').onclick=$('powerDialogStop').onclick=()=>{health?.record('user_hangup');return stop();};$('powerMute').onclick=$('powerDialogMute').onclick=()=>{if(call){muted=!muted;call.mute(muted);$('powerMute').textContent=muted?'Unmute':'Mute';controls();}};
  $('powerBilling').onclick=()=>options.openView('billing');$('powerLines').onchange=()=>{idleLines();controls();};
  $('powerSearch').oninput=renderRows;$('powerFolder').onchange=()=>work(async()=>{folder=Number($('powerFolder').value);offset=0;states=[];selected.clear();await loadRows();});$('powerApplyStates').onclick=()=>work(async()=>{states=[...$('powerStateChoices').querySelectorAll('input:checked')].map(x=>x.value);offset=0;selected.clear();$('powerStates').open=false;await loadRows();});
@@ -182,8 +222,8 @@ window.createParallelPilot=function(root,options){
  const timer=setInterval(poll,1200),clockTimer=setInterval(updateCallTime,1000);
  function abandon(){health?.record('page_exit');health?.flush(true);if(id&&token)fetch('/api/dialer/parallel',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({action:'stop',id}),keepalive:true}).catch(()=>{});}
  function dispose(){if(disposed)return;abandon();minimizeLead();disposed=true;id=null;clearInterval(timer);clearInterval(clockTimer);viewObserver.disconnect();root.classList.remove('power-sidebar-open','power-view-active');window.removeEventListener('storage',storage);window.removeEventListener('pagehide',pagehide);window.removeEventListener('beforeunload',beforeunload);release();panel.remove();button.remove();}
- function storage(e){if(e.key==='lld_session'&&!current())dispose();}function pagehide(){abandon();call?.disconnect();device?.destroy();}function beforeunload(e){if(busy||wrap||(editor&&$('powerNotes').value!==(editor.call_notes||''))){e.preventDefault();e.returnValue='';}}
+ function storage(e){if(e.key==='lld_session'&&!current())dispose();}function pagehide(){abandon();call?.disconnect();device?.destroy();}function beforeunload(e){if(busy||wrap||batchOutcomes.size||(editor&&$('powerNotes').value!==(editor.call_notes||''))){e.preventDefault();e.returnValue='';}}
  window.addEventListener('storage',storage);window.addEventListener('pagehide',pagehide);window.addEventListener('beforeunload',beforeunload);
  idleLines();
- return {show(){if(!shown){shown=true;work(async()=>{await Promise.all([refresh(),loadFolders()]);message('Choose your folder and states, select leads, then start a batch.');});}},dispose,conversation:()=>busy&&last?.winnerId?{kind:'power',id:last.id,active:last.state==='connected',label:last.legs.find(l=>l.id===last.winnerId)?.phone}:null,changed:controls,lead:()=>editor,activity:()=>busy?(last?.winnerId?'on_call':'dialing'):(wrap||!!editor&&($('powerNotes').value!==(editor.call_notes||'')||!!$('powerOutcome').value))?'wrap':null,isBusy:()=>busy||wrap||!!editor&&($('powerNotes').value!==(editor.call_notes||'')||!!$('powerOutcome').value)};
+ return {show(){if(!shown){shown=true;work(async()=>{await Promise.all([refresh(),loadFolders()]);message('Choose your folder and states, select leads, then start a batch.');});}},dispose,conversation:()=>busy&&last?.winnerId?{kind:'power',id:last.id,active:last.state==='connected',label:last.legs.find(l=>l.id===last.winnerId)?.phone}:null,changed:controls,lead:()=>editor,activity:()=>busy?(last?.winnerId?'on_call':'dialing'):(wrap||batchOutcomes.size>0||!!editor&&($('powerNotes').value!==(editor.call_notes||'')||!!$('powerOutcome').value))?'wrap':null,isBusy:()=>busy||wrap||batchOutcomes.size>0||!!editor&&($('powerNotes').value!==(editor.call_notes||'')||!!$('powerOutcome').value)};
 };

@@ -97,7 +97,10 @@ class Call extends Events{status(){return this.ended?'closed':'open';}disconnect
  $('powerClear').click();$('powerSelect').click();$('powerStart').click();await flush();state.state='connected';state.winnerId=state.legs[0].id;state.legs[0].outcome='connected';await timers.find(t=>t.ms===1200).fn();await flush();
  assert.equal($('agentState').textContent,'On call');$('powerDialogStop').click();await flush();assert.equal($('agentState').textContent,'Finishing notes');
  $('powerNotes').value='Save-next draft';$('powerOutcome').value='call_back';saveError=true;const beforeNextStarts=starts;$('powerSaveNext').click();await flush();assert.equal(starts,beforeNextStarts);assert.equal($('powerNotes').value,'Save-next draft');assert.match($('powerSaveMessage').textContent,/changed/);
- saveError=false;$('powerSaveNext').click();await flush();assert.equal(starts,beforeNextStarts+1);$('powerStop').click();await flush();
+ assert.equal($('powerBatchReview').hidden,false);assert.equal($('powerBatchOutcomes').querySelectorAll('select').length,3);
+ const quickWinner=$('powerBatchOutcomes').querySelector('select[data-lead-id="'+leads[0].id+'"]');quickWinner.value='call_back';quickWinner.dispatchEvent(new w.Event('change'));assert.equal($('powerOutcome').value,'call_back');
+ $('powerBatchSaveNext').click();await flush();assert.equal(starts,beforeNextStarts);assert.match($('powerBatchSaveMessage').textContent,/remaining outcomes/);assert.equal(quickWinner.value,'call_back');
+ saveError=false;$('powerBatchSaveNext').click();$('powerBatchSaveNext').click();await flush();assert.equal(starts,beforeNextStarts+1);$('powerStop').click();await flush();
  // Due callbacks intercept the next batch and opening them never marks them handled.
  $('powerRows').querySelector('button').click();$('powerOutcome').value='call_back';priorityTasks=[{id:'task',source:'power',reason:'Answered without agent',phone:leads[0].phone,due_at:new Date().toISOString(),matches:[leads[0]]}];
  $('powerSaveNext').click();await flush();assert.equal($('priority').hidden,false);assert.equal(starts,beforeNextStarts+1);assert.match($('priorityRows').textContent,/Answered without agent/);
@@ -113,6 +116,13 @@ class Call extends Events{status(){return this.ended?'closed':'open';}disconnect
  activeDevice.emit('error',{code:31005});await flush();assert.equal(activeCall.status(),'open');assert.match($('manual-status').textContent,/Keeping your current call open/);activeCall.emit('error',{code:31005});await flush();assert.equal(activeCall.status(),'open');$('manual-hangup').click();await flush();assert.equal(activeCall.status(),'closed');
  assert(requests.some(r=>r.url==='/api/dialer/client-health'&&r.kind==='call'&&r.events.some(e=>e.type==='user_hangup')),'Manual/regular hangup diagnostics missing');
  root.querySelector('[data-view="parallel"]').click();await flush();
+ // All three line outcomes can be saved together without opening individual cards.
+ $('powerClear').click();$('powerSelect').click();$('powerStart').click();await flush();$('powerStop').click();await flush();
+ const quickChoices=[...$('powerBatchOutcomes').querySelectorAll('select')];assert.equal(quickChoices.length,3);
+ for(const choice of quickChoices){choice.value='not_interested';choice.dispatchEvent(new w.Event('change'));}
+ const batchSaves=requests.filter(r=>r.action==='save').length,batchStarts=starts;
+ $('powerBatchSaveNext').click();$('powerBatchSaveNext').click();await flush();
+ assert.equal(requests.filter(r=>r.action==='save').length,batchSaves+3);assert.equal(starts,batchStarts,'Finished queue must not redial disposed leads');assert.equal($('powerBatchReview').hidden,true);assert.match($('powerCount').textContent,/0 selected/);
  // Existing subscriptions stay required, with visible setup guidance for new agents.
  access=false;$('powerRefreshHistory').click();await flush();assert.equal($('powerSetup').hidden,false);assert.equal($('powerStart').disabled,true);
  w.localStorage.setItem('lld_session',JSON.stringify({user:{id:'other'},access_token:'other'}));w.dispatchEvent(new w.StorageEvent('storage',{key:'lld_session'}));assert.equal(root.querySelector('#parallel'),null);
