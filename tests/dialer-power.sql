@@ -1,3 +1,4 @@
+begin;
 -- Synthetic users, sessions, leads and billing rows; everything rolls back.
 do $$
 declare u uuid:=gen_random_uuid(); other_user uuid:=gen_random_uuid(); auth_session uuid:=gen_random_uuid(); batch uuid:=gen_random_uuid(); new_batch uuid;
@@ -84,3 +85,5 @@ begin
  if exists(select 1 from auth.users where id in(u,other_user)) or exists(select 1 from public.dialer_parallel_sessions where user_id=u) then raise exception 'Fixtures persisted';end if;
 end $$;
 select 'PASS: all active roles, paid access, session/lead/caller isolation, idempotent batches, single winner, durable overflow notes without duplicates, preserved agent edits/status/folder, per-line usage, invalid number isolation, no test cap, reassignment protection, private permissions, full fixture rollback.' as result;
+
+rollback;

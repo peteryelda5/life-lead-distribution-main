@@ -1,3 +1,4 @@
+begin;
 -- Transactional regression; all fixture rows roll back, even on a passing run.
 do $$
 declare actor uuid; c jsonb; again jsonb; cid uuid; source uuid:=gen_random_uuid(); d jsonb;
@@ -29,3 +30,5 @@ begin
   raise exception 'rollback successful fixtures' using errcode='PT001';
  exception when sqlstate 'PT001' then null;end;
 end $$;
+
+rollback;

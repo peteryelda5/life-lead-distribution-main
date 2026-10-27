@@ -20,10 +20,10 @@ begin
  update public.dialer_accounts set subscription_status='at_cost_pending' where user_id=u and livemode;
  if not public.dialer_parallel_allowed(u) or public.dialer_parallel_can_call(u,account) then raise exception 'Missing payment gate bypassed';end if;
  update public.dialer_accounts set subscription_status='at_cost',subscription_id='sub_fixture' where user_id=u and livemode;
- if public.dialer_parallel_allowed(u) then raise exception 'Paid subscription included';end if;
+ if not public.dialer_parallel_allowed(u) then raise exception 'Active paid agent cannot see Power Dialer';end if;
  update public.dialer_accounts set subscription_id=null where user_id=u and livemode;
  update public.dialer_at_cost set required_role=case required_role when 'admin' then 'agent' else 'admin' end where user_id=u;
- if public.dialer_parallel_allowed(u) then raise exception 'Role mismatch included';end if;
+ if public.dialer_parallel_can_call(u,account) then raise exception 'Mismatched actual-cost billing role authorized';end if;
  update public.dialer_at_cost set required_role=(select role::text from public.profiles where id=u),provider_secret_cipher=null where user_id=u;
  if public.dialer_parallel_can_call(u,account) then raise exception 'Unprovisioned account allowed';end if;
  update public.dialer_at_cost set provider_secret_cipher='fixture' where user_id=u;

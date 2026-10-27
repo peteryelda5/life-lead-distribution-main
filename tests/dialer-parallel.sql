@@ -4,9 +4,13 @@ do $$
 declare u uuid; sid uuid; other_id uuid; test_id uuid:=gen_random_uuid(); lid uuid; lid2 uuid; result jsonb; count_before bigint; n integer;
  caller text:='+12025550123'; phones text[]:=array['+12025550124','+12025550125','+12025550126']; rates numeric[]:=array[0.014,0.014,0.014]; account text:='AC'||repeat('a',32); agent text:='CA'||repeat('b',32);
 begin
- select p.id,s.id into u,sid from public.profiles p join auth.sessions s on s.user_id=p.id where p.is_super_admin and p.active and not p.archived limit 1;
+ select p.id,s.id into u,sid from public.profiles p join auth.sessions s on s.user_id=p.id join public.dialer_at_cost b on b.user_id=p.id where p.active and not p.archived and p.role::text=b.required_role limit 1;
  select id into other_id from public.profiles where id<>u and active and not archived limit 1;
  if u is null then raise exception 'Missing recovery owner fixture.';end if;
+ update public.dialer_at_cost set enabled=true,provider_sid=account,provider_secret_cipher='fixture' where user_id=u;
+ insert into public.dialer_accounts(user_id,livemode,customer_id,subscription_status,period_start,period_end,verified_at)
+ values(u,true,'cus_pilotfixture','at_cost',now()-interval '1 day',now()+interval '1 day',now())
+ on conflict(user_id,livemode) do update set subscription_status='at_cost',subscription_id=null,period_start=excluded.period_start,period_end=excluded.period_end,verified_at=now();
  update public.dialer_calls set finished=true where user_id=u;
  update public.dialer_callbacks set completed_at=now() where user_id=u;
  delete from public.dialer_parallel_legs where session_id in(select id from public.dialer_parallel_sessions where user_id=u);
@@ -34,7 +38,7 @@ begin
  perform public.dialer_parallel_event(test_id,'status',lid,'CA'||repeat('e',32),'ringing',0);
  if not exists(select 1 from public.dialer_parallel_legs where id=lid and terminal and state='completed' and duration_seconds=20) then raise exception 'Late status regressed call';end if;
  perform public.dialer_parallel_event(test_id,'stop');
- result:=public.dialer_parallel_event(test_id,'answer',lid2,'CA'||repeat('f',32),'human');if result->>'result'<>'stopped' then raise exception 'Human connected after stop';end if;
+ result:=public.dialer_parallel_event(test_id,'answer',lid2,'CA'||repeat('f',32),'human');if result->>'result'<>'hangup' or (select state from public.dialer_parallel_sessions where id=test_id)<>'stopping' then raise exception 'Human connected after stop';end if;
  perform public.dialer_parallel_event(test_id,'complete');
  for n in 2..10 loop
   test_id:=gen_random_uuid();perform public.dialer_parallel_prepare(u,sid,test_id,account,caller,phones,rates);perform public.dialer_parallel_event(test_id,'stop');perform public.dialer_parallel_event(test_id,'complete');

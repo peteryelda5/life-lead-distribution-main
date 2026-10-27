@@ -67,6 +67,10 @@
     {
       "path": "/api/notifications/push-maintenance",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/dialer/pool-maintenance",
+      "schedule": "* * * * *"
     }
   ],
   "redirects": [

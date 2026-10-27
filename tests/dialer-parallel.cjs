@@ -9,6 +9,8 @@ let raceCancelSid=null;let recoveryRecords=[];let rejectNumber=false,parallelInF
 function reset(user=owner){raceCancelSid=null;access=true;entitled=true;exemption={user_id:exempt,required_role:'agent',enabled:true,provider_sid:subaccount,provider_app:'AP'+'d'.repeat(32),provider_key:'SK'+'d'.repeat(32),provider_secret_cipher:provider.seal('sub-key',exempt)};s={id,created_at:new Date().toISOString(),user_id:user,session_id:authSession,provider_sid:user===owner?account:subaccount,caller_id:'+12025550123',state:'prepared',heartbeat_at:new Date().toISOString(),expires_at:new Date(Date.now()+240000).toISOString(),agent_sid:agent};legs=[1,2,3].map(n=>({id:'33333333-3333-4333-8333-'+String(n).padStart(12,'0'),session_id:id,position:n,phone:'+1202555012'+(n+3),rate:.014,state:'prepared',terminal:false,duration_seconds:0}));records=new Map([[agent,{sid:agent,account_sid:s.provider_sid,from:'client:vivid_parallel_'+id.replaceAll('-',''),status:'in-progress',duration:'10'}]]);winner=null;creates=0;createUncertain=false;recoveryRecords=[];rejectNumber=false;parallelInFlight=0;maxInFlight=0;requests=[];}
 const json=d=>new Response(JSON.stringify(d),{headers:{'content-type':'application/json'}});
 global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.body).startsWith('{')?JSON.parse(opt.body):null;requests.push({url,method:opt.method,body,authorization:opt.headers?.Authorization});
+ if(u.pathname.endsWith('/dialer_caller_pools'))return json(u.searchParams.get('id')==='eq.pool-fixture'?[{id:'pool-fixture'}]:[]);
+ if(u.pathname.endsWith('/rpc/dialer_pool_options'))return json(null);
  if(u.pathname.endsWith('/rpc/dialer_parallel_allowed'))return json(access);
  if(u.pathname.endsWith('/rpc/dialer_entitled'))return json(entitled);
  if(u.pathname.endsWith('/dialer_at_cost'))return json(exemption&&(!u.searchParams.has('user_id')||u.searchParams.get('user_id')==='eq.'+exempt)&&(!u.searchParams.has('provider_sid')||u.searchParams.get('provider_sid')==='eq.'+subaccount)&&(!u.searchParams.has('enabled')||exemption.enabled)?[exemption]:[]);
@@ -50,7 +52,7 @@ global.fetch=async(url,opt={})=>{const u=new URL(url),body=opt.body&&String(opt.
 };
 const response=()=>({setHeader(){},status(n){this.code=n;return this;},send(d){this.data=d;return this;},json(d){this.data=d;return this;},end(){return this;}});
 function signed(path,body,secret='test-secret'){let raw=full.ORIGIN+path;for(const k of Object.keys(body).sort())raw+=k+body[k];return {method:'POST',url:path,body,headers:{'content-type':'application/x-www-form-urlencoded','x-twilio-signature':createHmac('sha1',secret).update(raw).digest('base64')}};}
-function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new URLSearchParams({id,kind,leg:l.id});return signed(path,{AccountSid:s.provider_sid,CallSid:l.provider_sid,To:l.phone,From:s.caller_id,...extra},s.provider_sid===account?'test-secret':'sub-secret');}
+function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new URLSearchParams({id,kind,leg:l.id});return signed(path,{AccountSid:s.provider_sid,CallSid:l.provider_sid,To:l.phone,From:l.caller_id||s.caller_id,...extra},s.provider_sid===account?'test-secret':'sub-secret');}
 (async()=>{reset();assert.equal(parallel.normalize('(202) 555-0124'),'+12025550124');assert.throws(()=>parallel.normalize('911'));const c=full.config(),t=parallel.tokens(s,c);const claims=JSON.parse(Buffer.from(t.token.split('.')[1],'base64url'));assert.equal(claims.exp-claims.iat,3600,'Headset token must outlast a 30-minute call');assert.equal(parallel.alive({...s,state:'connected',heartbeat_at:new Date(Date.now()-60000).toISOString()}),true);assert.equal(parallel.alive({...s,state:'dialing',heartbeat_at:new Date(Date.now()-60000).toISOString()}),false);assert.equal(parallel.alive({...s,state:'connected',heartbeat_at:new Date(Date.now()-95000).toISOString()}),false);assert.equal(parallel.grant(t.callGrant,c).id,id);assert.throws(()=>parallel.grant(t.callGrant+'x',c));
  assert.deepEqual(await parallel.action({body:{action:'access'}},{id:'paid-user',live:true}),{allowed:true,atCost:false});
  await assert.rejects(parallel.action({body:{action:'prepare',id,callerId:s.caller_id,phones:[legs[0].phone],testPhonesConfirmed:false,acceptCharges:true}},{id:owner,sessionId:authSession,live:true}),/Confirm/);
@@ -137,5 +139,15 @@ function webhook(kind,l,extra={}){const path='/api/dialer/parallel-events?'+new 
  reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';await parallel.launch(await parallel.get(id));
  res=response();await parallel.events(webhook('confirm',legs[0],{Digits:'1'}),res);assert.match(res.data,/<Hangup/);assert.doesNotMatch(res.data,/<Gather|<Say|<Conference|press.?1/i);assert.equal(winner,null);assert.equal(legs[0].outcome,undefined);
  await parallel.stop(await parallel.get(id));assert([...records.values()].every(c=>['completed','canceled'].includes(c.status)),'Explicit stop left calls alive');
+ reset(exempt);s.caller_pool_id='pool-fixture';s.provider_sid=account;assert.equal((await parallel.storedContext({...s})).TWILIO_ACCOUNT_SID,account);await assert.rejects(parallel.storedContext({...s,caller_pool_id:'wrong-pool'}),/ownership mismatch/);
+ // Each shared caller ID is pinned independently through launch, signed events and cleanup.
+ reset();s.kind='leads';s.max_seconds=1800;s.state='ready';s.connect_mode='human';
+ legs.forEach((l,i)=>l.caller_id='+1313555012'+i);
+ await parallel.launch(await parallel.get(id));assert.equal(creates,3);
+ for(const leg of legs)assert.equal(records.get(leg.provider_sid).from,leg.caller_id);
+ res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'human',From:s.caller_id}),res);assert.equal(res.code,403);
+ res=response();await parallel.events(webhook('answer',legs[0],{AnsweredBy:'human'}),res);assert.match(res.data,/<Conference/);
+ res=response();await parallel.events(webhook('answer',legs[1],{AnsweredBy:'human'}),res);assert(res.data.includes(legs[1].caller_id.split('').join(' ')));
+ await parallel.stop(await parallel.get(id));assert.equal(s.state,'complete');
  console.log('PASS: legacy fast mode, automatic detection without recipient prompts, one winner, pending-AMD cleanup, GET/cancel pickup race, bounded detection/overflow cleanup, no silent loss of pickup evidence, explicit stop, refreshed follow-up notes and billing ownership.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

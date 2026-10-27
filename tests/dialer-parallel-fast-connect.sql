@@ -4,8 +4,12 @@ do $$
 declare u uuid; sid uuid; test_id uuid:=gen_random_uuid(); leg uuid; second_leg uuid; r jsonb;
  account text:='AC'||repeat('a',32); caller text:='+12025550666'; phones text[]:=array['+12025550667','+12025550668']; rates numeric[]:=array[0.014,0.014];
 begin
- select p.id,s.id into u,sid from public.profiles p join auth.sessions s on s.user_id=p.id where p.is_super_admin and p.active and not p.archived limit 1;
+ select p.id,s.id into u,sid from public.profiles p join auth.sessions s on s.user_id=p.id join public.dialer_at_cost b on b.user_id=p.id where p.active and not p.archived and p.role::text=b.required_role limit 1;
  if u is null then raise exception 'Missing owner fixture';end if;
+ update public.dialer_at_cost set enabled=true,provider_sid=account,provider_secret_cipher='fixture' where user_id=u;
+ insert into public.dialer_accounts(user_id,livemode,customer_id,subscription_status,period_start,period_end,verified_at)
+ values(u,true,'cus_pilotfixture','at_cost',now()-interval '1 day',now()+interval '1 day',now())
+ on conflict(user_id,livemode) do update set subscription_status='at_cost',subscription_id=null,period_start=excluded.period_start,period_end=excluded.period_end,verified_at=now();
  update public.dialer_calls set finished=true where user_id=u;update public.dialer_callbacks set completed_at=now() where user_id=u;
  delete from public.dialer_parallel_legs where session_id in(select id from public.dialer_parallel_sessions where user_id=u);
  delete from public.dialer_parallel_sessions where user_id=u;
@@ -22,7 +26,7 @@ begin
  r:=public.dialer_parallel_event(test_id,'answer',leg,'CA'||repeat('e',32),'human');if r->>'result'<>'ignored' then raise exception 'Fast mode accepted false human classification';end if;
  r:=public.dialer_parallel_event(test_id,'answer',leg,'CA'||repeat('e',32),'answered');if r->>'result'<>'winner' then raise exception 'First pickup was not connected';end if;
  r:=public.dialer_parallel_event(test_id,'answer',second_leg,'CA'||repeat('f',32),'answered');if r->>'result'<>'overflow' then raise exception 'Two callers connected';end if;
- perform public.dialer_parallel_event(test_id,'stop');r:=public.dialer_parallel_event(test_id,'answer',leg,'CA'||repeat('e',32),'answered');if r->>'result'<>'stopped' then raise exception 'Answer after stop';end if;
+ perform public.dialer_parallel_event(test_id,'stop');r:=public.dialer_parallel_event(test_id,'answer',leg,'CA'||repeat('e',32),'answered');if r->>'result'<>'hangup' or (select state from public.dialer_parallel_sessions where id=test_id)<>'stopping' then raise exception 'Answer after stop';end if;
  perform public.dialer_parallel_event(test_id,'complete');
  test_id:=gen_random_uuid();perform public.dialer_parallel_prepare_mode(u,sid,test_id,account,caller,phones,rates,'human');
  perform public.dialer_parallel_event(test_id,'agent',null,'CA'||repeat('c',32));perform public.dialer_parallel_event(test_id,'ready',null,'CA'||repeat('c',32),'CF'||repeat('c',32));perform public.dialer_parallel_event(test_id,'launch');

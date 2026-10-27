@@ -1,3 +1,4 @@
+begin;
 -- All fixtures are rolled back, including auth users and callback tasks.
 do $$
 declare u uuid:=gen_random_uuid(); leader uuid:=gen_random_uuid(); peer uuid:=gen_random_uuid(); outsider uuid:=gen_random_uuid(); admin_id uuid:=gen_random_uuid(); master_id uuid;
@@ -73,3 +74,5 @@ begin
  if exists(select 1 from auth.users where id=u) or exists(select 1 from public.divisions where id=division_id) then raise exception 'Fixtures persisted';end if;
 end $$;
 select 'PASS: status persistence, stale presence, server Break guard, incoming voicemail routing, owned lead matching, callback persistence/idempotency, scheduled due times, reassignment, team/admin/master scope, private permissions, full rollback.' as result;
+
+rollback;

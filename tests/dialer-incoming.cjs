@@ -8,6 +8,8 @@ let online=true,foreign=false,storageFail=false,wrongRecording=false,events=[],o
 let verifiedAt=new Date().toISOString(),billingChecks=0,accessAllowed=true,billingDown=false;
 const json=d=>new Response(JSON.stringify(d),{status:200,headers:{'content-type':'application/json'}});
 global.fetch=async(url,opt={})=>{
+ if(url.endsWith('/rpc/require_portal_onboarding'))return json(true);
+ if(url.endsWith('/rpc/require_portal_mfa'))return json(false);
  url=String(url);const u=new URL(url),body=opt.body&&typeof opt.body==='string'&&opt.body.startsWith('{')?JSON.parse(opt.body):null;
  if(url.includes('/auth/v1/user'))return json({id:user,email:'test@example.invalid'});
  if(url.includes('/rest/v1/profiles?'))return json([{id:user,active:true,archived:false,role:'agent'}]);

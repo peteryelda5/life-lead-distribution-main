@@ -5,6 +5,8 @@ const user='11111111-1111-4111-8111-111111111111',session='22222222-2222-4222-82
 let authenticated=true,supervisor=true,calls=[];
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status});
 global.fetch=async(url,opt={})=>{
+ if(url.endsWith('/rpc/require_portal_onboarding'))return json(true);
+ if(url.endsWith('/rpc/require_portal_mfa'))return json(false);
  if(url.includes('/auth/v1/user'))return authenticated?json({id:user,email:'fixture@example.invalid'}):json({},401);
  if(url.includes('/rest/v1/profiles?'))return json([{id:user,active:true,archived:false,role:'agent'}]);
  if(url.includes('/rest/v1/rpc/')){const name=url.split('/').at(-1),body=JSON.parse(opt.body);calls.push({name,body});

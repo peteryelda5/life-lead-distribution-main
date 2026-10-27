@@ -19,8 +19,8 @@ const rpc=async(name,b)=>{
  throw Error('Unexpected RPC '+name);
 };
 require.cache[require.resolve('../lib/dialer-full')]={exports:{database,rpc,failure,config:()=>ctx,mode:()=>true,UUID:/^[a-f0-9-]{36}$/,ORIGIN:'https://www.lldportal.com',MASTER:other}};
-require.cache[require.resolve('../lib/dialer-at-cost-provider')]={exports:{context:async()=>ctx,callbackContext:async()=>ctx,scoped:async(who,path,body)=>{
- assert.equal(who.id,user);if(path===`Calls/${callSid}.json`)return{account_sid:account,status:active?'in-progress':'completed',to:'+12025550191'};
+require.cache[require.resolve('../lib/dialer-at-cost-provider')]={exports:{context:async()=>ctx,callbackContext:async()=>ctx,pinned:async(account,path,body)=>{assert.equal(account,ctx.TWILIO_ACCOUNT_SID);
+ if(path===`Calls/${callSid}.json`)return{account_sid:account,status:active?'in-progress':'completed',to:'+12025550191'};
  if(path.endsWith('/Transcriptions.json')){streams++;assert.equal(body.Track,'both_tracks');assert.equal(body.InboundTrackLabel,'Client');assert.equal(body.OutboundTrackLabel,'Agent');assert.equal(body.IntelligenceService,ga);assert.equal(body.StatusCallbackUrl,`https://www.lldportal.com/api/dialer/conversation-events?id=${id}`);if(failCreate)throw failure(503,'Timeout');return{sid:gt,account_sid:account,call_sid:callSid};}
  if(path.includes('/Transcriptions/')){if(body){assert.equal(body.Status,'stopped');stopped=true;}return{sid:gt,account_sid:account,call_sid:callSid,status:stopped?'stopped':'in-progress'};}
  throw Error('Unexpected provider '+path);
