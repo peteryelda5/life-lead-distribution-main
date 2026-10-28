@@ -234,3 +234,99 @@
 .power-batch-review{margin:16px 0;padding:18px;background:#f0f6ff;border:1px solid #bfd6fb;border-radius:14px}.power-batch-review h3{margin:0 0 5px}.power-batch-review p{margin:5px 0 12px}.power-batch-review #powerBatchOutcomes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0}.power-batch-outcome{display:flex;flex-direction:column;gap:8px;background:white;border:1px solid #dbe4ef;border-radius:10px;padding:12px}.power-batch-outcome span{font-size:12px;color:#52647b}.power-batch-outcome select{width:100%;min-height:42px}.power-batch-review[hidden]{display:none}@media(max-width:750px){.power-batch-review #powerBatchOutcomes{grid-template-columns:1fr}}
 
 .power-session-options{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}.power-session-options label{display:flex;align-items:center;gap:7px}.power-session-options input{width:auto}.power-session-options span{flex-basis:100%;font-size:13px;color:#53657c}.power-quick-outcomes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.power-quick-outcomes button{min-height:44px}.agent-inline-callbacks{padding:16px;background:#fffbeb;border:1px solid #f2d28c;border-radius:12px;margin:12px}.agent-inline-callbacks[hidden]{display:none}.agent-inline-callbacks div{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0}#powerReliabilityReport{padding:14px;background:#f1f5f9;border-radius:10px;margin:12px 0}
+
+/* Selected continuous calling layout: current caller + notes, compact other lines. */
+#portalDialer.power-view-active .workspace-toolbar{padding:0 22px;min-height:54px;gap:22px;background:#f2f7fd}
+#portalDialer.power-view-active .workspace-toolbar>h1,
+#portalDialer.power-view-active .session-stats,
+#portalDialer.power-view-active>.workspace-message:not(.error){display:none}
+#portalDialer .dialer-more{position:relative;align-self:center;margin-left:auto;font-size:13px}
+#portalDialer .dialer-more>summary{cursor:pointer;padding:10px;color:#536c8e}
+#portalDialer .dialer-more>div{position:absolute;right:0;top:100%;z-index:20;min-width:190px;background:white;border:1px solid #dce7f4;box-shadow:0 8px 24px #122c4c15;padding:8px;border-radius:8px}
+#portalDialer .dialer-more button{display:block;width:100%;text-align:left;padding:10px;border:0}
+#portalDialer #parallel.power-simple{padding:22px;min-height:650px}
+#portalDialer .power-simple .power-heading{margin-bottom:16px}
+#portalDialer .power-simple .power-heading h2{font-size:27px;margin:0}
+#portalDialer .power-simple .power-session-strip{display:flex;align-items:center;gap:12px;background:white;border:1px solid #dce7f4;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:14px}
+#portalDialer .power-simple #powerSettingsToggle{margin-left:auto;color:#536c8e}
+#portalDialer .power-simple #powerChange,
+#portalDialer .power-simple #powerSettingsToggle,
+#portalDialer .power-simple #powerViewQueue{border:0;background:transparent;color:#2464d9;white-space:nowrap}
+#portalDialer .power-simple .power-settings{margin-bottom:16px}
+#portalDialer .power-simple .power-adaptive{flex-direction:row;align-items:center;margin:16px 0}
+#portalDialer .power-simple .power-queue-drawer{margin:0 0 16px;border:1px solid #dce7f4;background:white;border-radius:8px;padding:12px 16px}
+#portalDialer .power-simple .power-queue-drawer>summary{font-size:14px;font-weight:600;cursor:pointer;color:#2464d9}
+#portalDialer .power-simple .power-queue-drawer .power-queue{padding:16px 0 0;border:0;box-shadow:none}
+#portalDialer .power-simple .power-queue-drawer:not([open]):has(#powerQueueCount:not(:empty)){display:none}
+#portalDialer .power-simple .power-message{margin:0 0 12px;min-height:0;font-size:13px}
+#portalDialer .power-simple .power-message:not(.error){color:#617693}
+#portalDialer .power-simple .power-columns{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:18px;align-items:stretch}
+#portalDialer .power-simple .power-lead{display:block;border-top:4px solid #2464d9;padding:20px;position:static;min-width:0;max-height:none}
+#portalDialer .power-simple .power-lead-section-title,
+#portalDialer .power-simple .power-quick-details,
+#portalDialer .power-simple .power-save-actions,
+#portalDialer .power-simple .power-avatar{display:none}
+#portalDialer .power-simple .power-lead-heading{padding:0 0 12px;gap:12px}
+#portalDialer .power-simple .power-lead-heading h2{font-size:23px;line-height:1.3}
+#portalDialer .power-simple #powerContact{font-size:15px;color:#617693;margin-top:6px}
+#portalDialer .power-simple .power-lead-connection{max-width:40%;white-space:normal}
+#portalDialer .power-simple .power-lead-connection .power-status{white-space:normal}
+#portalDialer .power-simple .power-connected-state{margin:5px 0 8px;font-size:13px}
+#portalDialer .power-simple #powerOutcomeTitle{font-size:17px;margin-top:20px;padding-top:18px;border-top:1px solid #e4ebf4}
+#portalDialer .power-simple .power-quick-outcomes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+#portalDialer .power-simple .power-quick-outcomes button{min-height:48px;background:#fafcff;border:1px solid #cfdded;font-size:14px;font-weight:500;text-align:left;padding:12px 16px}
+#portalDialer .power-simple #powerMoreOutcomes{grid-column:1 / -1}
+#portalDialer .power-simple #powerMoreOutcomes button{width:100%}
+#portalDialer .power-simple #powerOutcomeHelp{font-size:12px;line-height:1.5;margin-top:8px}
+#portalDialer .power-simple .power-notes-panel{display:flex;flex-direction:column;padding:18px 20px;min-height:350px}
+#portalDialer .power-simple .power-notes-tabs{display:flex;gap:20px;border-bottom:1px solid #dce7f4;margin-bottom:16px}
+#portalDialer .power-simple .power-notes-tabs button{background:none;border:0;border-radius:0;border-bottom:3px solid transparent;padding:10px 4px;color:#617693}
+#portalDialer .power-simple .power-notes-tabs [aria-selected=true]{color:#2464d9;border-bottom-color:#2464d9}
+#portalDialer .power-simple #powerNotesPane{display:flex;flex-direction:column;flex:1;gap:10px}
+#portalDialer .power-simple #powerNotes{flex:1;width:100%;height:270px;min-height:220px;padding:16px;resize:vertical;font-size:15px;line-height:1.6}
+#portalDialer .power-simple #powerNotes:disabled{background:#f8fafc}
+#portalDialer .power-simple #powerScriptTitle{margin:16px 0 12px;font-size:17px}
+#portalDialer .power-simple #powerScriptBody{white-space:pre-wrap;overflow-wrap:anywhere;max-height:370px;overflow:auto;line-height:1.7;font-size:15px}
+#portalDialer .power-simple .power-results-strip{display:flex;align-items:center;gap:12px;margin:12px 0}
+#portalDialer .power-simple #powerViewQueue{margin-left:auto}
+#portalDialer .power-simple .power-lines{display:flex;flex-wrap:wrap;gap:8px;flex:1;margin:0;min-width:0}
+#portalDialer .power-simple .power-line{display:flex;flex-direction:row-reverse;align-items:center;gap:7px;width:auto;min-width:0;min-height:30px;padding:5px 9px;background:#eaf1f9;border:0;border-radius:20px;box-shadow:none;font-size:12px;flex:0 1 auto}
+#portalDialer .power-simple .power-line:before,
+#portalDialer .power-simple .power-line-number,
+#portalDialer .power-simple .power-line-avatar,
+#portalDialer .power-simple .power-line-phone{display:none}
+#portalDialer .power-simple .power-line-top,
+#portalDialer .power-simple .power-line-person{display:flex;margin:0;padding:0;border:0;gap:0}
+#portalDialer .power-simple .power-line-info strong{font-size:12px;line-height:1.4;font-weight:500}
+#portalDialer .power-simple .power-line-state{border:0;background:none;font-size:12px;font-weight:500;padding:0;color:#536c8e;white-space:normal}
+#portalDialer .power-simple .power-line-state:before{content:'·';display:inline;width:auto;height:auto;margin:0;padding-right:6px;border-radius:0;background:transparent}
+#portalDialer .power-simple .power-line.is-idle{display:none}
+#portalDialer .power-simple .power-line.connected{background:#e8f6ed}
+#portalDialer .power-simple .power-batch-bar{position:sticky;bottom:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:18px;margin:0;padding:14px 18px;border:1px solid #dce7f4;border-radius:8px;background:white;box-shadow:0 -3px 12px #122c4c05}
+#portalDialer .power-simple #powerSessionState{font-size:13px;color:#526b86;line-height:1.5}
+#portalDialer .power-simple #powerBatchHint{font-size:12px;color:#70839a;max-width:440px;margin-top:3px}
+#portalDialer .power-simple .power-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;flex-shrink:0}
+#portalDialer .power-simple .power-actions button{font-size:13px;min-height:40px}
+#portalDialer .power-simple .power-result-details{margin-top:18px;font-size:12px;color:#617693}
+#portalDialer .power-simple .power-result-details>summary{cursor:pointer;padding:6px 0}
+#portalDialer .power-simple .power-empty{min-height:320px;padding:36px 18px;display:flex;flex-direction:column;justify-content:center}
+#portalDialer .power-simple .power-empty h3{font-size:21px}
+#portalDialer .power-simple .power-empty-icon{display:none}
+#portalDialer .power-simple #powerSaveMessage:not(:empty){padding:10px;background:#fff6e8;border-radius:5px;font-size:13px}
+#portalDialer .power-simple #powerAssistantSlot{margin-top:14px}
+#portalDialer .power-simple .agent-status-bar{margin-top:16px}
+@media(max-width:850px){
+ #portalDialer #parallel.power-simple{padding:16px}
+ #portalDialer .power-simple .power-columns{grid-template-columns:1fr}
+ #portalDialer .power-simple .power-notes-panel{min-height:250px}
+ #portalDialer .power-simple #powerNotes{min-height:160px;height:180px}
+ #portalDialer .power-simple .power-batch-bar{flex-wrap:wrap;gap:10px}
+ #portalDialer .power-simple .power-session-copy{flex:1 1 100%}
+ #portalDialer .power-simple .power-actions{justify-content:flex-start;flex-shrink:1}
+ #portalDialer .power-simple .power-session-strip{flex-wrap:wrap;gap:6px;padding:8px}
+ #portalDialer .power-simple #powerQueueSummary{flex:1 1 100%;font-size:13px}
+ #portalDialer .power-simple #powerSettingsToggle{margin-left:0}
+ #portalDialer.power-view-active .workspace-toolbar{padding:0 16px;gap:10px}
+ #portalDialer.power-view-active .workspace-tabs{gap:14px;min-height:50px}
+ #portalDialer.power-view-active .workspace-tabs button{font-size:12px}
+}
