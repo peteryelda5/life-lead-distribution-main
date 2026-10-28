@@ -12,6 +12,6 @@ w.eval(fs.readFileSync('organization.js','utf8'));w.render=()=>{w.document.query
  w.document.querySelector('#orgAdd').click();assert(w.document.querySelector('#orgNewAdmin'));w.document.querySelector('#orgNewAgent').click();assert.equal(calls.at(-1),'add:a');
  w.S.profile={...w.S.profile,id:'scoped',is_super_admin:false,division:'a'};w.S.adminDivisions=['a'];await w.loadOrganization();w.render();assert.equal(w.document.querySelectorAll('.org-agency').length,1);assert(!w.document.body.textContent.includes('Other Agency Agent'));w.document.querySelector('#orgAdd').click();assert(!w.document.querySelector('#orgNewAdmin'));assert(!w.document.querySelector('#orgNewDivision'));w.closeModal();
  w.api=async()=>{throw Error('network');};await w.loadOrganization();w.render();assert(w.document.querySelector('#orgRefresh'));assert(w.document.querySelector('.org-root').textContent.includes('—'));
- assert(source.includes("['organization','Organization']"));assert(!source.includes("['agents','Agents']"));assert(source.includes("S.tab='organization';await loadOrganization();return;"));
+ assert(source.includes("['organization','Management']"));assert(!source.includes("['agents','Agents']"));assert(source.includes("S.tab='organization';await loadOrganization();return;"));
  console.log('PASS: hierarchy grouping, direct agents, agency scope, escaped names, monthly totals, unavailable totals, add/edit/team actions, list management bindings, navigation aliases.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
