@@ -1,5 +1,7 @@
 -- Integration test for the restored database only. All assignments and requests roll back.
 begin;
+-- Isolate delivery permissions from onboarding fixtures; restored by rollback.
+create or replace function private.portal_onboarding_allowed() returns boolean language sql stable security definer set search_path='' as $test$ select true $test$;
 do $$
 declare master_id uuid; agent_id uuid; other_admin uuid; request_id uuid; cross_id uuid; shortage_id uuid;
   r jsonb; count_before bigint; receipt_count integer; agent_div text;
@@ -46,7 +48,8 @@ begin
   begin perform public.fulfill_lead_request(request_id,'vivid_life','AMAM3','{TX}',2,0);raise exception 'TEST stale double send accepted';
   exception when others then if sqlerrm not like 'This request changed%' then raise;end if;end;
   if (select count(*) from public.leads where assigned_to=agent_id)<>count_before+2 then raise exception 'Duplicate assignment occurred';end if;
-  r:=public.fulfill_lead_request(request_id,'vivid_life','AMAM3','{TX}',2,2);
+  r:=public.fulfill_lead_request(request_id,'vivid_life','AMAM3','{TX}',3,2);
+  if (select fulfilled_quantity from public.lead_requests where id=request_id)<>5 or (select quantity from public.lead_requests where id=request_id)<>4 then raise exception 'Overdelivery must preserve original request and actual total';end if;
   if r->>'status'<>'completed' or (r->>'remaining')::integer<>0 then raise exception 'Completion failed';end if;
   begin perform public.fulfill_lead_request(request_id,'vivid_life','AMAM3','{TX}',1,4);raise exception 'TEST completed request accepted';
   exception when others then if sqlerrm not like 'This request changed%' then raise;end if;end;
@@ -55,13 +58,13 @@ begin
   if not exists(select 1 from public.lead_requests where id=shortage_id and status='pending' and fulfilled_quantity=0) then raise exception 'Shortage changed request';end if;
   begin perform public.fulfill_lead_request(shortage_id,'legacy_life','OH PRO','{}',3,0);raise exception 'TEST Legacy transfer accepted';
   exception when insufficient_privilege then null;end;
-  begin perform public.fulfill_lead_request(shortage_id,'vivid_life','AMAM3','{}',4,0);raise exception 'TEST oversend accepted';
-  exception when others then if sqlerrm not like 'Choose 1%' then raise;end if;end;
+  begin perform public.fulfill_lead_request(shortage_id,'vivid_life','AMAM3','{}',0,0);raise exception 'TEST zero accepted';
+  exception when others then if sqlerrm not like 'Choose a positive%' then raise;end if;end;
   begin perform public.fulfill_lead_request(shortage_id,'vivid_life','AMAM3',array[null::text],1,0);raise exception 'TEST null state accepted';
   exception when others then if sqlerrm<>'Choose valid states.' then raise;end if;end;
   r:=public.fulfill_lead_request(cross_id,'owner','SL2','{TX}',501,0);
   if (r->>'sent')::integer<>501 or r->>'status'<>'completed' then raise exception 'Cross-page transfer failed';end if;
-  if (select count(*) from public.leads where assigned_to=agent_id)<>count_before+505 then raise exception 'Assignment total wrong';end if;
+  if (select count(*) from public.leads where assigned_to=agent_id)<>count_before+506 then raise exception 'Assignment total wrong';end if;
   execute 'reset role';
   select count(*) into receipt_count from public.lead_delivery_receipts where transaction_id=txid_current()
     and sender_id=master_id and recipient_id=agent_id and source_division='owner' and destination_division='vivid_life' and lead_count=501;

@@ -26,6 +26,7 @@ const run=s=>vm.runInContext(s,ctx),event={preventDefault(){}};
   S.profile.role='agent';S.profile.is_team_leader=true;assert(!run('leadRequestsPage()').includes('fulfillRequest'));S.profile.role='admin';
   await run("fulfillLeadRequestModal('request-1')");
   assert.equal(q('#deliverySource').value,'owner');assert.equal(q('#deliveryBatch').selectedOptions[0].textContent,'PRO9 (140)');assert.equal(q('#deliveryQuantity').value,'100');assert(!q('#deliverySend').disabled);
+  q('#deliveryQuantity').value='140';q('#deliveryQuantity').oninput();assert(!q('#deliverySend').disabled,'Admin must be able to exceed requested amount');assert.equal(q('#deliveryQuantity').max,'140');assert(q('#deliveryAvailability').textContent.includes('40 more than requested'));q('#deliveryQuantity').value='141';q('#deliveryQuantity').oninput();assert(q('#deliverySend').disabled,'Cannot exceed stock');q('#deliveryQuantity').value='100';q('#deliveryQuantity').oninput();
   assert.equal(q('#modal').getAttribute('role'),'dialog');assert.equal(document.activeElement,q('#deliveryQuantity'));assert(q('#deliveryClose'));assert(!q('#modal script'));assert(!q('#modal img'));assert(q('#modal').textContent.includes('TX preferred <img src=x>'));
   await run("fulfillLeadRequestModal('request-1')");assert.equal(openCount,1,'double-click must not open a second dialog');
   q('.deliveryState[value="TX"]').checked=true;q('.deliveryState[value="TX"]').onchange();

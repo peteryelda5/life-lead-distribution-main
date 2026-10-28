@@ -49,7 +49,7 @@ async function fulfillLeadRequestModal(id){
     if(!panel.isConnected||S.profile?.id!==user)return;
     const r=data.request,inventory=data.inventory||[],remaining=Number(r.quantity)-Number(r.fulfilled_quantity||0);
     const sources=[...new Map(inventory.map(x=>[x.source,{id:x.source,name:x.source_name}])).values()];
-    const recommendation=requestDeliveryRecommendation(inventory,r,Math.min(1000,remaining));
+    const recommendation=requestDeliveryRecommendation(inventory,r,remaining);
     const initialSource=recommendation?.source||sources.find(x=>x.id===r.division)?.id||sources[0]?.id||'';
     const initials=r.agent_name.trim().split(/\s+/).slice(0,2).map(x=>x[0]).join('');
     panel.querySelector('.modalbox').innerHTML=`
@@ -62,8 +62,8 @@ async function fulfillLeadRequestModal(id){
           <div class="request-delivery-fields"><div class="field"><label for="deliverySource">Send from</label><select id="deliverySource" required>${sources.map(x=>'<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>').join('')}</select></div><div class="field"><label for="deliveryBatch">Lead type / batch</label><select id="deliveryBatch" required></select></div></div>
           <fieldset><legend>States <span>Choose one or more</span></legend><div id="deliveryStates" class="request-delivery-states"></div></fieldset>
           <div id="deliveryStock" class="request-delivery-stock" role="status"></div>
-          <div class="request-delivery-quantity-row"><div class="field"><label for="deliveryQuantity">Quantity to send</label><input id="deliveryQuantity" type="number" required min="1" max="${Math.min(1000,remaining)}" step="1" value="${Math.min(1000,remaining)}" aria-describedby="deliveryAvailability deliveryStock"></div><div><div id="deliveryAvailability" class="request-delivery-availability" role="status"></div><button type="button" id="deliveryUseAvailable" class="request-use-available" hidden></button></div></div>
-          <div class="request-delivery-destination"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h6l2 2h8v11H4z"/><path d="M9 13h6m-3-3 3 3-3 3"/></svg><span>Delivered directly to <strong>${esc(r.agent_name.split(' ')[0])}’s My Leads</strong>.<small>${remaining>1000?'Send up to 1,000 at a time. ':''}Full delivery automatically marks this request handled.</small></span></div>
+          <div class="request-delivery-quantity-row"><div class="field"><label for="deliveryQuantity">Quantity to send</label><input id="deliveryQuantity" type="number" required min="1" step="1" value="${remaining}" aria-describedby="deliveryAvailability deliveryStock"></div><div><div id="deliveryAvailability" class="request-delivery-availability" role="status"></div><button type="button" id="deliveryUseAvailable" class="request-use-available" hidden></button></div></div>
+          <div class="request-delivery-destination"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h6l2 2h8v11H4z"/><path d="M9 13h6m-3-3 3 3-3 3"/></svg><span>Delivered directly to <strong>${esc(r.agent_name.split(' ')[0])}’s My Leads</strong>.<small>You can send more than requested. Meeting or exceeding the request marks it handled.</small></span></div>
           <div id="deliveryError" role="alert"></div>
         </div><footer class="request-delivery-footer"><button type="button" id="deliveryCancel" class="btn secondary">Cancel</button><button type="submit" id="deliverySend" class="btn primary" disabled>Send leads</button></footer>
       </form>`;
@@ -74,16 +74,17 @@ async function fulfillLeadRequestModal(id){
     const selectedStates=()=>qa('.deliveryState:checked').map(x=>x.value);
     const update=()=>{
       const chosen=batch(),states=selectedStates(),available=chosen?chosen.states.filter(x=>!states.length||states.includes(x.state)).reduce((n,x)=>n+x.count,0):0;
-      const n=Number(quantity.value),valid=!!chosen&&Number.isInteger(n)&&n>0&&n<=Math.min(1000,remaining)&&n<=available;
+      quantity.max=String(available);
+      const n=Number(quantity.value),valid=!!chosen&&Number.isInteger(n)&&n>0&&n<=available;
       send.disabled=busy||needsRefresh||!valid;send.textContent=busy?'Sending…':'Send '+(Number.isInteger(n)&&n>0?n.toLocaleString():'')+' leads';
       availability.className='request-delivery-availability'+(chosen&&n>available?' error':'');
-      availability.textContent=!sources.length?'No unassigned leads are available in an agency you can use.':!chosen?'Choose the batch you want to send.':available.toLocaleString()+' leads available'+(n>available?' — '+(n-available).toLocaleString()+' short for this send.':'.');
+      availability.textContent=!sources.length?'No unassigned leads are available in an agency you can use.':!chosen?'Choose the batch you want to send.':available.toLocaleString()+' leads available'+(n>available?' — '+(n-available).toLocaleString()+' short for this send.':n>remaining?' · '+(n-remaining).toLocaleString()+' more than requested.':'.');
       const different=chosen&&String(chosen.lead_type??'').trim().toLowerCase()!==r.lead_type.trim().toLowerCase(),shortage=Math.max(0,remaining-available);
       stock.className='request-delivery-stock '+(different||shortage?'warn':'ready');
       const title=!chosen?'Choose a batch to check stock':different?'Different batch selected':shortage?'Short by '+shortage.toLocaleString():'Enough available';
       const detail=!chosen?'Requested: '+r.lead_type+'.':available.toLocaleString()+' available for this batch and states · '+remaining.toLocaleString()+' still requested.'+(different?' The request is for '+r.lead_type+'. Confirm the replacement batch with the agent.':'')+(chosen&&shortage?' A partial delivery keeps the remainder pending.':'');
       stock.innerHTML='<strong>'+esc(title)+'</strong><span>'+esc(detail)+'</span>';
-      const usable=Math.min(available,remaining,1000);useAvailable.hidden=!chosen||usable<=0||n<=available;useAvailable.disabled=busy||needsRefresh;useAvailable.textContent='Use '+usable.toLocaleString()+' available';
+      const usable=available;useAvailable.hidden=!chosen||usable<=0||n<=available;useAvailable.disabled=busy||needsRefresh;useAvailable.textContent='Use '+usable.toLocaleString()+' available';
       useAvailable.onclick=()=>{if(busy||needsRefresh)return;quantity.value=String(usable);update();quantity.focus();};
     };
     const drawStates=()=>{
@@ -95,7 +96,7 @@ async function fulfillLeadRequestModal(id){
     const drawBatches=()=>{
       batches=requestDeliveryBatches(inventory,source.value);
       batchSelect.innerHTML='<option value="">Choose a batch</option>'+batches.map((x,i)=>'<option value="'+i+'">'+esc(x.lead_type??'Unlabeled')+' ('+x.count.toLocaleString()+')</option>').join('');
-      const recommended=requestDeliveryRecommendation(inventory.filter(x=>x.source===source.value),r,Math.min(1000,remaining));
+      const recommended=requestDeliveryRecommendation(inventory.filter(x=>x.source===source.value),r,remaining);
       const match=recommended?batches.findIndex(x=>x.lead_type===recommended.lead_type):-1;
       batchSelect.value=match<0?'':String(match);drawStates();
     };
