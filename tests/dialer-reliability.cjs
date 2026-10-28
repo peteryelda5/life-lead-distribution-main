@@ -1,0 +1,11 @@
+'use strict';
+const vm=require('node:vm'),fs=require('node:fs'),assert=require('node:assert/strict');
+const user='11111111-1111-4111-8111-111111111111',reads=[];
+const full={endpoint:fn=>fn,database:async path=>{reads.push(path);const [table,query]=path.split('?'),p=new URLSearchParams(query);if(table!=='dialer_parallel_legs')assert.equal(p.get('user_id'),'eq.'+user);else assert.equal(p.get('session_id'),'in.(own-session)');
+ if(table==='dialer_calls')return[{call_status:'busy',duration_seconds:0},{call_status:'completed',duration_seconds:20}];
+ if(table==='dialer_client_health')return[{events:[{code:31603,type:'call_error'},{code:31603,type:'device_error'},{type:'prepared',metrics:{setupMs:500}}]}];
+ if(table==='dialer_parallel_sessions')return[{id:'own-session'}];
+ if(table==='dialer_parallel_legs')return[{outcome:'connected',detection_ms:5262,answer:'unknown'}];throw Error(table);
+}};
+const c={module:{exports:{}},require:()=>full,URLSearchParams,Date};vm.runInNewContext(fs.readFileSync('api/dialer/reliability.js','utf8'),c);
+(async()=>{const d=await c.module.exports({body:{userId:'another-agent'}},{id:user});assert.equal(d.declines,1);assert.equal(d.medianDetectionMs,5262);assert.equal(d.calls,2);assert.match(d.summary,/not a measurement of two-way audio/);assert(!JSON.stringify(d).includes('own-session'));console.log('PASS: server-scoped diagnostics, decline deduplication, bounded sample and no unsupported audio claim.');})().catch(e=>{console.error(e);process.exitCode=1;});

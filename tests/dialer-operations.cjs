@@ -9,6 +9,7 @@ global.fetch=async(url,opt={})=>{
  if(url.endsWith('/rpc/require_portal_mfa'))return json(false);
  if(url.includes('/auth/v1/user'))return authenticated?json({id:user,email:'fixture@example.invalid'}):json({},401);
  if(url.includes('/rest/v1/profiles?'))return json([{id:user,active:true,archived:false,role:'agent'}]);
+ if(url.includes('/rest/v1/dialer_priority_tasks?')){const q=new URL(url).searchParams;assert.equal(q.get('user_id'),'eq.'+user);assert.equal(q.get('resolved_at'),'is.null');assert.equal(opt.method,'PATCH');return json([{id}]);}
  if(url.includes('/rest/v1/rpc/')){const name=url.split('/').at(-1),body=JSON.parse(opt.body);calls.push({name,body});
   if(name==='dialer_session_valid')return json(true);
   assert.equal(body.p_user,user,'Client selected another actor');assert.equal(body.p_live,true);
@@ -28,6 +29,9 @@ async function run(body,{aal='aal2',origin='https://www.lldportal.com',method='P
  r=await run({action:'schedule',id,leadId:id,dueAt:new Date(Date.now()+3600000).toISOString(),note:'Call tomorrow'});assert.equal(r.code,200);
  r=await run({action:'priority'});assert.equal(r.code,200);assert.equal(r.data.tasks[0].matches[0].csv_values[0],'1980-01-02');
  r=await run({action:'resolve',id});assert.equal(r.code,200);assert.equal(calls.at(-1).body.p_id,id);
+ r=await run({action:'reschedule',id,dueAt:new Date(Date.now()+900000).toISOString()});assert.equal(r.code,200);
+ r=await run({action:'reschedule',id:session,dueAt:new Date(Date.now()+900000).toISOString()});assert.equal(r.code,403);
+ r=await run({action:'reschedule',id,dueAt:new Date(Date.now()-1000).toISOString()});assert.equal(r.code,400);
  supervisor=false;r=await run({action:'supervisor',userId:id});assert.notEqual(r.code,200);
  r=await run({action:'priority'},{aal:'aal1'});assert.equal(r.code,403);
  r=await run({action:'priority'},{origin:'https://example.invalid'});assert.equal(r.code,403);

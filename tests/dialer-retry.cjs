@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),{decision}=require('../lib/dialer-retry');
+const now=Date.now(),attempt=(age,status='completed')=>({parent_sid:'CA-fixture',created_at:new Date(now-age).toISOString(),call_status:status});
+assert.equal(decision([],now),null);
+assert.match(decision([attempt(1000)],now),/Retry available/);
+assert.match(decision([attempt(1000,'canceled')],now),/Retry available/);
+assert.equal(decision([{...attempt(1000),parent_sid:null}],now),null);
+assert.equal(decision([attempt(31*60000)],now),null);
+assert.match(decision(Array.from({length:5},(_,i)=>attempt((i+1)*3600000)),now),/Daily attempt limit/);
+assert.equal(decision([attempt(25*3600000)],now),null);
+console.log('PASS: retry cooldown, canceled attempts, unused grants, rolling daily limit and expired history.');

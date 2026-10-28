@@ -17,7 +17,7 @@ let callHealth=null;
 let callDevice=null,activeCall=null,callStarting=false,pendingOutcome=false,queueRunning=false,callEpoch=0,callStartedAt=0,callSessionToken=null,callSessionUser=null;
 function session(){try{return JSON.parse(localStorage.getItem('lld_session')||'null')}catch{return null}}
 async function freshSession(){if(typeof realWindow.sessionExpiresWithin==='function'&&realWindow.sessionExpiresWithin(120)){if(typeof realWindow.refreshToken!=='function'||!await realWindow.refreshToken())throw Error('Your session expired. Sign in again.');}const s=session();if(!s?.access_token)throw Error('Sign in to the portal and complete two-step verification.');return s;}
-function callError(e){return Number(e.code)===31005?'Twilio could not connect this call. Save the outcome and try the next lead. If it repeats, contact your administrator.':'Call error '+(e.code||'')+': '+(e.message||'Please try again.');}
+function callError(e){if(Number(e.code)===31603)return 'Call declined before connection (31603). The destination or phone network rejected it; this does not confirm the person pressed Decline.';return Number(e.code)===31005?'Twilio could not connect this call. Save the outcome and try the next lead. If it repeats, contact your administrator.':'Call error '+(e.code||'')+': '+(e.message||'Please try again.');}
 function message(t,error=false){$('message').textContent=t;$('message').classList.toggle('error',error)}
 async function api(body){const s=await freshSession();if(!s?.access_token)throw Error('Sign in to your portal account in the portal and complete two-step verification first.');if(owner&&owner!==s.user?.id)throw Error('Account changed. Reload this page.');const ticket=epoch,r=await fetch('/api/dialer/workspace-v2',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+s.access_token},body:JSON.stringify(body),cache:'no-store',signal:AbortSignal.timeout(30000)});let d;try{d=await r.json()}catch{throw Error('Workspace unavailable. Refresh after deployment finishes.')}if(ticket!==epoch||session()?.user?.id!==s.user?.id)throw Error('Account changed. Reload this page.');if(!r.ok)throw Error(d.error||'Request failed.');owner=s.user?.id;return d}
 function controls(){
@@ -190,7 +190,7 @@ $('call').onclick=async()=>{
     call.on('ringing',()=>{if(epoch===callEpoch)status('Ringing…')});
     call.on('accept',()=>{if(epoch===callEpoch){connectedAt=Date.now();status('Call connected. Check that you can hear both directions.');}});
     for(const event of ['disconnect','cancel','reject'])call.on(event,()=>{if(epoch===callEpoch){status('Call ended. You can place another test call.');cleanup()}});
-    call.on('error',e=>{if(epoch===callEpoch){if(realWindow.VividCallHealth?.live(call)){status('The call reported a connection problem. Keeping it open while the connection recovers.',true);return;}status('Call error '+(e.code||'')+': '+(e.message||'Please try again.'),true);cleanup()}});
+    call.on('error',e=>{if(epoch===callEpoch){if(realWindow.VividCallHealth?.live(call)){status('The call reported a connection problem. Keeping it open while the connection recovers.',true);return;}status(callError(e),true);cleanup()}});
   }catch(e){if(epoch===callEpoch){status(e.name==='NotAllowedError'?'Allow microphone access in your browser, then try again.':e.message,true);cleanup()}}
 };
 $('mute').onclick=()=>{if(!activeCall)return;const muted=!activeCall.isMuted();activeCall.mute(muted);$('mute').textContent=muted?'Unmute':'Mute'};
@@ -206,7 +206,7 @@ $('sdk-note').textContent=window.Twilio?.Device?'Calling support loaded.':'Calli
 
 
 callbacks=window.createDialerCallbacks?.(root,{isBusy:()=>(operations&&!operations.canDial())||parallelBusy||busy||callStarting||!!activeCall||pendingOutcome||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{incomingBusy=value;queueRunning=false;controls();},openView:displayView,showIncomingLead:l=>{if(!busy&&!activeCall&&!callStarting&&!pendingOutcome){show(l);displayView('workspace');}},openLead:l=>{if(!allowChange())return false;show(l);displayView('workspace');return true;}})||null;
-parallel=window.createParallelPilot?.(root,{getSession:freshSession,canDial:()=>!operations||operations.canDial(),beforeNext:()=>operations?operations.beforeNext():true,isBusy:()=>busy||callStarting||!!activeCall||pendingOutcome||incomingBusy||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{parallelBusy=value;queueRunning=false;controls();},openView:displayView})||null;
+parallel=window.createParallelPilot?.(root,{getSession:freshSession,canDial:()=>!operations||operations.canDial(),beforeNext:()=>operations?operations.beforeNext({inline:true}):true,isBusy:()=>busy||callStarting||!!activeCall||pendingOutcome||incomingBusy||!!window.manualCalling?.()||!!dirty(),onBusyChange:value=>{parallelBusy=value;queueRunning=false;controls();},openView:displayView})||null;
 operations=window.createDialerOperations?.(root,{owner:session()?.user?.id,getSession:freshSession,
  getActivity:()=>incomingBusy?'on_call':activeCall?(activeCall.status()==='open'?'on_call':'dialing'):callStarting?'dialing':window.manualCalling?.()?'on_call':parallel?.activity()||((pendingOutcome||dirty())?'wrap':'idle'),
  getLead:()=>!$('parallel')?.hidden?parallel?.lead():current,

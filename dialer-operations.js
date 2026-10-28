@@ -16,6 +16,7 @@
   const dialog=document.createElement('dialog');dialog.className='agent-schedule-dialog';dialog.setAttribute('aria-labelledby','scheduleTitle');
   dialog.innerHTML='<form id="scheduleForm"><h2 id="scheduleTitle">Schedule callback</h2><p id="scheduleName"></p><label>Callback date &amp; time<input id="scheduleDue" type="datetime-local" required></label><small id="scheduleTimezone"></small><label>Reminder note<textarea id="scheduleNote" maxlength="1000" rows="3"></textarea></label><p id="scheduleMessage" role="status"></p><div><button id="scheduleCancel" type="button">Cancel</button><button id="scheduleSave" class="primary" type="submit">Save callback</button></div></form>';
   root.append(priority,team,dialog);
+  const inline=document.createElement('section');inline.className='agent-inline-callbacks';inline.hidden=true;bar.after(inline);
   const liveMonitor=window.createDialerMonitor?.(team,options);
   async function request(action,extra={}){
    if(!sameOwner())throw Error('Your account changed. Reload the dialer.');const s=await options.getSession();
@@ -97,11 +98,11 @@
    $('scheduleSave').disabled=true;try{await request('schedule',{id:scheduleId,leadId:scheduleLead.id,dueAt:due.toISOString(),note:$('scheduleNote').value});dialog.close();await loadPriorityAfter();}catch(error){$('scheduleMessage').textContent=error.message;}finally{$('scheduleSave').disabled=false;}
   };
   const timer=setInterval(()=>{if(!sameOwner()){dispose();return;}draw();options.onChange();presence();if(visible&&!document.hidden){loadPriority().catch(()=>{});if(activeView==='supervisor')loadTeam();}},15000);
-  function dispose(){if(disposed)return;visible=false;if(sameOwner())request('presence',{browserId,activity:'idle',visible:false}).catch(()=>{});liveMonitor?.dispose();disposed=true;clearInterval(timer);if(dialog.open)dialog.close();bar.remove();priority.remove();team.remove();dialog.remove();}
+  function dispose(){if(disposed)return;visible=false;if(sameOwner())request('presence',{browserId,activity:'idle',visible:false}).catch(()=>{});liveMonitor?.dispose();disposed=true;clearInterval(timer);if(dialog.open)dialog.close();bar.remove();inline.remove();priority.remove();team.remove();dialog.remove();}
   presence();loadPriority().catch(()=>{});
-  return {canDial,changed,dispose,mode:()=>mode,setVisible(value){visible=value;presence();},show(view){activeView=view;if(view==='priority')loadPriority().catch(()=>{});if(view==='supervisor')loadTeam();},async beforeNext(){
+  return {canDial,changed,dispose,mode:()=>mode,setVisible(value){visible=value;presence();},show(view){activeView=view;if(view==='priority')loadPriority().catch(()=>{});if(view==='supervisor')loadTeam();},async beforeNext(context={}){
    if(!canDial())return false;
-   try{const d=await loadPriorityAfter();if(d.due){options.openView('priority');$('priorityMessage').textContent='Your outcome was saved. Review the due callbacks before starting another batch. '+$('priorityMessage').textContent;return false;}return canDial();}catch{return false;}
+   try{const d=await loadPriorityAfter();if(d.due){if(context.inline){inline.replaceChildren();inline.hidden=false;inline.append(textElement('strong','Due callback — choose your next step'));for(const task of latestTasks.filter(t=>Date.parse(t.due_at)<=Date.now()).slice(0,3)){const row=document.createElement('div');row.append(textElement('span',task.reason+' · '+(task.phone||'')));for(const lead of task.matches||[]){const open=textElement('button','Open '+leadName(lead));open.onclick=()=>options.openLead(lead);row.append(open);}for(const minutes of [15,60]){const later=textElement('button','In '+minutes+' min');later.onclick=async()=>{later.disabled=true;try{await request('reschedule',{id:task.id,dueAt:new Date(Date.now()+minutes*60000).toISOString()});await loadPriorityAfter();row.remove();if(inline.children.length===1)inline.hidden=true;}catch(e){row.append(textElement('span',e.message));later.disabled=false;}};row.append(later);}inline.append(row);}return false;}options.openView('priority');$('priorityMessage').textContent='Your outcome was saved. Review the due callbacks before starting another batch. '+$('priorityMessage').textContent;return false;}return canDial();}catch{return false;}
   }};
  };
 })();

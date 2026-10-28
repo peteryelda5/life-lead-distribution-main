@@ -1,5 +1,5 @@
 'use strict';
-const {endpoint,rpc,UUID,failure}=require('../../lib/dialer-full');
+const {endpoint,rpc,database,UUID,failure}=require('../../lib/dialer-full');
 const {displayLead}=require('../../lib/lead-calling');
 module.exports=endpoint(async(req,u)=>{
  const b=req.body,args={p_user:u.id,p_live:u.live};
@@ -14,6 +14,13 @@ module.exports=endpoint(async(req,u)=>{
  if(b.action==='schedule'){
   if(!UUID.test(b.id||'')||!UUID.test(b.leadId||'')||typeof b.dueAt!=='string'||!Number.isFinite(Date.parse(b.dueAt))||typeof b.note!=='string'||b.note.length>1000)throw failure(400,'Choose a lead, callback time, and a note under 1,000 characters.');
   return rpc('dialer_priority_schedule',{...args,p_id:b.id,p_lead:b.leadId,p_due:new Date(b.dueAt).toISOString(),p_note:b.note});
+ }
+ if(b.action==='reschedule'){
+  if(!UUID.test(b.id||'')||typeof b.dueAt!=='string'||!Number.isFinite(Date.parse(b.dueAt))||Date.parse(b.dueAt)<Date.now()||Date.parse(b.dueAt)>Date.now()+366*86400000)throw failure(400,'Choose a future callback time within one year.');
+  const visible=await rpc('dialer_priority_list',args);
+  if(!(visible.tasks||[]).some(t=>t.id===b.id))throw failure(403,'This callback is no longer available to you.');
+  const rows=await database('dialer_priority_tasks?'+new URLSearchParams({id:'eq.'+b.id,user_id:'eq.'+u.id,livemode:'eq.'+u.live,resolved_at:'is.null',select:'id'}),{due_at:new Date(b.dueAt).toISOString()},'PATCH');
+  if(rows.length!==1)throw failure(409,'This callback changed. Refresh and retry.');return {saved:true};
  }
  if(b.action==='resolve'){
   if(!UUID.test(b.id||''))throw failure(400,'Choose a callback.');
