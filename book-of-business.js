@@ -175,10 +175,10 @@
   const url=URL.createObjectURL(file),img=new Image();try{img.src=url;await img.decode();if(!img.naturalWidth||!img.naturalHeight||img.naturalWidth>10000||img.naturalHeight>10000||img.naturalWidth*img.naturalHeight>40000000)throw Error('Choose an image no larger than 10,000 pixels per side.');}catch(e){throw Error(e.message.startsWith('Choose')?e.message:'This image could not be opened. Choose another logo.');}finally{URL.revokeObjectURL(url);}
   const preview=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(Error('Could not read the image.'));reader.readAsDataURL(file);});return {...type,preview,file};
  }
- function agencyLogoForm(){
-  const agencies=B.branding?.manageable||[],user=B.user;if(!agencies.length)return;
-  openModal('<div class="bob-modal-heading"><div><h2>Agency logo</h2><p>Your agency’s logo appears in the CRM header for its agents and team leaders.</p></div><button type="button" class="bob-detail-close" id="bobCancelTop" aria-label="Close">×</button></div><form id="bobLogoForm" class="stack"><label class="bob-field"><span>Agency</span><select name="agency">'+agencies.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===B.branding.agency?.id?'selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></label><div id="bobLogoPreview" class="bob-logo-preview"></div><label class="bob-field"><span>Upload logo</span><input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="bob-form-hint">PNG, JPG or WebP, up to 2 MB. A transparent PNG works best. Logos are public brand images.</p><div id="bobLogoError" role="alert"></div><footer class="bob-modal-footer"><button type="button" class="bob-link" id="bobRemoveLogo">Remove logo</button><button type="button" class="btn secondary" id="bobCancel">Cancel</button><button class="btn primary" id="bobSaveLogo" disabled>Save logo</button></footer></form>');
-  const form=q('#bobLogoForm'),isCurrent=()=>form.isConnected&&valid(user);let chosen=null,pending=null,busy=false,sequence=0;
+ function agencyLogoForm(options={}){
+  const branding=options.branding||B.branding,agencies=branding?.manageable||[],user=options.user||B.user;if(!agencies.length)return;
+  openModal('<div class="bob-modal-heading"><div><h2>Agency logo</h2><p>Your agency’s logo appears in Management and the CRM header.</p></div><button type="button" class="bob-detail-close" id="bobCancelTop" aria-label="Close">×</button></div><form id="bobLogoForm" class="stack"><label class="bob-field"><span>Agency</span><select name="agency">'+agencies.map(a=>'<option value="'+esc(a.id)+'" '+(a.id===branding.agency?.id?'selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></label><div id="bobLogoPreview" class="bob-logo-preview"></div><label class="bob-field"><span>Upload logo</span><input name="logo" type="file" accept="image/png,image/jpeg,image/webp"></label><p class="bob-form-hint">PNG, JPG or WebP, up to 2 MB. A transparent PNG works best. Logos are public brand images.</p><div id="bobLogoError" role="alert"></div><footer class="bob-modal-footer"><button type="button" class="bob-link" id="bobRemoveLogo">Remove logo</button><button type="button" class="btn secondary" id="bobCancel">Cancel</button><button class="btn primary" id="bobSaveLogo" disabled>Save logo</button></footer></form>');
+  const form=q('#bobLogoForm'),isCurrent=()=>form.isConnected&&(options.user?S.profile?.id===user:valid(user));let chosen=null,pending=null,busy=false,sequence=0;
   const agency=()=>agencies.find(a=>a.id===form.elements.agency.value),paint=()=>{const a=agency(),url=chosen?.preview||brandUrl(a);q('#bobLogoPreview').innerHTML=url?'<img src="'+esc(url)+'" alt="'+esc(a.name)+' logo preview">':'<strong>'+esc(a.name)+'</strong>';q('#bobSaveLogo').disabled=!chosen||busy;q('#bobRemoveLogo').hidden=!a.logo_path;q('#bobRemoveLogo').textContent=a.id==='vivid_life'?'Use default logo':'Remove logo';};
   q('#bobCancel').onclick=q('#bobCancelTop').onclick=()=>{if(!busy)closeModal();};
   form.elements.agency.onchange=()=>{sequence++;chosen=null;pending=null;form.elements.logo.value='';q('#bobLogoError').textContent='';paint();};
@@ -186,7 +186,7 @@
   const save=async remove=>{if(busy||!isCurrent()||(!remove&&!chosen))return;busy=true;const a=agency();qa('#bobLogoForm button,#bobLogoForm input,#bobLogoForm select,#bobCancelTop').forEach(e=>e.disabled=true);q('#bobLogoError').textContent=remove?'Updating agency branding…':'Uploading logo…';
    try{
     if(!remove&&!pending){await syncSbSession();if(!isCurrent())return;const path=a.id+'/'+user+'/'+crypto.randomUUID()+'.'+chosen.ext;const {error}=await SB.storage.from('agency-logos').upload(path,chosen.file,{contentType:chosen.mime,cacheControl:'31536000',upsert:false});if(error)throw error;pending=path;}
-    if(!isCurrent())return;await rpc('agency_branding_save',{p_agency:a.id,p_logo_path:remove?null:pending,p_expected_updated_at:a.updated_at||null});if(!isCurrent())return;closeModal();await refresh();flash('Logo updated for '+a.name+'.');
+    if(!isCurrent())return;await rpc('agency_branding_save',{p_agency:a.id,p_logo_path:remove?null:pending,p_expected_updated_at:a.updated_at||null});if(!isCurrent())return;closeModal();if(options.onSaved)await options.onSaved();else await refresh();flash('Logo updated for '+a.name+'.');
    }catch(e){if(isCurrent()){q('#bobLogoError').textContent=e.message;qa('#bobLogoForm button,#bobLogoForm input,#bobLogoForm select,#bobCancelTop').forEach(e=>e.disabled=false);q('#bobSaveLogo').disabled=!chosen;}}
    finally{busy=false;}
   };
@@ -412,5 +412,6 @@
   bindDrag();
   bindCompGrid();
  }
+ window.bobAgencyLogo=async(id,onSaved)=>{const user=S.profile?.id;if(!user)return;const branding=await rpc('agency_branding_context',{});if(user!==S.profile?.id)return;const agency=branding?.manageable?.find(a=>a.id===id);if(!agency)throw Error('You cannot manage this agency logo.');agencyLogoForm({branding:{...branding,agency},user,onSaved});};
  window.PORTAL_CRM_CSV={cell:csvCell,rows:csvRows};window.bobLoad=load;window.bobPage=page;window.bobBind=bind;window.bobReset=reset;
 })();
