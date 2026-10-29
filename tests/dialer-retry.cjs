@@ -2,6 +2,8 @@
 const assert=require('node:assert/strict'),{decision}=require('../lib/dialer-retry');
 const now=Date.now(),attempt=(age,status='completed')=>({parent_sid:'CA-fixture',created_at:new Date(now-age).toISOString(),call_status:status});
 assert.equal(decision([],now),null);
+assert.equal(decision([attempt(1000)],now,true),null,'Explicit manual redial bypasses cooldown');
+assert.match(decision(Array.from({length:5},()=>attempt(1000)),now,true),/Daily attempt limit/,'Manual redial retains daily limit');
 assert.match(decision([attempt(1000)],now),/Retry available/);
 assert.match(decision([attempt(1000,'canceled')],now),/Retry available/);
 assert.equal(decision([{...attempt(1000),parent_sid:null}],now),null);

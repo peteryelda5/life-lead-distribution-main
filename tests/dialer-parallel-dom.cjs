@@ -44,7 +44,7 @@ class Call extends Events{status(){return this.ended?'closed':'open';}disconnect
  w.eval(fs.readFileSync(__dirname+'/../dialer-call-health.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-conversations.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-operations.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../dialer-parallel.js','utf8'));w.eval(fs.readFileSync(__dirname+'/../portal-dialer.js','utf8'));
  const advance=async()=>{clockOffset+=31*60000;timers.find(t=>t.ms===15000)?.fn();await flush();};
  const root=w.document.querySelector('#root'),$=id=>root.querySelector('#'+id);instance=w.createPortalDialer(root);await flush();
- assert.equal(root.querySelector('[data-view="parallel"]').textContent,'Calling');root.querySelector('[data-view="parallel"]').click();await flush();
+ assert.equal(root.querySelector('[data-view="parallel"]').textContent,'Power Dialer');root.querySelector('[data-view="parallel"]').click();await flush();
  assert.equal($('parallel').hidden,false);assert.equal($('powerMode').value,'human','Voicemail detection must be the default');assert.equal($('powerMode').options.length,1,'Unsafe fast connection is still offered');assert.equal($('powerSetup').hidden,true);assert.equal($('powerRows').querySelectorAll('input').length,4);assert.equal($('powerRows').querySelectorAll('input')[3].disabled,true);assert.equal(root.querySelector('img[src=x]'),null,'Lead data became HTML');
  // The guided workspace keeps idle tools out of the way and preserves real table semantics.
  assert.match($('powerChooseTitle').textContent,/Choose leads/);assert.equal($('powerCallingTitle').textContent,'Calling');assert.equal($('powerRows').tagName,'TBODY');assert.equal(root.querySelectorAll('.power-table th').length,7);

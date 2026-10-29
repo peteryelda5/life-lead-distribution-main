@@ -5,12 +5,12 @@ const server=http.createServer((req,res)=>{if(req.url==='/'){res.setHeader('Cont
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));let testPage;const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.CHROMIUM_EXECUTABLE_PATH,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']}: {})});try{
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];testPage=page;page.on('pageerror',e=>errors.push(e.message));
  const leads=['John Miller','Sarah Adams','Michael Brown','Emily Carter','David Wilson','Lisa Parker'].map((name,i)=>({id:'lead-'+i,first_name:name.split(' ')[0],last_name:name.split(' ')[1],phone:'248555014'+i,state:'MI',lead_type:'New leads',call_notes:'',agent_status:null}));
- let batch=null,launches=0,saves=0,failSave=false;
+ let batch=null,launches=0,saves=0,failSave=false,lastPrepare=null;
  await page.route('**/api/**',async route=>{const b=route.request().postDataJSON(),url=route.request().url();let d={};
  if(url.endsWith('/operations')){d=b.action==='presence'?{mode:'ready',supervisor:false}:b.action==='priority'?{due:0,total:0,tasks:[]}:{saved:true};}
  else if(url.endsWith('/parallel')){
   if(b.action==='options')d={canCall:true,numbers:['+12485550100'],sessions:[]};
-  if(b.action==='prepareLeads'){batch={id:b.id,state:'prepared',kind:'leads',legs:b.leadIds.map((leadId,i)=>({id:'leg-'+i,leadId,position:i+1,phone:leads.find(l=>l.id===leadId).phone,state:'queued'}))};d={session:batch,leads:leads.filter(l=>b.leadIds.includes(l.id)),token:'fixture',callGrant:'fixture',deviceKey:'fixture'};}
+  if(b.action==='prepareLeads'){lastPrepare=b;batch={id:b.id,state:'prepared',kind:'leads',legs:b.leadIds.map((leadId,i)=>({id:'leg-'+i,leadId,position:i+1,phone:leads.find(l=>l.id===leadId).phone,state:'queued'}))};d={session:batch,leads:leads.filter(l=>b.leadIds.includes(l.id)),token:'fixture',callGrant:'fixture',deviceKey:'fixture'};}
   if(b.action==='status'){if(batch.state==='prepared')batch.state='ready';d={session:batch,leads:[]};}
   if(b.action==='launch'){launches++;batch.state='dialing';d={session:batch};}
   if(b.action==='stop'){batch.state='complete';batch.legs.forEach(l=>l.state=l.state==='in-progress'?'completed':'no-answer');d={session:batch,leads:[]};}
@@ -58,5 +58,9 @@ const server=http.createServer((req,res)=>{if(req.url==='/'){res.setHeader('Cont
  batch.state='complete';batch.legs[0].state='completed';batch.legs[1].state='no-answer';batch.legs[2].state='busy';await page.evaluate(()=>__timers.find(t=>t.ms===1200).fn());
  await page.locator('[data-power-outcome="not_interested"]').click();await page.waitForFunction(()=>__next.length>0&&!__next.at(-1).canceled);
  await page.evaluate(()=>__next.at(-1).fn());await page.waitForFunction(()=>document.querySelector('#powerConnection').textContent==='Calling');assert.equal(launches,beforeAuto+1,'An outcome must automatically start the next fresh leads');
+ await page.locator('#powerEndSession').click();await page.locator('#powerRedials button').first().waitFor();
+ const oldBatch=batch.id,redialLead=batch.legs[0].leadId,beforeRedial=launches;
+ await page.locator('#powerRedials button').first().click();await page.waitForFunction(()=>document.querySelector('#powerConnection').textContent==='Calling');
+ assert.equal(launches,beforeRedial+1);assert.equal(batch.legs.length,1,'Redial must call only one lead');assert.equal(batch.legs[0].leadId,redialLead);assert.equal(lastPrepare.redial.sessionId,oldBatch);assert.equal(await page.locator('#powerContinuous').isChecked(),false,'Manual redial must pause the automatic queue');
  await page.locator('#powerEndSession').click();assert.deepEqual(errors,[]);console.log('PASS: browser desktop/mobile layout, inline caller, real script substitutions, draft retention across tabs, continuous Start, failed-save pause, safe retry, automatic continuation after outcome, resume and end session.');
  }catch(e){if(testPage){console.log(await testPage.locator('#powerName').evaluate(el=>{const a=[];for(let p=el;p;p=p.parentElement)a.push({tag:p.tagName,id:p.id,cls:p.className,hidden:p.hidden,display:getComputedStyle(p).display});return a}));await testPage.screenshot({path:'/tmp/vivid-dialer-failure.png',fullPage:true});}throw e;}finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1});

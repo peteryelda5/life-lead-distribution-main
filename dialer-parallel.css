@@ -330,3 +330,5 @@
  #portalDialer.power-view-active .workspace-tabs{gap:14px;min-height:50px}
  #portalDialer.power-view-active .workspace-tabs button{font-size:12px}
 }
+
+#portalDialer .power-redials{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 16px}#portalDialer .power-redials[hidden]{display:none}#portalDialer .power-redials button{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:9px;padding:9px 14px;font-weight:600}#portalDialer .power-redials button:disabled{opacity:.45;cursor:not-allowed}

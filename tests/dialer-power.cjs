@@ -1,14 +1,14 @@
 'use strict';
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const owner='77777777-7777-4777-8777-777777777777',leadIds=[1,2,3].map(n=>'11111111-1111-4111-8111-'+String(n).padStart(12,'0'));
-let pool=null,numberValid=true,lookupDown=false,entitled=true,prepared=null,grants=0,skips=new Set();
+let retryManual=false,previous=null;let pool=null,numberValid=true,lookupDown=false,entitled=true,prepared=null,grants=0,skips=new Set();
 const failure=(status,message)=>Object.assign(Error(message),{status});
 const full={config:()=>config,failure,UUID:/^[a-f0-9-]{36}$/i,rpc:async(name,args)=>{if(name==='dialer_pool_options')return pool;if(name==='dialer_entitled')return entitled;if(name==='dialer_lead_phone'){assert.equal(args.p_user,owner);if(skips.has(args.p_lead))throw failure(409,'Lead unavailable');return '+1202555019'+(leadIds.indexOf(args.p_lead)+1);}if(['dialer_power_prepare','dialer_power_prepare_pool'].includes(name)){prepared=args;return args.p_id;}throw Error(name);},database:async path=>{if(path.startsWith('dialer_numbers?'))return[{phone:'+12025550198'}];if(path.startsWith('leads?')){assert(path.includes('assigned_to=eq.'+owner));return leadIds.map(id=>({id,first_name:'Lead',phone:'+12025550191'}));}throw Error(path);}};
 const config={TWILIO_ACCOUNT_SID:'AC'+'a'.repeat(32),TWILIO_AUTH_TOKEN:'secret'};
 const phoneContext={module:{exports:{}},require:n=>{if(n==='./dialer-full')return full;throw Error(n);},Buffer,AbortSignal,fetch:async(url,opt)=>{assert(!url.includes('Fields'),'Paid Lookup fields were requested');assert.equal(opt.headers.Authorization,'Basic '+Buffer.from(config.TWILIO_ACCOUNT_SID+':secret').toString('base64'));return {ok:!lookupDown,json:async()=>({valid:numberValid,country_code:'US',phone_number:decodeURIComponent(url.split('/').at(-1))})};}};
 vm.runInNewContext(fs.readFileSync(__dirname+'/../lib/dialer-phone.js','utf8'),phoneContext);
-const parallel={storedContext:async()=>config,price:async()=>.014,get:async id=>({id,user_id:owner,session_id:'session',kind:'leads',state:'prepared'}),alive:()=>true,tokens:()=>{grants++;return{token:'test',callGrant:'signed'};},publicState:s=>s};
-const context={URLSearchParams,module:{exports:{}},require:n=>{if(n==='./dialer-full')return full;if(n==='./dialer-at-cost-provider')return{context:async()=>config};if(n==='./lead-calling')return{displayLead:l=>l};if(n==='./dialer-parallel')return parallel;if(n==='./dialer-full-billing')return{ensureFresh:async()=>{}};if(n==='./dialer-phone')return phoneContext.module.exports;if(n==='./dialer-retry')return{check:async()=>new Map()};throw Error(n);}};
+const parallel={storedContext:async()=>config,price:async()=>.014,get:async (id,user)=>{assert.equal(user,owner);if(previous&&id===previous.id)return previous;return {id,user_id:owner,session_id:'session',kind:'leads',state:'prepared'};},alive:()=>true,tokens:()=>{grants++;return{token:'test',callGrant:'signed'};},publicState:s=>s};
+const context={URLSearchParams,module:{exports:{}},require:n=>{if(n==='./dialer-full')return full;if(n==='./dialer-at-cost-provider')return{context:async()=>config};if(n==='./lead-calling')return{displayLead:l=>l};if(n==='./dialer-parallel')return parallel;if(n==='./dialer-full-billing')return{ensureFresh:async()=>{}};if(n==='./dialer-phone')return phoneContext.module.exports;if(n==='./dialer-retry')return{check:async(user,batch,phones,manual)=>{retryManual=manual;return new Map();}};throw Error(n);}};
 vm.runInNewContext(fs.readFileSync(__dirname+'/../lib/dialer-power.js','utf8'),context);
 (async()=>{
  const prepare=context.module.exports.prepare,u={id:owner,live:true,sessionId:'session'},b={id:'22222222-2222-4222-8222-222222222222',leadIds,callerId:'+12025550198',connectMode:'human'};
@@ -19,6 +19,15 @@ vm.runInNewContext(fs.readFileSync(__dirname+'/../lib/dialer-power.js','utf8'),c
  entitled=false;await assert.rejects(prepare(u,b),/calling setup/);assert.equal(grants,before);entitled=true;
  await assert.rejects(prepare(u,{...b,leadIds:[leadIds[0],leadIds[0]]}),/one to three/);
  await assert.rejects(phoneContext.module.exports.validate('911',config),/valid US phone/);
+ previous={id:'33333333-3333-4333-8333-333333333333',kind:'leads',state:'complete',legs:[{id:'44444444-4444-4444-8444-444444444444',lead_id:leadIds[0],phone:'+12025550191',terminal:true,provider_sid:'CA'+'c'.repeat(32)}]};
+ const redial={sessionId:previous.id,legId:previous.legs[0].id};
+ await prepare(u,{...b,leadIds:[leadIds[0]],redial});assert.equal(retryManual,true);assert.equal(prepared.p_leads.length,1);
+ await assert.rejects(prepare(u,{...b,redial}),/one completed call/);
+ previous.state='connected';await assert.rejects(prepare(u,{...b,leadIds:[leadIds[0]],redial}),/no longer available/);previous.state='complete';
+ previous.legs[0].phone='+12025550199';await assert.rejects(prepare(u,{...b,leadIds:[leadIds[0]],redial}),/no longer available/);previous.legs[0].phone='+12025550191';
+ previous.legs[0].terminal=false;await assert.rejects(prepare(u,{...b,leadIds:[leadIds[0]],redial}),/no longer available/);previous.legs[0].terminal=true;
+ previous.legs[0].provider_sid=null;await assert.rejects(prepare(u,{...b,leadIds:[leadIds[0]],redial}),/no longer available/);
+ await prepare(u,b);assert.equal(retryManual,false);
  pool={id:'pool-fixture',providerSid:config.TWILIO_ACCOUNT_SID};await prepare(u,b);assert.equal(prepared.p_pool,pool.id);pool.providerSid='AC'+'b'.repeat(32);await assert.rejects(prepare(u,b),/account requires administrator review/);
  console.log('PASS: current entitlement, own caller/lead scope, server-resolved numbers, invalid-lead isolation, free basic validation, verification outage fails closed, no duplicate leads or unauthorized grants.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
