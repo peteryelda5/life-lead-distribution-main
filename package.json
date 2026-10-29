@@ -9,6 +9,7 @@
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",
     "@simplewebauthn/server": "14.0.3",
-    "web-push": "3.6.7"
+    "web-push": "3.6.7",
+    "ws": "8.22.0"
   }
 }

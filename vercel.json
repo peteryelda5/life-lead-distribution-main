@@ -71,6 +71,10 @@
     {
       "path": "/api/dialer/pool-maintenance",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/dialer/recording-maintenance",
+      "schedule": "*/5 * * * *"
     }
   ],
   "redirects": [
@@ -85,5 +89,10 @@
       "source": "/dialer-inbound.xml",
       "destination": "/api/dialer/incoming"
     }
-  ]
+  ],
+  "functions": {
+    "api/dialer/recording-stream.js": {
+      "maxDuration": 800
+    }
+  }
 }

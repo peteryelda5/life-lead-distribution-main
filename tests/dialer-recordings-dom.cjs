@@ -1,0 +1,13 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<div id="root"><nav class="workspace-tabs"></nav><main id="parallel"><header class="power-heading"></header></main></div>',{url:'https://www.lldportal.com',runScripts:'outside-only'}),w=dom.window;
+const owner='8139e230-055d-4247-8133-684ed817b4fa';w.localStorage.setItem('lld_session',JSON.stringify({user:{id:owner}}));w.AbortSignal.timeout=()=>undefined;
+const calls=[];w.fetch=async(url,options)=>{const b=JSON.parse(options.body);calls.push(b);return {ok:true,json:async()=>b.action==='list'?{testAllowed:true,candidates:[{id:'power',phone:'+12482383969'}],recordings:[{id:'r1',user_id:owner,client_name:'<script>bad</script>',agent_name:'Peter',phone:'+12482383969',state:'ready',duration_ms:3000,created_at:'2026-10-29T12:00:00Z',playable:true}]}:{id:'r2'}};};
+w.eval(fs.readFileSync('dialer-recordings.js','utf8'));let view;const root=w.document.querySelector('#root'),ui=w.createDialerRecordings(root,{owner,getSession:async()=>({access_token:'test'}),openView:v=>view=v});
+const settle=()=>new Promise(r=>setTimeout(r,30));
+(async()=>{await settle();assert(root.querySelector('[data-view="recordings"]'));assert(!root.querySelector('script'));assert(root.textContent.includes('<script>bad</script>'));
+ root.querySelector('[data-start]').click();await settle();assert(!calls.some(c=>c.action==='start'));
+ root.querySelector('[data-consent]').checked=true;root.querySelector('[data-start]').click();await settle();assert.deepEqual(calls.find(c=>c.action==='start'),{action:'start',powerId:'power',consent:true});
+ root.querySelector('[data-view="recordings"]').click();assert.equal(view,'recordings');
+ root.querySelector('[data-search]').value='missing';root.querySelector('[data-search]').dispatchEvent(new w.Event('input'));assert.equal(root.querySelectorAll('.recording-row').length,0);
+ ui.dispose();assert.equal(root.querySelector('#recordings'),null);dom.window.close();console.log('PASS recording tab, safe text, consent requirement, test-only request, search, cleanup');})().catch(e=>{console.error(e);dom.window.close();process.exit(1)});
