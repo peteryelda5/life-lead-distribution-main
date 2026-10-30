@@ -413,5 +413,7 @@
   bindCompGrid();
  }
  window.bobAgencyLogo=async(id,onSaved)=>{const user=S.profile?.id;if(!user)return;const branding=await rpc('agency_branding_context',{});if(user!==S.profile?.id)return;const agency=branding?.manageable?.find(a=>a.id===id);if(!agency)throw Error('You cannot manage this agency logo.');agencyLogoForm({branding:{...branding,agency},user,onSaved});};
+ // Prepare the ordinary CRM route without bypassing its access/PIN check.
+ window.bobPrepareDashboardView=id=>{const user=S.profile?.id;if(!user)return;const target=id||user;if(target!==user&&!S.profile?.is_super_admin)throw Error('You may open only your own production.');if(B.user!==user){reset();B.user=user;}request++;detailRequest++;B.tab='clients';B.agent=target;B.page=1;B.search='';B.stage='';B.carrier='';B.selectedId=null;B.detail=null;B.book=null;B.error='';};
  window.PORTAL_CRM_CSV={cell:csvCell,rows:csvRows};window.bobLoad=load;window.bobPage=page;window.bobBind=bind;window.bobReset=reset;
 })();
