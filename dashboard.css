@@ -95,3 +95,42 @@
 .dash-b .db-request-panel.db-pending{background:#fff1f2;border-color:#f5b4bd}
 .dash-b .db-request-panel.db-pending h2,.dash-b .db-request-panel.db-pending .db-requests,.dash-b .db-request-panel.db-pending .db-requests small,.dash-b .db-request-panel.db-pending .db-requests>b,.dash-b .db-request-panel.db-pending .dash-link{color:#b42336}
 .dash-b .db-request-panel.db-pending .dash-icon{background:#ffe0e5;color:#d62945}
+
+/* Super Master: compact summary cards and agency production. */
+.dash-b .dash-metric{position:relative;flex-direction:row-reverse;justify-content:space-between;align-items:flex-start;padding:20px;border-radius:14px;background:linear-gradient(135deg,#fff 65%,#f2f7ff);box-shadow:0 3px 12px #173b7410;gap:12px}
+.dash-b .dash-metric>div{min-width:0}
+.dash-b .dash-metric .dash-icon{width:42px;height:42px;border-radius:12px}
+.dash-b .dash-label{font-size:13px;font-weight:650;color:#425774}
+.dash-b .dash-metric strong{font-size:clamp(23px,2vw,32px);letter-spacing:-1px;line-height:1.3;margin-top:10px}
+.dash-b .dash-metric small{font-size:11px;line-height:1.5;margin-top:7px}
+.db-agency-sections{display:grid;gap:18px;margin:0 0 22px}
+.dash-b .db-agency-sections .dash-panel{border-radius:14px;padding:20px}
+.db-agency-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
+.db-agency-card{min-width:0;border:1px solid #dfE9f7;border-radius:12px;padding:18px;background:linear-gradient(155deg,#fff 55%,#f3f8ff)}
+.db-agency-title{display:flex;gap:12px;align-items:center;min-height:52px;margin-bottom:18px}
+.db-agency-title h3{font-size:15px;line-height:1.4;margin:0;color:#193353;overflow-wrap:anywhere}
+.db-agency-logo{width:54px;height:44px;flex-shrink:0;display:grid;place-items:center}
+.db-agency-logo img{max-width:54px;max-height:44px;object-fit:contain}
+.db-agency-logo>span{width:40px;height:40px;border-radius:50%;background:linear-gradient(145deg,#4ca4ff,#0063ed);color:white;display:grid;place-items:center;font-size:13px;font-weight:700;box-shadow:0 3px 8px #0076ff25}
+.db-agency-logo [hidden]{display:none!important}
+.db-agency-ap{display:block;font-size:29px;letter-spacing:-.8px;font-variant-numeric:tabular-nums;color:#102748}
+.db-agency-card>small{display:block;font-size:12px;color:#6b7d97;margin-top:3px}
+.db-agency-stats{display:grid;grid-template-columns:1fr 1fr;margin:18px 0;gap:12px}
+.db-agency-stats span{font-size:11px;color:#687b95}
+.db-agency-stats span+span{border-left:1px solid #e1e9f3;padding-left:16px}
+.db-agency-stats b{display:block;font-size:19px;color:#203a5a;margin-bottom:4px;font-variant-numeric:tabular-nums}
+.db-agency-card .btn{display:flex;align-items:center;justify-content:space-between;width:100%;border-radius:8px;padding:10px 13px;font-size:12px}
+.dash-b .db-comparison{margin-top:14px;border:1px solid #e3ebf7;border-radius:9px}
+.dash-b .db-comparison table{min-width:660px}
+.dash-b .db-comparison th{font-size:11px;padding:11px 14px;border:0}
+.dash-b .db-comparison td{font-size:13px;padding:12px 14px;font-variant-numeric:tabular-nums}
+.dash-b .db-comparison td:not(:first-child),.dash-b .db-comparison th:not(:first-child){text-align:right}
+.dash-b .db-comparison .dash-link{font-weight:600;color:#253e60;text-align:left;padding:0}
+.dash-b .db-comparison tbody tr:nth-child(even){background:#f8fbff}
+.db-share{display:flex;gap:10px;align-items:center;justify-content:flex-end}
+.db-share>b{font-size:12px;min-width:42px;font-weight:500}
+.db-share .db-bar{width:80px;height:7px}
+.db-agency-card .btn:focus-visible,.db-agency-sections button:focus-visible{outline:3px solid #80b7ff;outline-offset:3px}
+@media(min-width:1600px){.db-agency-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:1000px){.db-agency-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.db-agency-grid{grid-template-columns:1fr}.dash-b .db-agency-sections .dash-panel{padding:14px}.dash-b .dash-metric{padding:15px 12px}.dash-b .dash-metric .dash-icon{display:none}.db-agency-sections .dash-panel-head{align-items:flex-start;flex-wrap:wrap}}

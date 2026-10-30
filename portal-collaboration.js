@@ -139,7 +139,7 @@ async function pcRefreshDashboardGoal(){
   await Promise.all([pcLoadGoal(owner),S.profile?.is_super_admin?pcBase.loadDashboard():Promise.resolve()]);
   if(owner!==S.profile?.id||epoch!==PC.epoch||month!==PC.goalMonth||S.tab!=='dashboard'||document.hidden||q('#pcGoalForm')||!q('.pc-goal')||document.activeElement?.id==='pcGoalMonth')return;
   PC.lastDashboardAt=Date.now();q('.pc-goal').outerHTML=pcGoalHtml(owner);pcBindGoal(owner);
-  if(S.profile?.is_super_admin){const template=document.createElement('template');template.innerHTML=pcBase.dash();for(const selector of ['.dash-b .dash-metrics','.dash-b .db-production','.dash-b .db-closings tbody']){const current=q(selector),next=template.content.querySelector(selector);if(current&&next)current.replaceWith(next);}}
+  if(S.profile?.is_super_admin){const template=document.createElement('template');template.innerHTML=pcBase.dash();for(const selector of ['.dash-b .dash-metrics','.dash-b .db-production','.dash-b .db-closings tbody','.dash-b .db-agency-sections']){const current=q(selector),next=template.content.querySelector(selector);if(current&&next)current.replaceWith(next);}if(typeof bindDashboardAgencies==='function')bindDashboardAgencies();}
  }finally{if(PC.dashboardFlight===flight)PC.dashboardFlight=null;}
 }
 
