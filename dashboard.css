@@ -160,3 +160,6 @@
 .dash-b .dash-head .dash-tools select,.dash-b .dash-head .btn.secondary{background:#ffffffed;border-color:#d6e6f7;box-shadow:0 2px 8px #1c4b7910}
 @media(max-width:1000px){.dash-b .dash-head{min-height:210px;padding:24px;background-position:center 50%}.dash-b .dash-head .dash-tools{margin-left:0}}
 @media(max-width:600px){.dash-b .dash-head{padding:22px 18px;min-height:240px;gap:18px;background:linear-gradient(90deg,#f0f8ffdf,#eef8ff70),url('/assets/agent-mountains.png') 58% center/cover}.dash-b .dash-head .dash-tools{width:100%}.dash-b .dash-head .dash-tools .btn{font-size:12px;min-height:40px;padding:9px 10px}.dash-b .dash-head .dash-tools select{width:100%;flex-basis:100%}}
+
+.dash-b .dash-head .db-daily-quote{max-width:560px;margin:12px 0 0;font-size:16px;line-height:1.6;font-style:italic;color:#365678;text-wrap:pretty}
+@media(max-width:600px){.dash-b .dash-head .db-daily-quote{font-size:14px}}
