@@ -151,3 +151,12 @@
 @media(min-width:1600px){.db-agency-card{padding:22px}.db-agency-ap{font-size:34px}.db-agency-title{margin-bottom:20px}.db-agency-stats{margin:24px 0}.dash-b .db-comparison td{padding-top:28px;padding-bottom:28px;font-size:13px}.dash-b .db-comparison .db-comparison-agency{font-size:13px}.db-share>b{font-size:12px}}
 @media(max-width:1200px){.db-agency-sections{grid-template-columns:1fr}.db-agency-scope{padding-top:18px}}
 @media(max-width:600px){.db-agency-grid{grid-template-columns:1fr}.dash-b .db-agency-sections .dash-panel{padding:14px}.dash-b .dash-metric{padding:15px 12px}.dash-b .dash-metric .dash-icon{display:none}}
+
+/* Super Master mountain banner, shared with the agent dashboard artwork. */
+.dash-b .dash-head{min-height:200px;padding:30px 28px;align-items:flex-start;border:1px solid #e1ecfa;border-radius:16px;background:linear-gradient(90deg,#f0f8ffdd 0%,#eef8ff66 48%,#eef8ff22 100%),url('/assets/agent-mountains.png') center 52%/cover;gap:24px}
+.dash-b .dash-head h1{font-size:clamp(30px,3vw,42px);font-weight:800;color:#0b1743;letter-spacing:-1.2px}
+.dash-b .dash-head p{color:#365678;font-size:14px;line-height:1.6}
+.dash-b .dash-head .dash-tools{margin-left:auto;align-self:flex-start}
+.dash-b .dash-head .dash-tools select,.dash-b .dash-head .btn.secondary{background:#ffffffed;border-color:#d6e6f7;box-shadow:0 2px 8px #1c4b7910}
+@media(max-width:1000px){.dash-b .dash-head{min-height:210px;padding:24px;background-position:center 50%}.dash-b .dash-head .dash-tools{margin-left:0}}
+@media(max-width:600px){.dash-b .dash-head{padding:22px 18px;min-height:240px;gap:18px;background:linear-gradient(90deg,#f0f8ffdf,#eef8ff70),url('/assets/agent-mountains.png') 58% center/cover}.dash-b .dash-head .dash-tools{width:100%}.dash-b .dash-head .dash-tools .btn{font-size:12px;min-height:40px;padding:9px 10px}.dash-b .dash-head .dash-tools select{width:100%;flex-basis:100%}}
