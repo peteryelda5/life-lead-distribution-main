@@ -6,3 +6,35 @@
 @media(max-width:700px){.agent-dashboard .ad-head{padding:24px 18px 44px;min-height:200px}.ad-header-tools{margin-left:0;gap:10px;flex-wrap:wrap}.agent-dashboard .ad-date{font-size:12px;padding-left:10px}.agent-dashboard .ad-periods button{padding:9px 12px;min-width:58px}.ad-momentum{grid-template-columns:1fr}.ad-milestones{grid-column:auto}.ad-milestones ol{display:grid;grid-template-columns:1fr 1fr;gap:18px}.agent-dashboard .ad-card{padding:18px}.agent-dashboard .ad-metric{padding:14px}.agent-dashboard .ad-metric .ad-icon{width:32px;height:32px;margin-left:4px}.ad-metric h2{font-size:13px;max-width:none}.ad-metric small{font-size:11px}.agent-dashboard .ad-metric strong{font-size:26px;clear:both;padding-top:4px}.agent-dashboard .ad-next{display:block;padding:18px}.ad-next h2{margin-bottom:8px!important}.ad-next-row{flex-wrap:wrap;gap:8px}.ad-next-row .ad-action{width:auto}.ad-next-row small{font-size:11px}.ad-goal-numbers>strong{font-size:30px}.ad-ring{width:140px}.ad-metric .ad-link{font-size:12px!important}.ad-rank-number{font-size:44px}}
 @media(prefers-reduced-motion:reduce){.agent-dashboard *{scroll-behavior:auto!important;transition:none!important}}
 @media(max-width:480px){.agent-dashboard .ad-metrics{grid-template-columns:1fr}.agent-dashboard .ad-metric strong{font-size:32px;overflow-wrap:normal}.agent-dashboard .ad-metric .ad-icon{width:42px;height:42px}.ad-metric h2{font-size:15px}.ad-goal-body{flex-direction:column;align-items:flex-start}.ad-goal-numbers>strong{font-size:30px;overflow-wrap:normal}.ad-ring{align-self:center}.ad-next-row>div{min-width:0}.ad-header-tools{align-self:flex-start}.ad-milestones ol{grid-template-columns:1fr}.ad-more .ad-columns{grid-template-columns:minmax(0,1fr)}}
+/* Compact recent submissions; isolate from the resource-library logo cards. */
+.agent-dashboard .ad-recent{padding:12px 16px 9px;border-radius:10px}
+.agent-dashboard .ad-recent .ad-card-head{gap:8px;margin-bottom:4px}
+.agent-dashboard .ad-recent h2{font-size:20px;line-height:1.15;margin:0}
+.agent-dashboard .ad-recent .ad-hint{font-size:11px;line-height:1.25;margin:2px 0 0}
+.agent-dashboard .ad-recent .ad-link{font-size:12px;padding:2px 4px}
+.agent-dashboard .ad-recent .ad-table{border-radius:6px}
+.agent-dashboard .ad-recent table{table-layout:fixed;min-width:660px}
+.agent-dashboard .ad-recent th{padding:4px 10px;font-size:10px;line-height:1.2;background:#fbfdff;white-space:nowrap}
+.agent-dashboard .ad-recent td{height:30px;padding:3px 10px;font-size:12px;line-height:1.2;vertical-align:middle}
+.agent-dashboard .ad-recent th:nth-child(1){width:27%}
+.agent-dashboard .ad-recent th:nth-child(2){width:31%}
+.agent-dashboard .ad-recent th:nth-child(3){width:17%}
+.agent-dashboard .ad-recent th:nth-child(4){width:21%;text-align:right}
+.agent-dashboard .ad-recent th:nth-child(5){width:4%}
+.agent-dashboard .ad-recent td:nth-child(3){color:#637d9f;font-size:11px;white-space:nowrap}
+.agent-dashboard .ad-recent .ad-ap{text-align:right}
+.agent-dashboard .ad-recent .ad-client{gap:10px;min-width:0}
+.agent-dashboard .ad-recent .ad-client strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:550}
+.agent-dashboard .ad-recent .ad-initials{width:24px;height:24px;font-size:9px}
+.agent-dashboard .ad-recent tr:nth-child(4n+2) .ad-initials{background:#ffe7ef;color:#a43d69}
+.agent-dashboard .ad-recent tr:nth-child(4n+3) .ad-initials{background:#def6e9;color:#258162}
+.agent-dashboard .ad-recent tr:nth-child(4n+4) .ad-initials{background:#fff0db;color:#a36d29}
+.agent-dashboard .ad-recent .ad-carrier{gap:8px;min-width:0;height:24px;overflow:hidden}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo{height:22px;min-height:0;width:94px;max-width:94px;flex:0 0 94px;margin:0;padding:0;border-radius:0;background:transparent;overflow:hidden}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img{width:auto;height:auto;max-height:22px;max-width:94px;object-fit:contain!important;object-position:left center}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-dark{background:#172e49;border-radius:3px;padding:2px 5px}
+.agent-dashboard .ad-recent .ad-carrier small{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agent-dashboard .ad-recent .ad-carrier small:before{content:'·';margin-right:8px;color:#9aabc0}
+.agent-dashboard .ad-recent .ad-recent-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px}
+.agent-dashboard .ad-recent .ad-recent-footer .ad-link{font-size:11px;padding:4px 12px;border:1px solid #deebfc;border-radius:5px;background:#f4f8ff}
+@media(max-width:600px){.agent-dashboard .ad-recent{padding:12px 10px 9px}.agent-dashboard .ad-recent .ad-recent-footer{flex-wrap:wrap}.agent-dashboard .ad-recent td{height:34px}.agent-dashboard .ad-recent [data-ad-deal]{min-height:28px}}
