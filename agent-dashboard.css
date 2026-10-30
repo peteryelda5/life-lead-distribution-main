@@ -38,3 +38,21 @@
 .agent-dashboard .ad-recent .ad-recent-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px}
 .agent-dashboard .ad-recent .ad-recent-footer .ad-link{font-size:11px;padding:4px 12px;border:1px solid #deebfc;border-radius:5px;background:#f4f8ff}
 @media(max-width:600px){.agent-dashboard .ad-recent{padding:12px 10px 9px}.agent-dashboard .ad-recent .ad-recent-footer{flex-wrap:wrap}.agent-dashboard .ad-recent td{height:34px}.agent-dashboard .ad-recent [data-ad-deal]{min-height:28px}}
+
+.agent-dashboard .ad-head .ad-daily-quote{max-width:620px;font-size:16px;line-height:1.5;color:#345575;margin-top:12px;text-wrap:pretty}.ad-quote-label{display:block;font-size:10px;font-weight:750;letter-spacing:1.5px;color:#47729e;margin-bottom:3px}.agent-dashboard [data-ad-daily-quote]{display:block;font-style:italic}@media(max-width:700px){.agent-dashboard .ad-head .ad-daily-quote{font-size:14px;max-width:100%;background:#f1f8ffbf;padding:8px 10px;border-radius:8px}.agent-dashboard .ad-head{min-height:230px}}
+/* Match the restrained table preview at wide desktop sizes. */
+.agent-dashboard .ad-recent{padding:14px 16px 10px;box-shadow:0 2px 12px #2d6cb506}
+.agent-dashboard .ad-recent .ad-card-head{margin-bottom:8px}
+.agent-dashboard .ad-recent td{height:36px;padding:5px 12px;font-size:12px}
+.agent-dashboard .ad-recent th{padding:5px 12px;text-transform:none;letter-spacing:0;font-size:11px}
+.agent-dashboard .ad-recent .ad-initials{width:24px;height:24px;font-size:9px}
+.agent-dashboard .ad-recent .ad-client strong{font-size:12px;font-weight:550}
+.agent-dashboard .ad-recent .ad-carrier{height:22px;gap:10px}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo{height:17px;width:72px;max-width:72px;flex-basis:72px;align-items:center}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img{height:auto;width:auto;max-height:17px;max-width:72px;object-fit:contain!important}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img[alt="Ethos logo"]{max-height:13px;max-width:68px!important}
+.agent-dashboard .ad-recent tbody tr:nth-child(even){background:#fafcff}
+.agent-dashboard .ad-recent tbody tr:hover td{background:#edf6ff}
+.agent-dashboard .ad-recent .ad-ap{font-size:12px}
+.agent-dashboard .ad-recent .ad-recent-footer{margin-top:8px}
+.agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img[alt="Transamerica logo"]{width:72px;height:17px;object-fit:cover!important;object-position:center}
