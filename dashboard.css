@@ -164,24 +164,12 @@
 .dash-b .dash-head .db-daily-quote{max-width:560px;margin:12px 0 0;font-size:16px;line-height:1.6;font-style:italic;color:#365678;text-wrap:pretty}
 @media(max-width:600px){.dash-b .dash-head .db-daily-quote{font-size:14px}}
 
-/* One continuous mountain welcome and production-goal surface. */
-.dash-b .dash-head{margin-bottom:0;border-bottom:0;border-radius:16px 16px 0 0;min-height:185px;padding-bottom:36px;background:linear-gradient(0deg,#f8fbff 0%,transparent 48%),linear-gradient(90deg,#f0f8ffdd 0%,#eef8ff66 48%,#eef8ff22 100%),url('/assets/agent-mountains.png') center 52%/cover}
-.dash-b .db-goal{margin:0 0 20px;padding:22px 28px 26px;border:1px solid #e1ecfa;border-top:0;border-radius:0 0 16px 16px;background:linear-gradient(#f8fbff,#fff);color:#122d51;box-shadow:0 5px 18px #173b7408}
-.dash-b .db-goal .pc-goal-head{padding-top:20px;border-top:1px solid #dce8f5}
-.dash-b .db-goal h2{color:#122d51;font-size:17px}
-.dash-b .db-goal h2 span{color:#627b99;border-color:#cddcec;font-size:14px}
-.dash-b .db-goal .pc-goal-head p{color:#627b99}
-.dash-b .db-goal .pc-goal-head input{color:#193a5c;background:#fff;border-color:#d3e1f0;color-scheme:light;border-radius:8px}
-.dash-b .db-goal #pcSetGoal{color:#0869e8;background:#edf5ff;border-color:#cfe2fa;border-radius:8px}
-.dash-b .db-goal-values{margin:20px 0;gap:28px}
-.dash-b .db-goal-values>div{gap:7px}
-.dash-b .db-goal-values>div:last-child{border-color:#dce8f5;padding-left:32px}
-.dash-b .db-goal-values strong{color:#102748;font-size:40px;letter-spacing:-1px}
-.dash-b .db-goal-values>div:last-child strong{font-size:32px}
-.dash-b .db-goal-values span{color:#536e90;font-size:15px}
-.dash-b .db-goal-values small{color:#6b819e;font-size:13px}
-.dash-b .db-goal-values b{color:#0878ef}
-.dash-b .db-goal .pc-progress-track{height:12px;background:#e6eef8;border-radius:8px;overflow:hidden}
-.dash-b .db-goal .pc-progress-track span{background:linear-gradient(90deg,#49a9ff,#0878f9);border-radius:8px}
-@media(max-width:1000px){.dash-b .dash-head{padding:24px 24px 30px}.dash-b .db-goal{padding:18px 24px 24px}}
-@media(max-width:600px){.dash-b .dash-head{padding:22px 18px 28px;min-height:240px;background:linear-gradient(0deg,#f8fbff 0%,transparent 50%),linear-gradient(90deg,#f0f8ffdf,#eef8ff70),url('/assets/agent-mountains.png') 58% center/cover}.dash-b .db-goal{padding:12px 18px 22px}.dash-b .db-goal-values{gap:18px}.dash-b .db-goal-values strong{font-size:32px}.dash-b .db-goal-values>div:last-child{padding:16px 0 0}.dash-b .db-goal-values>div:last-child strong{font-size:28px}}
+/* Approved option 1: mountains fade into the navy production goal. */
+.dash-b .dash-head{margin-bottom:0;border-radius:14px 14px 0 0;min-height:180px;padding:24px 28px;background:linear-gradient(0deg,#112d51 0%,#112d5100 50%),linear-gradient(90deg,#f0f8ffdd,transparent 65%),url('/assets/agent-mountains.png') center 52%/cover}
+.dash-b .db-goal{border-radius:0 0 14px 14px;padding:12px 28px 22px;background:#112d51;border:0}
+.dash-b .db-goal .pc-goal-head{padding-bottom:4px}
+@media(max-width:600px){.dash-b .dash-head{min-height:240px;padding-bottom:42px;background-position:center,center,58% center}}
+@media(min-width:601px){.dash-b .dash-head h1{font-size:36px}.dash-b .db-goal-values{margin:18px 0}.dash-b .db-goal-values strong{font-size:38px}.dash-b .db-goal-values>div:last-child strong{font-size:30px}}
+
+.db-agency-aside{display:flex;flex-direction:column;gap:18px;min-width:0}
+.db-agency-aside .db-comparison-panel{flex:1}
