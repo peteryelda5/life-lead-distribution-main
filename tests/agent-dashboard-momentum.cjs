@@ -22,6 +22,12 @@ w.document.querySelector('[data-ad-deal]').click();assert.equal(run('opened'),'d
  await w.document.querySelector('.ad-rank [data-ad-go=leaderboard]').onclick();assert.equal(run('navigated'),'leaderboard');assert.equal(run('LB.period'),'month');assert.equal(run('LB.division'),'all');
  assert.equal(run("agentDailyQuote(new Date('2026-10-30T04:00:00Z'))"),run("agentDailyQuote(new Date('2026-10-31T03:59:59Z'))"));
  assert.notEqual(run("agentDailyQuote(new Date('2026-10-31T03:59:59Z'))"),run("agentDailyQuote(new Date('2026-10-31T04:00:00Z'))"));
+ // Zero-deal roster entries cannot inflate ranks or the participant count.
+ run(`S.tab='dashboard';AD.boards.month.rankings.push({agent_id:'zero-deals',ap:0,deals:0});render()`);
+ assert.equal(w.document.querySelector('.ad-rank-total').textContent,'out of 9 producers');
+ run(`AD.boards.month.rankings.find(r=>r.agent_id==='agent-a').deals=0;AD.boards.month.rankings.find(r=>r.agent_id==='agent-a').ap=0;render()`);
+ assert.equal(w.document.querySelector('.ad-rank-number').textContent,'—');assert.equal(w.document.querySelector('.ad-rank-total').textContent,'Not ranked this period');
+ assert.equal(run("leaderboardRankings({rankings:[{deals:0,ap:0},{deals:1,ap:0},{deals:null,ap:100},{deals:null,ap:0}]}).length"),2);
  // Account changes must discard in-flight data.
  run(`let resolveBoard;api=()=>new Promise(r=>resolveBoard=r);window.pending=loadAgentDashboardBoard(S.profile,'week');resetAgentDashboard();resolveBoard({rankings:[{agent_id:'agent-a',ap:999,deals:99}]})`);await w.pending;assert.equal(run('Object.keys(AD.boards).length'),0);
  console.log('PASS: leaderboard scope/order, rank 9, tie position, preview and agent navigation, period preservation, daily quote, recent closings and account isolation');dom.window.close();
