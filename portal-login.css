@@ -1,0 +1,47 @@
+.auth.portal-login{display:grid;grid-template-columns:55% 45%;align-items:stretch;place-items:stretch;min-height:100vh;min-height:100svh;padding:0;background:#fff}
+.portal-login-hero{position:relative;min-width:0;min-height:100%;overflow:hidden;background:#123555 url('/assets/login-mountains-poster.jpg') center/cover no-repeat;color:#fff}
+.portal-login-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;opacity:0;transition:opacity .45s ease;pointer-events:none}
+.portal-login-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,29,54,.12),rgba(6,29,54,0) 40%,rgba(6,29,54,.52));pointer-events:none}
+.portal-login-hero .portal-brand-lockup{position:relative;z-index:1;justify-content:flex-start;gap:16px;margin:0;padding:50px 54px}
+.portal-login-hero .auth-logo{width:66px;height:66px}
+.portal-login-hero .portal-wordmark{color:#fff}
+.portal-login-hero .portal-wordmark strong{font-size:32px}
+.portal-login-hero .portal-wordmark span{font-size:12px;letter-spacing:6px}
+.portal-login-hero-footer{position:absolute;z-index:1;bottom:44px;left:54px;right:40px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.portal-login-topics{font-size:13px;font-weight:600;letter-spacing:1.5px;line-height:1.8}
+.portal-login-motion{display:inline-flex;align-items:center;gap:7px;flex-shrink:0;padding:9px 12px;border:1px solid rgba(255,255,255,.4);border-radius:7px;background:rgba(6,29,54,.25);color:#fff;font-size:12px;cursor:pointer}
+.portal-login-motion:hover{background:rgba(6,29,54,.48)}
+.portal-login-motion[hidden]{display:none}
+.portal-login-panel{min-width:0;display:flex;align-items:center;justify-content:center;padding:64px clamp(32px,5.2vw,84px);background:#fff}
+.auth.portal-login .portal-login-card{width:100%;max-width:410px;padding:0;border:0;border-radius:0;box-shadow:none;background:transparent;gap:0}
+.portal-login-card .portal-brand-lockup{justify-content:flex-start;gap:16px;margin:0 0 40px}
+.portal-login-card .portal-brand-lockup .auth-logo{width:70px;height:70px}
+.portal-login-card .portal-wordmark strong{font-size:32px}
+.portal-login-card .portal-wordmark span{font-size:11px;letter-spacing:6px}
+.portal-login-card .portal-welcome{text-align:left;margin:0 0 36px}
+.portal-login-card .portal-welcome h1{font-size:clamp(30px,2.6vw,40px);line-height:1.2;letter-spacing:-1px;margin:0 0 10px;color:#123555}
+.portal-login-card .portal-welcome p{font-size:16px;line-height:1.5;color:#718198}
+.portal-login-message:empty{display:none}
+.portal-login-message:not(:empty){margin-bottom:20px}
+.auth.portal-login #login{gap:22px}
+.portal-login-card .field{min-width:0;gap:8px}
+.portal-login-card .field label{color:#203e60;font-size:14px;font-weight:650}
+.auth.portal-login #login input{width:100%;height:50px;padding:12px 14px;border:1px solid #d5dfeb;border-radius:8px;background:#fff;color:#173957;font-size:16px;box-shadow:0 1px 2px rgba(12,41,75,.025)}
+.portal-login-card input::placeholder{color:#98a6b8;opacity:1}
+.auth.portal-login #login input:focus{outline:0;border-color:#197be0;box-shadow:0 0 0 3px rgba(25,123,224,.14)}
+.portal-login-password{position:relative}
+.auth.portal-login #login .portal-login-password input{padding-right:52px}
+.portal-login-reveal{position:absolute;top:3px;right:4px;display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:6px;background:transparent;color:#70859d;cursor:pointer}
+.portal-login-reveal:hover{background:#f1f6fb;color:#174b7e}
+.portal-login-reveal svg{width:20px;height:20px}
+.portal-login-forgot{align-self:flex-end;font-size:13px;font-weight:500;color:#166dc9;text-decoration:none;margin-top:-7px}
+.portal-login-forgot:hover{text-decoration:underline}
+.auth.portal-login #login .portal-login-submit{width:100%;height:50px;border:0;border-radius:8px;background:#1479e6;color:#fff;font-size:15px;font-weight:650;box-shadow:0 4px 12px rgba(20,121,230,.12);cursor:pointer;margin-top:5px}
+.auth.portal-login #login .portal-login-submit:hover{background:#086bce}
+.portal-login-card .portal-auth-footer{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:32px;padding:0;color:#7a8da4;font-size:12px;line-height:1.6}
+.portal-login-card .portal-auth-footer svg{width:16px;height:16px;flex-shrink:0}
+.portal-login :is(button,a):focus-visible{outline:3px solid #74b9ff;outline-offset:4px}
+@media(max-width:1100px){.auth.portal-login{grid-template-columns:48% 52%}.portal-login-hero .portal-brand-lockup{padding:36px 32px}.portal-login-hero-footer{left:32px;right:28px;bottom:30px;align-items:flex-start;flex-direction:column}.portal-login-panel{padding:48px 36px}}
+@media(max-width:760px){.auth.portal-login{grid-template-columns:1fr;grid-template-rows:190px 1fr}.portal-login-hero{min-height:190px}.portal-login-hero .portal-brand-lockup{padding:26px 24px;gap:12px}.portal-login-hero .auth-logo{width:52px;height:52px}.portal-login-hero .portal-wordmark strong{font-size:26px}.portal-login-hero .portal-wordmark span{font-size:9px;letter-spacing:5px;margin-top:5px}.portal-login-hero-footer{left:24px;right:20px;bottom:16px;align-items:center;justify-content:space-between;flex-direction:row}.portal-login-topics{font-size:10px;letter-spacing:.9px}.portal-login-motion{font-size:11px;padding:7px 9px}.portal-login-panel{padding:36px 24px 32px;align-items:flex-start}.portal-login-card .portal-brand-lockup{display:none}.portal-login-card .portal-welcome{margin-bottom:27px}.portal-login-card .portal-welcome h1{font-size:30px}.portal-login-card .portal-welcome p{font-size:15px}.auth.portal-login #login{gap:20px}.portal-login-card .portal-auth-footer{margin-top:28px}}
+@media(max-width:360px){.portal-login-panel{padding-left:20px;padding-right:20px}.portal-login-topics{letter-spacing:0}.portal-login-hero-footer{left:20px;right:16px;gap:8px}}
+@media(prefers-reduced-motion:reduce){.portal-login-video{transition:none}}

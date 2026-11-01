@@ -56,3 +56,5 @@
 .agent-dashboard .ad-recent .ad-ap{font-size:12px}
 .agent-dashboard .ad-recent .ad-recent-footer{margin-top:8px}
 .agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img[alt="Transamerica logo"]{width:72px;height:17px;object-fit:cover!important;object-position:center}
+
+.ad-header-tools #pcGoalMonth{min-width:160px;max-width:100%;padding:10px 12px;border:1px solid #bdcde0;border-radius:8px;background:#fff;color:#173957;font:inherit;font-size:14px;min-height:40px}.ad-header-tools #pcGoalMonth:focus-visible{outline:3px solid #74b9ff;outline-offset:2px}
