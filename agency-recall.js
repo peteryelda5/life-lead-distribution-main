@@ -1,6 +1,7 @@
-/* Agency recall is Master-only; the server validates every previewed lead again. */
+/* Agency recall is limited to each Master’s permitted agencies. */
+function canRecallAgencyLeads(source){return S.profile?.role==='admin'&&(S.profile.is_super_admin||(S.profile.is_master_admin&&adminDivisionList().includes('owner')&&(!source||adminDivisionList().includes(source))));}
 async function chooseAgencyRecall(){
- if(S.profile?.role!=='admin'||!S.profile.is_super_admin)return;
+ if(!canRecallAgencyLeads())return;
  const user=S.profile.id,epoch=portalSessionEpoch;
  closeModal();modal('<h2>Take back agency leads</h2><p class="muted">Return open leads from any agency to Owner / Master.</p><form id="recallAgencyForm" class="stack"><div class="field"><label for="recallAgency">Agency</label><select id="recallAgency" disabled><option>Loading agencies…</option></select></div><div id="recallAgencyError" role="alert"></div><div class="row"><button type="button" id="recallAgencyCancel" class="btn secondary">Cancel</button><button id="recallAgencyNext" class="btn primary" disabled>Continue</button></div></form>');
  const root=q('#modal'),valid=()=>root.isConnected&&S.profile?.id===user&&portalSessionEpoch===epoch;
@@ -14,25 +15,29 @@ async function chooseAgencyRecall(){
  }catch(error){if(valid())root.querySelector('#recallAgencyError').textContent=error.message;}
 }
 async function openAgencyRecall(source,selectedAgency){
- if(S.profile?.role!=='admin'||!S.profile.is_super_admin||source==='owner')return;
+ if(!canRecallAgencyLeads(source)||source==='owner')return;
  const agency=selectedAgency||(S.divisionDirectory||[]).find(d=>d.id===source);
  if(!agency)return;
  const user=S.profile.id,epoch=portalSessionEpoch,opener=document.activeElement;
  closeModal();
- modal('<div class="agency-recall-header"><h2 id="agencyRecallTitle">Take back leads</h2><p>From <strong>'+esc(agency.name)+'</strong> to <strong>Owner / Master</strong></p></div><form id="agencyRecallForm" class="stack"><div class="agency-recall-fields"><div class="field"><label for="recallType">Lead folder</label><select id="recallType" disabled><option value="all">Loading folders…</option></select></div><div class="field"><label for="recallScope">Which leads?</label><select id="recallScope"><option value="all">All open leads</option><option value="pool">Unassigned agency pool only</option><option value="assigned">Assigned to agents / admins</option></select></div><div class="field"><label for="recallCount">Number of leads</label><input id="recallCount" type="number" min="1" max="1000" step="1" value="100" required></div></div><fieldset class="agency-recall-state-field"><legend>States to take back</legend><p id="recallStatesHelp" class="muted small">Choose one or more states.</p><div id="recallStates" class="agency-recall-states"></div></fieldset><div class="agency-recall-availability" aria-live="polite"><strong id="recallAvailableTitle"></strong><span id="recallFolderTotals"></span><span id="recallScopeHelp"></span><strong id="recallQuantityHelp"></strong><button type="button" id="recallIncludeAssigned" class="btn secondary" hidden>Include assigned leads too</button></div><p id="recallNote" class="agency-recall-note">Oldest matching leads first, up to 1,000 at a time. Assigned leads will be removed from the current agent or admin. Notes, lead statuses, and folder details stay with each lead. Closed business is excluded.</p><div id="recallMessage" role="status" aria-live="polite">Loading available folders…</div><div id="recallPreview" hidden></div><div class="agency-recall-actions"><button id="recallCancel" class="btn secondary" type="button">Cancel</button><button id="recallPreviewButton" class="btn secondary" type="submit" disabled>Preview leads</button><button id="recallConfirm" class="btn primary" type="button" hidden>Take back leads</button></div></form>');
+ modal('<div class="agency-recall-header"><h2 id="agencyRecallTitle">Take back leads</h2><p>From <strong>'+esc(agency.name)+'</strong> to <strong>Owner / Master</strong></p></div><form id="agencyRecallForm" class="stack"><div class="agency-recall-fields"><div class="field"><label for="recallType">Lead folder</label><select id="recallType" disabled><option value="all">Loading folders…</option></select></div><div class="field"><label for="recallScope">Which leads?</label><select id="recallScope"><option value="all">All open leads</option><option value="pool">Unassigned agency pool only</option><option value="assigned">Assigned to agents / admins</option></select></div><div class="field"><label for="recallAmount">Take back</label><select id="recallAmount"><option value="count">Choose a quantity</option><option value="matching">All matching leads</option><option value="folder">Whole folder</option></select></div><div class="field" id="recallCountField"><label for="recallCount">Number of leads</label><input id="recallCount" type="number" min="1" max="1000" step="1" value="100" required></div></div><fieldset class="agency-recall-state-field"><legend>States to take back</legend><p id="recallStatesHelp" class="muted small">Choose one or more states.</p><div id="recallStates" class="agency-recall-states"></div></fieldset><div class="agency-recall-availability" aria-live="polite"><strong id="recallAvailableTitle"></strong><span id="recallFolderTotals"></span><span id="recallScopeHelp"></span><strong id="recallQuantityHelp"></strong><button type="button" id="recallIncludeAssigned" class="btn secondary" hidden>Include assigned leads too</button></div><p id="recallNote" class="agency-recall-note">Oldest matching leads first, up to 1,000 at a time. Assigned leads will be removed from the current agent or admin. Notes, lead statuses, and folder details stay with each lead. Closed business is excluded.</p><div id="recallMessage" role="status" aria-live="polite">Loading available folders…</div><div id="recallPreview" hidden></div><div class="agency-recall-actions"><button id="recallCancel" class="btn secondary" type="button">Cancel</button><button id="recallPreviewButton" class="btn secondary" type="submit" disabled>Preview leads</button><button id="recallConfirm" class="btn primary" type="button" hidden>Take back leads</button></div></form>');
  const root=q('#modal'),box=root.querySelector('.modalbox'),find=s=>root.querySelector(s);
  root.classList.add('agency-recall-modal');box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-labelledby','agencyRecallTitle');
  let folders=[],preview=null,requestId=null,busy=false,loading=true,generation=0,selectedStates=null;
- const valid=()=>root.isConnected&&S.profile?.id===user&&portalSessionEpoch===epoch&&S.profile.is_super_admin;
+ const valid=()=>root.isConnected&&S.profile?.id===user&&portalSessionEpoch===epoch&&canRecallAgencyLeads(source);
  const message=(text,error=false)=>{find('#recallMessage').textContent=text;find('#recallMessage').className=error?'error':'muted small';};
+ const wholeFolder=()=>find('#recallAmount').value==='folder';
+ const allMatching=()=>find('#recallAmount').value!=='count';
  const updateControls=()=>{
   root.setAttribute('aria-busy',String(busy));
-  for(const id of ['recallType','recallScope','recallCount','recallPreviewButton'])find('#'+id).disabled=busy||loading;
-  for(const input of root.querySelectorAll('#recallStates input'))input.disabled=busy||loading;
-  find('#recallPreviewButton').disabled=busy||loading||selectedStates?.size===0;
+  for(const id of ['recallType','recallScope','recallCount','recallAmount','recallPreviewButton'])find('#'+id).disabled=busy||loading;
+  find('#recallScope').disabled=busy||loading||wholeFolder();
+  find('#recallCount').disabled=busy||loading||allMatching();find('#recallCountField').hidden=allMatching();
+  for(const input of root.querySelectorAll('#recallStates input'))input.disabled=busy||loading||wholeFolder();
+  find('#recallPreviewButton').disabled=busy||loading||selectedStates?.size===0||(wholeFolder()&&find('#recallType').value==='all');
   find('#recallCancel').disabled=busy;
   find('#recallConfirm').disabled=busy;
-  find('#recallIncludeAssigned').disabled=busy||loading;
+  find('#recallIncludeAssigned').disabled=busy||loading||wholeFolder();
  };
  const dismiss=()=>{if(busy)return;generation++;root.remove();if(opener?.isConnected)opener.focus();};
  const invalidate=()=>{generation++;preview=null;requestId=null;find('#recallPreview').hidden=true;find('#recallConfirm').hidden=true;message('Preview the leads before taking them back.');};
@@ -51,11 +56,11 @@ async function openAgencyRecall(source,selectedAgency){
   const requested=Number(find('#recallCount').value),validCount=Number.isInteger(requested)&&requested>=1&&requested<=1000;
   find('#recallAvailableTitle').textContent=selectedStates?.size===0?'Select a state to continue':available.toLocaleString()+' leads match your filters';
   find('#recallFolderTotals').textContent='Folder total across all states: '+total.toLocaleString()+' open · '+pool.toLocaleString()+' unassigned · '+assigned.toLocaleString()+' assigned.';
-  find('#recallQuantityHelp').textContent=selectedStates?.size===0?'Check a state or All states to enable Preview.':!validCount?'Enter a quantity from 1 to 1,000.':available<requested?'You requested '+requested.toLocaleString()+', but only '+available.toLocaleString()+' match. The preview will contain '+available.toLocaleString()+'.':'The preview will contain up to '+Math.min(requested,available).toLocaleString()+' leads.';
+  find('#recallQuantityHelp').textContent=wholeFolder()&&type==='all'?'Select one folder to take back the whole folder.':selectedStates?.size===0?'Check a state or All states to enable Preview.':allMatching()?'The preview will include all '+available.toLocaleString()+' matching open leads.':!validCount?'Enter a quantity from 1 to 1,000.':available<requested?'You requested '+requested.toLocaleString()+', but only '+available.toLocaleString()+' match. The preview will contain '+available.toLocaleString()+'.':'The preview will contain up to '+Math.min(requested,available).toLocaleString()+' leads.';
   find('#recallIncludeAssigned').hidden=scope!=='pool'||assigned===0;
   find('#recallIncludeAssigned').textContent='Include assigned leads too';
   find('#recallScopeHelp').textContent=scope==='pool'?'Unassigned only. The '+assigned.toLocaleString()+' assigned leads in this folder are excluded.':scope==='assigned'?'Assigned only. Unassigned leads in the agency pool are excluded.':'Includes both unassigned leads and leads currently held by agents or admins.';
-  find('#recallNote').textContent='Oldest matching leads first, up to 1,000 at a time. '+(scope==='pool'?'': 'Assigned leads will be removed from the current agent or admin. ')+'Notes, lead statuses, and folder details stay with each lead. Closed business is excluded.';
+  find('#recallNote').textContent=(allMatching()?'All matching open leads, with progress and pause / resume. ':'Oldest matching leads first, up to 1,000 at a time. ')+(scope==='pool'?'': 'Assigned leads will be removed from the current agent or admin. ')+'Notes, lead statuses, and folder details stay with each lead. Closed business is excluded.';
  };
  const drawStates=()=>{
   const focused=document.activeElement,restoreFocus=focused?.closest('#recallStates')?{all:focused.id==='recallAllStates',state:focused.value}:null;
@@ -70,7 +75,7 @@ async function openAgencyRecall(source,selectedAgency){
    if(input.checked)selectedStates.add(input.value);else selectedStates.delete(input.value);
    invalidate();drawStates();
   });
-  find('#recallStatesHelp').textContent=selectedStates===null?'All available states are included. Choose states below to narrow the recall.':selectedStates.size?'Selected: '+Array.from(selectedStates).map(s=>s||'State not set').join(', '):'Choose at least one state, or select All states.';
+  find('#recallStatesHelp').textContent=wholeFolder()?'Whole folder includes every state. Choose All matching leads to filter by state.':selectedStates===null?'All available states are included. Choose states below to narrow the recall.':selectedStates.size?'Selected: '+Array.from(selectedStates).map(s=>s||'State not set').join(', '):'Choose at least one state, or select All states.';
   updateAvailability();
   updateControls();
   if(restoreFocus){const input=restoreFocus.all?find('#recallAllStates'):Array.from(root.querySelectorAll('.recallState')).find(el=>el.value===restoreFocus.state);input?.focus();}
@@ -87,15 +92,23 @@ async function openAgencyRecall(source,selectedAgency){
  for(const id of ['recallType','recallScope','recallCount'])find('#'+id).oninput=invalidate;
  for(const id of ['recallType','recallScope'])find('#'+id).onchange=()=>{invalidate();drawStates();};
  find('#recallCount').oninput=()=>{invalidate();updateAvailability();};
+ find('#recallAmount').onchange=()=>{if(busy||loading)return;if(wholeFolder()){selectedStates=null;find('#recallScope').value='all'}invalidate();drawStates();};
  find('#recallIncludeAssigned').onclick=()=>{if(busy||loading)return;find('#recallScope').value='all';invalidate();drawStates();};
  find('#agencyRecallForm').onsubmit=async e=>{
   e.preventDefault();if(busy||loading||!valid())return;
   if(selectedStates?.size===0){message('Choose at least one state, or select All states.',true);return;}
   const count=Number(find('#recallCount').value);
-  if(!Number.isInteger(count)||count<1||count>1000){message('Enter a whole number from 1 to 1,000.',true);return;}
+  if(!allMatching()&&(!Number.isInteger(count)||count<1||count>1000)){message('Enter a whole number from 1 to 1,000.',true);return;}
   invalidate();const version=generation;busy=true;updateControls();message('Preparing your preview…');
   try{
    const type=find('#recallType').value;
+   if(allMatching()){
+    if(wholeFolder()&&type==='all'){message('Select one folder first.',true);return}
+    const job=await api('/rest/v1/rpc/agency_recall_bulk_prepare',{method:'POST',body:{p_source:source,p_type:type==='all'?null:folders[Number(type)].type,p_scope:find('#recallScope').value,p_states:selectedStates===null?null:Array.from(selectedStates),p_mode:find('#recallAmount').value}});
+    if(!valid()||generation!==version)return;
+    if(!job?.total){message('No open leads match these filters.');return}
+    showAgencyRecallBulk(job,{...agency,id:source});return;
+   }
    const result=await api('/rest/v1/rpc/agency_recall_preview_states',{method:'POST',body:{p_source:source,p_type:type==='all'?null:folders[Number(type)].type,p_scope:find('#recallScope').value,p_count:count,p_states:selectedStates===null?null:Array.from(selectedStates)}});
    if(!valid()||generation!==version)return;
    const leads=result.leads||[];
@@ -126,9 +139,11 @@ async function openAgencyRecall(source,selectedAgency){
   }finally{busy=false;if(valid())updateControls();}
  };
  try{
+  const pending=await api('/rest/v1/rpc/agency_recall_bulk_status',{method:'POST',body:{p_source:source,p_job:null}});
+  if(!valid())return;if(pending?.id){showAgencyRecallBulk(pending,{...agency,id:source});return}
   folders=await api('/rest/v1/rpc/agency_recall_options',{method:'POST',body:{p_source:source}})||[];
   if(!valid())return;
   find('#recallType').innerHTML='<option value="all">All folders</option>'+folders.map((f,i)=>'<option value="'+i+'">'+esc(f.type||'Untitled folder')+' ('+Number(f.count).toLocaleString()+')</option>').join('');
-  loading=false;drawStates();message(folders.length?'Choose a folder, states, and quantity, then preview the leads.':'This agency has no open leads to take back.');find('#recallType').focus();
+  loading=false;drawStates();message(folders.length?'Choose states or a whole folder, then preview the leads before confirming.':'This agency has no open leads to take back.');find('#recallType').focus();
  }catch(error){if(valid())message(error.message,true);}
 }

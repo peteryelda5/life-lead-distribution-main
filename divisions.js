@@ -1,4 +1,4 @@
-function canSendAcrossAgencies(){return S.profile?.role==='admin'&&(S.profile.is_super_admin||S.profile.id==='4733ed70-f774-4209-a8b5-fd233d0bb638');}
+function canSendAcrossAgencies(){return S.profile?.role==='admin'&&(S.profile.is_super_admin||S.profile.is_master_admin);}
 function leadSendDestinations(){return (S.divisions||[]).filter(d=>S.profile?.is_super_admin||(d.id!=='legacy_life'&&adminDivisionList().includes(d.id)));}
 /* Names come from the scoped registry; creation is enforced by a Master-only RPC. */
 async function loadDivisionRegistry(){S.divisions=await api('/rest/v1/divisions?select=id,name,is_system&archived=is.false&order=created_at,name')||[];}

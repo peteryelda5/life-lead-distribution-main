@@ -1,0 +1,51 @@
+-- Synthetic fixtures only. Execute inside BEGIN / ROLLBACK.
+do $test$
+declare owner_id uuid; owner_session uuid; manager uuid:=gen_random_uuid(); ordinary uuid:=gen_random_uuid();
+ destination text:='master_fixture_'||replace(gen_random_uuid()::text,'-',''); foreign_div text:='foreign_fixture_'||replace(gen_random_uuid()::text,'-','');
+ lead_id uuid:=gen_random_uuid(); foreign_lead uuid:=gen_random_uuid(); result jsonb; job uuid; denied boolean;
+begin
+ select p.id,s.id into owner_id,owner_session from public.profiles p join auth.sessions s on s.user_id=p.id
+ where p.is_super_admin and p.role='admin' and p.active and not p.archived and (s.not_after is null or s.not_after>now()) limit 1;
+ if owner_id is null then raise exception 'A live owner session is required for this rollback-only test';end if;
+ perform set_config('request.jwt.claims','{}',true);
+ insert into public.divisions(id,name,created_by) values(destination,'Master fixture '||gen_random_uuid(),owner_id),(foreign_div,'Foreign fixture '||gen_random_uuid(),owner_id);
+ insert into auth.users(id,email) values(manager,manager||'@example.invalid'),(ordinary,ordinary||'@example.invalid');
+ insert into public.profiles(id,full_name,role,active,division) values(manager,'Synthetic Master','admin',true,'vivid_life'),(ordinary,'Synthetic Admin','admin',true,destination);
+ insert into auth.sessions(id,user_id,aal,created_at) values(manager,manager,'aal2',now());
+ insert into private.admin_division_access(user_id,division) values(manager,'owner'),(manager,destination);
+ insert into private.master_admin_accounts(user_id,granted_by) values(manager,owner_id);
+ insert into public.leads(id,first_name,division,status,notes,lead_type) values(lead_id,'Synthetic transferable','owner','unassigned','Keep this note','Role fixture'),(foreign_lead,'Synthetic private',foreign_div,'unassigned','Private note','Role fixture');
+ if has_table_privilege('authenticated','private.master_admin_accounts','select,insert,update,delete') or has_function_privilege('authenticated','private.is_master_admin()','execute') then raise exception 'Master role table/helper exposed';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',manager,'session_id',manager,'role','authenticated','aal','aal2')::text,true);
+ set local role authenticated;
+ result:=public.account_bootstrap();if not (result->>'is_master_admin')::boolean or (result->>'is_super_admin')::boolean then raise exception 'Master tier incorrect';end if;
+ if not public.admin_can_access_division(destination) or public.admin_can_access_division(foreign_div) or public.admin_can_access_division('legacy_life') then raise exception 'Master gained extra agencies';end if;
+ if public.send_leads_to_division(array[lead_id],'owner',destination)<>1 then raise exception 'Master cannot send to permitted agency';end if;
+ if not exists(select 1 from public.leads where id=lead_id and division=destination and notes='Keep this note') then raise exception 'Master cannot see sent lead';end if;
+ if exists(select 1 from public.leads where id=foreign_lead) then raise exception 'Master can read another agency';end if;
+ denied:=false;begin perform public.send_leads_to_division(array[lead_id],destination,foreign_div);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master sent outside scope';end if;
+ denied:=false;begin perform public.send_leads_to_division(array[foreign_lead],foreign_div,destination);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master took a foreign source lead';end if;
+ denied:=false;begin perform public.send_leads_to_division(array[lead_id],destination,'legacy_life');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Legacy restriction lost';end if;
+ denied:=false;begin perform public.agency_recall_options(foreign_div);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master previewed a foreign recall';end if;
+ if exists(select 1 from jsonb_array_elements(public.agency_recall_agencies()) a where a->>'id'=foreign_div or a->>'id'='legacy_life') then raise exception 'Recall picker leaks foreign agency';end if;
+ result:=public.agency_recall_bulk_prepare(destination,'Role fixture','all',null,'folder');job:=(result->>'id')::uuid;
+ result:=public.agency_recall_bulk_step(destination,job,0);if (result->>'returned')::int<>1 then raise exception 'Master cannot recall own permitted agency';end if;
+ denied:=false;begin perform public.set_scoped_admin_access(ordinary,false);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master changed another admin access';end if;
+ denied:=false;begin perform public.team_admin_promotion_preview(ordinary);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master gained Super Master promotion controls';end if;
+ denied:=false;begin insert into private.master_admin_accounts(user_id,granted_by) values(ordinary,manager);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Master can grant Master tier';end if;
+ reset role;
+ update public.profiles set active=false where id=manager;
+ set local role authenticated;
+ denied:=false;begin perform public.agency_recall_options(destination);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Inactive Master admitted';end if;
+ reset role;
+ update public.profiles set active=true where id=manager;
+ delete from private.master_admin_accounts where user_id=manager;
+ set local role authenticated;
+ result:=public.account_bootstrap();if (result->>'is_master_admin')::boolean then raise exception 'Revoked tier still reported';end if;
+ denied:=false;begin perform public.send_leads_to_division(array[lead_id],'owner',destination);exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'Revoked Master still transfers';end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',owner_id,'session_id',owner_session,'role','authenticated','aal','aal2')::text,true);
+ result:=public.account_bootstrap();if not (result->>'is_super_admin')::boolean or (result->>'is_master_admin')::boolean then raise exception 'Owner role changed';end if;
+ reset role;
+ if (select count(*) from public.profiles where is_super_admin)<>1 then raise exception 'Super Master is no longer unique';end if;
+end $test$;
+select 'PASS: Master bootstrap, permitted send/read/recall, foreign/Legacy restrictions, inactive/revoked roles, no self-escalation and exclusive Super Master controls' as result;

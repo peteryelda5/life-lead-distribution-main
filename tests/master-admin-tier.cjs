@@ -1,0 +1,10 @@
+const {JSDOM}=require('jsdom'),fs=require('fs'),assert=require('node:assert/strict');
+const dom=new JSDOM('',{runScripts:'outside-only'}),w=dom.window;
+Object.assign(w,{S:{profile:{role:'admin',active:true,is_master_admin:true,is_super_admin:false,division:'vivid_life'},divisions:[{id:'owner'},{id:'vivid_life'},{id:'onyx'},{id:'legacy_life'},{id:'other'}]},adminDivisionList:()=>['owner','vivid_life','onyx'],divisionLabel:()=> 'Vivid Life'});
+w.eval(fs.readFileSync('divisions.js','utf8'));
+w.eval(fs.readFileSync('agency-recall.js','utf8').split('\n').find(x=>x.startsWith('function canRecallAgencyLeads(')));
+w.eval(fs.readFileSync('portal-app.js','utf8').split('\n').find(x=>x.startsWith('function portalAdminRoleLabel(')));
+assert.equal(w.portalAdminRoleLabel(),'Master Admin');assert(w.canSendAcrossAgencies());assert.deepEqual(Array.from(w.leadSendDestinations(),x=>x.id),['owner','vivid_life','onyx']);assert(w.canRecallAgencyLeads('onyx'));assert(!w.canRecallAgencyLeads('other'));assert(!w.canRecallAgencyLeads('legacy_life'));
+w.S.profile.is_master_admin=false;assert(!w.canSendAcrossAgencies());assert(!w.canRecallAgencyLeads('onyx'));
+w.S.profile.is_super_admin=true;assert.match(w.portalAdminRoleLabel(),/^Super Master/);assert(w.canRecallAgencyLeads('other'));assert(w.canSendAcrossAgencies());
+dom.window.close();console.log('PASS: distinct Master/Super Master labels, granted send destinations, scoped recall controls and ordinary-admin restrictions.');

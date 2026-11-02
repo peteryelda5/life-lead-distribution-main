@@ -10,6 +10,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
   const calls=[];let previewWait,commitWait,failCommit=false,stale=false,reloaded='';
   w.flash=()=>{};w.reload=async text=>{reloaded=text;};
   w.api=async(url,opt)=>{calls.push({url,body:JSON.parse(JSON.stringify(opt.body))});
+   if(url.endsWith('_bulk_status'))return null;
    if(url.endsWith('_agencies'))return [{id:'vivid_life',name:'Vivid Life',archived:false},{id:'legacy_life',name:'Legacy Life',archived:true}];
    if(url.endsWith('_options'))return inventory;
    if(url.endsWith('_preview_states')){if(previewWait)await previewWait;const leads=[{id:'one',updated_at:'2026-10-14T12:00:00Z',state:'MI',first_name:'<img src=x onerror=alert(1)>',phone:'2025550101',lead_type:'<Folder>',assignee:'Agency lead pool'},{id:'two',updated_at:'2026-10-14T12:00:00Z',state:'TX',first_name:'Assigned',assigned_to:'agent',assignee:'Agent Name'}].filter(l=>opt.body.p_states===null||opt.body.p_states.includes(l.state));return {available:leads.length,leads};}
@@ -19,7 +20,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
   assert.match(w.divisionsPage(),/data-division-reclaim="vivid_life"/);
   assert.match(w.divisionsPage(),/id="takeAgencyLeads"/);
   w.S.profile.is_super_admin=false;await w.openAgencyRecall('vivid_life');assert.equal(calls.length,0);assert.doesNotMatch(w.divisionsPage(),/data-division-reclaim/);w.S.profile.is_super_admin=true;
-  await w.openAgencyRecall('vivid_life');assert.equal(w.q('#recallConfirm').hidden,true);assert.equal(calls.length,1);
+  await w.openAgencyRecall('vivid_life');assert.equal(w.q('#recallConfirm').hidden,true);assert.equal(calls.length,2);
   w.q('#recallType').value='0';w.q('#recallScope').value='assigned';w.q('#recallCount').value='3';
   await w.q('#agencyRecallForm').onsubmit({preventDefault(){}});
   assert.deepEqual(calls.at(-1).body,{p_source:'vivid_life',p_type:'<Folder>',p_scope:'assigned',p_count:3,p_states:null});assert.match(w.q('#recallMessage').textContent,/fewer than requested/);assert.equal(w.q('#recallPreview img'),null);assert.match(w.q('#recallPreview').textContent,/Agent Name/);assert.equal(calls.filter(c=>c.url.endsWith('_commit')).length,0);
