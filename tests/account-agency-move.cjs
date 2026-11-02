@@ -14,5 +14,12 @@ const submit=()=>w.q('#accountMoveForm').onsubmit({preventDefault(){}});
  preview.members=2;await w.moveAccountAgentModal('target');assert(w.q('#accountMoveSave').disabled);assert.match(w.document.body.textContent,/Reassign them in Team settings/);preview.members=0;preview.active=false;await w.moveAccountAgentModal('target');assert.match(w.document.body.textContent,/will remain disabled/);
  delayed=true;const pending=w.moveAccountAgentModal('target');w.q('#accountMoveCancel').click();release(preview);await pending;assert(!w.q('#modal'));
  assert(app.includes('moveAccountAgentModal(x.dataset.id)'));assert(app.split('\n').find(x=>x.startsWith('function adminsPage(')).includes('moveAccountAgent'));assert(app.split('\n').find(x=>x.startsWith('function agentPage(')).includes('moveAccountAgent'));
+ delayed=false;preview.active=true;
+ Object.assign(w,{qa:s=>[...w.document.querySelectorAll(s)],bindPager:()=>{},addAgentModal:()=>{},addAdminModal:()=>{}});
+ w.eval(app.split('\n').find(x=>x.startsWith('function bindAdmin(')));
+ for(const tab of ['agents','admins']){
+  w.S.tab=tab;w.document.querySelector('#app').innerHTML='<button id="'+(tab==='agents'?'addAgent':'addAdmin')+'">Add</button><button class="moveAccountAgent" data-id="target">Move / make agent</button>';
+  w.bindAdmin();assert.equal(typeof w.q('.moveAccountAgent').onclick,'function',tab+' move action must be wired');await w.q('.moveAccountAgent').onclick();assert(w.q('#accountMoveForm'));w.q('#accountMoveCancel').click();assert(!w.q('#modal'));
+ }
  dom.window.close();console.log('PASS: Super Master-only controls in agent/admin lists, real Cancel, escaped names, onboarding warning, confirmation, exact move payload, stale recovery, team/disabled protection and canceled preview.');
 })().catch(e=>{console.error(e);process.exitCode=1});
