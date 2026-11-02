@@ -28,17 +28,17 @@
    active.setAttribute('aria-current','page');
   }
   if(!changed||reduced()||!wrap)return;
-  animate(wrap,[{opacity:.35},{opacity:1}],{duration:200,easing:'ease-out'});
+  animate(wrap,[{opacity:.55},{opacity:1}],{duration:120,easing:'ease-out'});
   // Live calling/chat surfaces stay mounted and get only the page fade.
   if(!['power-dialer','live-chat'].includes(tab)){
    const candidates=[...wrap.querySelectorAll('.head,.card,.metric,.db-agency-card')];const selected=new Set(candidates);
    const panels=candidates.filter(el=>{if(el.closest('[hidden],.hidden,.modal'))return false;let p=el.parentElement;while(p&&p!==wrap){if(selected.has(p))return false;p=p.parentElement;}const r=el.getBoundingClientRect();return r.bottom>0&&r.top<window.innerHeight;}).slice(0,12);
-   panels.forEach((panel,index)=>animate(panel,[{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:280,delay:Math.min(index*30,180),easing:'cubic-bezier(.2,.75,.25,1)',fill:'backwards'}));
+   panels.forEach((panel,index)=>animate(panel,[{opacity:.35,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:160,delay:Math.min(index*12,48),easing:'cubic-bezier(.2,.75,.25,1)',fill:'backwards'}));
   }
   if(nav&&active&&previous?.left!=null&&previous.width>0){
    const n=nav.getBoundingClientRect(),a=active.getBoundingClientRect(),left=a.left-n.left+nav.scrollLeft;
    if(a.width>0){const marker=document.createElement('span');marker.className='portal-moving-tab';marker.setAttribute('aria-hidden','true');marker.style.width=a.width+'px';marker.style.transform='translateX('+left+'px)';nav.append(marker);active.classList.add('portal-tab-moving');
-    animate(marker,[{transform:'translateX('+previous.left+'px) scaleX('+previous.width/a.width+')'},{transform:'translateX('+left+'px) scaleX(1)'}],{duration:280,easing:'cubic-bezier(.2,.75,.25,1)'},()=>{marker.remove();active.classList.remove('portal-tab-moving');});
+    animate(marker,[{transform:'translateX('+previous.left+'px) scaleX('+previous.width/a.width+')'},{transform:'translateX('+left+'px) scaleX(1)'}],{duration:160,easing:'cubic-bezier(.2,.75,.25,1)'},()=>{marker.remove();active.classList.remove('portal-tab-moving');});
    }
   }
  }

@@ -1,5 +1,5 @@
 .portal-topnav .nav{position:relative}
-.portal-topnav .nav button{transition:background-color .16s ease,color .16s ease}
+.portal-topnav .nav button{transition:background-color .12s ease,color .12s ease}
 .portal-topnav .nav button.portal-tab-moving{border-bottom-color:transparent}
 .portal-moving-tab{position:absolute;left:0;bottom:0;height:4px;background:#2196f3;transform-origin:left center;pointer-events:none;z-index:1;border-radius:3px 3px 0 0}
 #portalTabLoading{position:fixed;right:20px;bottom:24px;z-index:50;margin:0;padding:11px 18px;border:1px solid #659bc955;border-radius:12px;background:#0b2848;color:#fff;box-shadow:0 8px 28px #09213826;pointer-events:none}
