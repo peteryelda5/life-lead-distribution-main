@@ -270,13 +270,13 @@ async function navigatePortalTab(tab){
  portalNavigationBusy=true;const owner=S.profile.id,epoch=portalSessionEpoch;
  const keys=['tab','filter','poolPage','assignedPage','closedPage','myPage','myClosedPage'];
  const previous=Object.fromEntries(keys.map(k=>[k,S[k]]));
- const wrap=q('.wrap'),home=q('#portalHome'),buttons=qa('[data-tab]');
+ const wrap=q('.wrap'),home=q('#portalHome'),buttons=qa('[data-tab]'),motion=window.PortalMotion?.capture();
  buttons.forEach(b=>{b.disabled=true;b.setAttribute('aria-busy',String(b.dataset.tab===tab))});
  if(wrap){wrap.inert=true;wrap.setAttribute('aria-busy','true');wrap.insertAdjacentHTML('afterbegin','<div id="portalTabLoading" class="notice" role="status">Loading…</div>')}
  S.tab=tab;S.selected.clear();S.filter='';
  const page={leads:'poolPage','assigned-leads':'assignedPage',closed:'closedPage','my-leads':'myPage','my-closed':'myClosedPage'}[tab];if(page)S[page]=1;
- try{await loadTabData();if(epoch===portalSessionEpoch&&owner===S.profile?.id){portalNavigationBusy=false;render()}}
- catch(e){if(epoch===portalSessionEpoch&&owner===S.profile?.id){portalNavigationBusy=false;Object.assign(S,previous);flash(e.message,true)}}
+ try{await loadTabData();if(epoch===portalSessionEpoch&&owner===S.profile?.id){portalNavigationBusy=false;render();window.PortalMotion?.enter(motion,{changed:previous.tab!==tab,tab});}}
+ catch(e){if(epoch===portalSessionEpoch&&owner===S.profile?.id){portalNavigationBusy=false;Object.assign(S,previous);flash(e.message,true);window.PortalMotion?.enter(motion,{changed:false,tab:previous.tab});}}
  finally{portalNavigationBusy=false;if(wrap?.isConnected){wrap.inert=false;wrap.removeAttribute('aria-busy');q('#portalTabLoading')?.remove()}buttons.forEach(b=>{if(b.isConnected){b.disabled=false;b.removeAttribute('aria-busy')}})}
 }
 function bindShell(){window.PortalNotifications?.bind();window.PortalCallbacks?.bindBadge();bindOnboardingChecklist();if(q('#powerDialerOpen'))q('#powerDialerOpen').onclick=async()=>{if(S.tab==='power-dialer'||portalNavigationBusy)return;try{if(await ensureAgentMfa())await navigatePortalTab('power-dialer');else render()}catch(e){flash(e.message,true)}};bobBind();bindPortalLibraries();q('#portalHelp').onclick=portalHelp;q('#downloadPortalApp').onclick=downloadPortalApp;if(q('#portalPasskeys'))q('#portalPasskeys').onclick=()=>window.PortalPasskeys?.open();if(q('#phoneNotifications'))q('#phoneNotifications').onclick=()=>window.PortalPush?.open();if(q('#adminMfaSetup'))q('#adminMfaSetup').onclick=async()=>{try{const ready=await ensureAgentMfa();if(ready)S.msg='Two-step verification is active for this session.';render()}catch(e){flash(e.message,true)}};bindClosedPeriods();bindLeadHistoryLinks();if(S.tab==='live-chat')bindChat();else stopChat();if(S.tab==='leaderboard')bindLeaderboard();else stopLeaderboard();bindClosedDealDetails();startRequestBadge();startChatBadges();q('#portalHome').onclick=e=>{e.preventDefault();return navigatePortalTab('dashboard')};qa('[data-tab]').forEach(b=>b.onclick=()=>navigatePortalTab(b.dataset.tab));q('#out').onclick=logout}
