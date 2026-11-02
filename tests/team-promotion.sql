@@ -51,7 +51,8 @@ begin
  insert into private.extra_lead_read_access(user_id,division) values(leader,'owner');
  preview:=public.team_admin_promotion_preview(leader);
  if jsonb_array_length(preview->'members')<>3 or (preview->>'open_leads')::int<>2 or (preview->>'closed_deals')::int<>1 then raise exception 'Preview omitted team or retained records';end if;
- if exists(select 1 from jsonb_array_elements(preview->'agencies') a where a->>'id' in ('owner','vivid_life')) then raise exception 'Unsafe destination offered';end if;
+ if exists(select 1 from jsonb_array_elements(preview->'agencies') a where a->>'id'='owner') then raise exception 'Unsafe destination offered';end if;
+ if not exists(select 1 from jsonb_array_elements(preview->'agencies') a where a->>'id'='vivid_life') then raise exception 'Current agency missing from preview';end if;
  -- Authenticated wrapper privileges are intentional; anonymous calls are denied.
  if has_function_privilege('anon','public.promote_team_leader_with_agency(uuid,text,uuid[],text,text)','execute') or has_function_privilege('anon','private.team_admin_promotion_preview(uuid)','execute') then raise exception 'Anonymous RPC exposure';end if;
  set local role authenticated;
@@ -64,7 +65,7 @@ begin
  perform set_config('request.jwt.claims',jsonb_build_object('sub',owner_id,'role','authenticated','aal','aal2','session_id',sid)::text,true);
  denied:=false;begin perform public.promote_team_leader_with_agency(leader,'vivid_life',array[member],null,fresh_name);exception when raise_exception then denied:=sqlerrm like '%team changed%';end;if not denied then raise exception 'Stale roster accepted';end if;
  denied:=false;begin perform public.promote_team_leader_with_agency(leader,'legacy_life',ids,null,fresh_name);exception when raise_exception then denied:=sqlerrm like '%agency changed%';end;if not denied then raise exception 'Stale agency accepted';end if;
- denied:=false;begin perform public.promote_team_leader_with_agency(leader,'vivid_life',ids,'owner',null);exception when raise_exception then denied:=sqlerrm like '%different, active agency%';end;if not denied then raise exception 'Master agency allowed';end if;
+ denied:=false;begin perform public.promote_team_leader_with_agency(leader,'vivid_life',ids,'owner',null);exception when raise_exception then denied:=sqlerrm like '%active agency%';end;if not denied then raise exception 'Master agency allowed';end if;
  result:=public.promote_team_leader_with_agency(leader,'vivid_life',ids,null,fresh_name);destination:=result->>'division';
  if (result->>'members_moved')::int<>3 or (result->>'pending_requests_moved')::int<>1 then raise exception 'Incomplete transfer result';end if;
  reset role;
@@ -79,9 +80,9 @@ begin
  if not exists(select 1 from public.audit_logs where action='team_leader_promoted_with_agency' and entity_id=leader::text and actor_id=owner_id) then raise exception 'Missing promotion audit';end if;
  set local role authenticated;
  denied:=false;begin perform public.promote_team_leader_with_agency(leader,'vivid_life',ids,null,fresh_name||' retry');exception when raise_exception then denied:=sqlerrm like '%already promoted%';end;if not denied then raise exception 'Duplicate promotion accepted';end if;
- -- Also allow an existing destination with an empty team, without creating an agency.
- result:=public.promote_team_leader_with_agency(second_leader,'vivid_life','{}',destination,null);
- if (result->>'members_moved')::int<>0 or result->>'division'<>destination then raise exception 'Existing agency or empty team failed';end if;
+ -- An empty-team leader can become admin of their current agency, without creating another one.
+ result:=public.promote_team_leader_with_agency(second_leader,'vivid_life','{}','vivid_life',null);
+ if (result->>'members_moved')::int<>0 or result->>'division'<>'vivid_life' then raise exception 'Current agency or empty team failed';end if;
  reset role;
  insert into auth.sessions(id,user_id,aal,created_at) values(leader,leader,'aal2',now());
  perform set_config('request.jwt.claims',jsonb_build_object('sub',leader,'role','authenticated','aal','aal2','session_id',leader)::text,true);
