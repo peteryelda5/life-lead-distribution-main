@@ -1,0 +1,5 @@
+.promotion-members{max-height:180px;overflow:auto;margin-top:8px;border:1px solid #d8e2ee;border-radius:10px;padding:0 14px}
+.promotion-members ul{padding-left:18px;margin:10px 0}.promotion-members li{padding:4px 0;overflow-wrap:anywhere}
+.promotion-confirm{display:flex;align-items:flex-start;gap:9px;font-size:14px;line-height:1.5}.promotion-confirm input{margin-top:4px;flex-shrink:0}
+.org-team-promote{margin:0 0 12px;font-size:12px}
+#promotionNameField[hidden]{display:none}
