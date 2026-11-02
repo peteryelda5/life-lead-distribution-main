@@ -1,0 +1,37 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<main id="app"></main>',{url:'https://portal.test/#sales-scripts',runScripts:'outside-only'}),w=dom.window,d=w.document,run=s=>vm.runInContext(s,dom.getInternalVMContext()),flush=()=>new Promise(r=>setImmediate(r));
+run(`
+const S={session:{},profile:{id:'agent',role:'agent',active:true,division:'vivid_life'},tab:'dashboard'},ONBOARDING={userId:'agent',complete:true};
+const portalVerified=()=>true,adminDivisionList=()=>['vivid_life','legacy_life'],divisionLabel=x=>x;let portalDialerInstance=null,calls=[],fail=false,confirmDelete=false,hold=false,release;
+window.confirm=()=>confirmDelete;
+let records=[{id:'original',title:'Original script',lead_type:'Mortgage Protection',body:'Original text',division:'vivid_life'},{id:'sheet',title:'Sales Process / Objection Sheet',lead_type:'Sales Process / Objection Sheet',body:'Separate sheet',division:'vivid_life'}];
+function matches(url){const p=new URL(url,'https://portal.test').searchParams;return records.filter(r=>(!p.has('division')||'eq.'+r.division===p.get('division'))&&(!p.has('id')||'eq.'+r.id===p.get('id'))&&(!p.has('lead_type')||(p.get('lead_type').startsWith('neq.')?r.lead_type!==p.get('lead_type').slice(4):r.lead_type===p.get('lead_type').slice(3))));}
+async function apiPage(url){calls.push({url});const rows=matches(url).sort((a,b)=>a.title.localeCompare(b.title));return {data:rows.map(({id,title,lead_type})=>({id,title,lead_type})),count:rows.length};}
+async function api(url,options={}){calls.push({url,options});if(options.method){if(fail)throw Error('Save unavailable');if(hold){hold=false;await new Promise(r=>release=r);}if(options.method==='POST'){const record={id:'created-'+records.length,...options.body};records.push(record);return [record];}const found=matches(url);if(options.method==='PATCH')found.forEach(r=>Object.assign(r,options.body));if(options.method==='DELETE')records=records.filter(r=>!found.includes(r));return found;}return matches(url);}
+async function ensurePortalDialer(){throw Error('Not used in script tests');}async function navigatePortalTab(){}
+`);
+run(fs.readFileSync('portal-quick-tools.js','utf8'));
+const click=id=>d.getElementById(id).click(),field=(id,value)=>d.getElementById(id).value=value,save=()=>d.querySelector('#qtScriptForm').onsubmit({preventDefault(){}});
+(async()=>{try{
+ run('window.PortalQuickTools.sync()');await flush();await flush();assert(!d.querySelector('#qtPanel').hidden,'Old #sales-scripts links open Agent Tools.');assert.equal(d.querySelector('[role=tab][aria-selected=true]').id,'qtTab-scripts');assert(d.querySelector('#qtScriptActions').hidden);const count=run('calls.length');click('qtNewScript');await save();assert.equal(run('calls.length'),count,'Agents retain read-only access.');
+ run("S.profile={id:'admin',role:'admin',active:true,division:'vivid_life'};ONBOARDING.userId='admin';window.PortalQuickTools.open('scripts')");await flush();await flush();assert(!d.querySelector('#qtScriptActions').hidden);assert(!d.querySelector('#qtEditScript').disabled);
+ click('qtNewScript');field('qtScriptDraftTitle','New opening <img>');field('qtScriptDraftType','Mortgage Protection');field('qtScriptDraftBody','First line\nSecond line');
+ click('qtMinimize');run('window.PortalQuickTools.open("scripts")');assert.equal(d.querySelector('#qtScriptDraftBody').value,'First line\nSecond line');
+ click('qtTab-process');click('qtTab-scripts');assert(!d.querySelector('#qtScriptForm').hidden);assert.equal(d.querySelector('#qtScriptDraftTitle').value,'New opening <img>');
+ run('fail=true');await save();assert(d.querySelector('#qtScriptError').textContent.includes('unavailable'));assert(!d.querySelector('#qtScriptSave').disabled);assert.equal(d.querySelector('#qtScriptDraftBody').value,'First line\nSecond line');
+ run('fail=false');await save();await flush();assert.equal(run('records.length'),3);assert.equal(d.querySelector('#qtScriptTitle').textContent,'New opening <img>');assert(!d.querySelector('#qtScriptTitle img'));assert.equal(d.querySelector('#qtScriptBody').textContent,'First line\nSecond line');assert(d.querySelector('#qtScriptForm').hidden);
+ assert.equal(run("calls.filter(c=>c.options?.method==='POST').at(-1).options.body.division"),'vivid_life');
+ click('qtEditScript');assert.equal(d.querySelector('#qtScriptDraftType').value,'Mortgage Protection');field('qtScriptDraftBody','Updated script');await save();await flush();assert.equal(run('records.length'),3);assert.equal(d.querySelector('#qtScriptBody').textContent,'Updated script');
+ const patch=run("calls.filter(c=>c.options?.method==='PATCH').at(-1)");assert.equal(new URL(patch.url,'https://portal.test').searchParams.get('division'),'eq.vivid_life');assert.equal(new URL(patch.url,'https://portal.test').searchParams.get('lead_type'),'neq.Sales Process / Objection Sheet');
+ const beforeDelete=run('calls.length');await d.querySelector('#qtDeleteScript').onclick();assert.equal(run('calls.length'),beforeDelete);run('confirmDelete=true');await d.querySelector('#qtDeleteScript').onclick();await flush();assert.equal(run('records.length'),2);assert.equal(run("records.some(r=>r.id==='sheet')"),true);
+ const agency=d.querySelector('#qtAgency');agency.value='legacy_life';await agency.onchange({target:agency});assert(d.querySelector('#qtScriptStatus').textContent.includes('New script'));click('qtNewScript');field('qtScriptDraftTitle','Legacy script');field('qtScriptDraftBody','Agency-scoped text');await save();await flush();assert.equal(run("records.at(-1).division"),'legacy_life');assert.equal(d.querySelector('#qtScriptTitle').textContent,'Legacy script');
+ // A save finishing after an account change cannot populate the next account's tool.
+ click('qtNewScript');field('qtScriptDraftTitle','Pending');field('qtScriptDraftBody','Old admin draft');run('hold=true');const pending=save();assert(d.querySelector('#qtScriptSave').disabled);await save();assert.equal(run("calls.filter(c=>c.options?.body?.title==='Pending').length"),1);
+ run("S.profile={id:'other',role:'agent',active:true,division:'vivid_life'};ONBOARDING.userId='other';window.PortalQuickTools.sync();release()");await pending;assert(!d.querySelector('#qtScriptBody').textContent.includes('Old admin draft'));assert(d.querySelector('#qtScriptActions').hidden);
+ // The old full-page navigation entry is absent for every role; the route opens tools even during a call.
+ const app=fs.readFileSync('portal-app.js','utf8');assert(!app.includes("['sales-scripts','Sales scripts']"));assert(!app.includes("S.tab==='sales-scripts'?salesScriptsPage()"));
+ run("let openedTool=null,portalSessionEpoch=0;window.PortalQuickTools.open=section=>openedTool=section;S.tab='power-dialer';portalDialerInstance={canLeave:()=>false};function render(){};");
+ run(app.slice(app.indexOf('let portalNavigationBusy=false;'),app.indexOf('function bindShell()')));await run("navigatePortalTab('sales-scripts')");assert.equal(run('openedTool'),'scripts');assert.equal(run('S.tab'),'power-dialer');
+ console.log('PASS: legacy links route to Agent Tools; admin script create/edit/delete, permissions, agency scope, literal text, draft persistence, save retry, duplicate-save prevention and account-change isolation.');
+}finally{run('window.PortalQuickTools.reset()');dom.window.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
