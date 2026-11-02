@@ -13,7 +13,7 @@ const json=(value,status=200)=>({ok:status>=200&&status<300,status,json:async()=
 global.fetch=async(url,opt)=>{
  calls.push({url,opt});
  if(url.endsWith('/auth/v1/user'))return json({id:u});
- if(url.endsWith('/require_portal_mfa'))return json(false,403);
+ if(url.endsWith('/require_portal_mfa'))return json(JSON.parse(Buffer.from(opt.headers.Authorization.split('.')[1],'base64url')).aal==='aal2');
  if(url.endsWith('/require_portal_onboarding'))return json(true);
  if(url.endsWith('/portal_push_wake'))return json(wakeResult);
  if(url.endsWith('/portal_push_manage'))return json(manageResult);

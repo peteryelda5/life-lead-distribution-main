@@ -1,0 +1,31 @@
+name: Security checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-fund
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Access, payment, passkey, callback and public-output checks
+        run: |
+          node tests/portal-verification.cjs
+          node tests/portal-passkeys.cjs
+          node tests/portal-push.cjs
+          node tests/password-management.cjs
+          node tests/dialer-full.cjs
+          node tests/dialer-incoming.cjs
+          node tests/dialer-operations.cjs
+          node tests/leaderboard-api.cjs
+          node tests/submitted-deals-api.cjs
+          node tests/dialer-recording-grants.cjs
+          node tests/public-build.cjs

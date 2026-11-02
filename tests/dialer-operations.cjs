@@ -6,7 +6,7 @@ let authenticated=true,supervisor=true,calls=[];
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status});
 global.fetch=async(url,opt={})=>{
  if(url.endsWith('/rpc/require_portal_onboarding'))return json(true);
- if(url.endsWith('/rpc/require_portal_mfa'))return json(false);
+ if(url.endsWith('/rpc/require_portal_mfa'))return json(JSON.parse(Buffer.from(opt.headers.Authorization.split('.')[1],'base64url')).aal==='aal2');
  if(url.includes('/auth/v1/user'))return authenticated?json({id:user,email:'fixture@example.invalid'}):json({},401);
  if(url.includes('/rest/v1/profiles?'))return json([{id:user,active:true,archived:false,role:'agent'}]);
  if(url.includes('/rest/v1/dialer_priority_tasks?')){const q=new URL(url).searchParams;assert.equal(q.get('user_id'),'eq.'+user);assert.equal(q.get('resolved_at'),'is.null');assert.equal(opt.method,'PATCH');return json([{id}]);}

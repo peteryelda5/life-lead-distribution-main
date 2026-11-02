@@ -94,5 +94,7 @@
     "api/dialer/recording-stream.js": {
       "maxDuration": 800
     }
-  }
+  },
+  "buildCommand": "node scripts/build-public.cjs",
+  "outputDirectory": "public-site"
 }

@@ -11,7 +11,7 @@ let stored=null,challenge=null,browserChallenge=null,used=false,proof=false,fini
 const json=(d,status=200)=>({ok:status>=200&&status<300,status,json:async()=>d});
 global.fetch=async(url,opt)=>{
  if(url.endsWith('/auth/v1/user'))return json({id:user,email:'fixture@example.invalid'});
- if(url.endsWith('/require_portal_mfa'))return json(proof,proof?200:403);
+ if(url.endsWith('/require_portal_mfa')){const verified=proof||JSON.parse(Buffer.from(opt.headers.Authorization.split('.')[1],'base64url')).aal==='aal2';return json(verified,verified?200:403);}
  assert(url.endsWith('/portal_passkey_manage'));const b=JSON.parse(opt.body);calls.push(b);assert.equal(b.p_user,user);assert.equal(b.p_session,session);
  const status=()=>json({verified:b.p_aal==='aal2'||proof,expires_at:proof?new Date(Date.now()+3600000).toISOString():null,credentials:stored?[{id,name:'Fixture'}]:[]});
  if(b.p_action==='status')return status();
