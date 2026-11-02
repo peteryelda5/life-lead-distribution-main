@@ -1,0 +1,48 @@
+#portalQuickTools{position:fixed;right:max(20px,env(safe-area-inset-right));bottom:max(20px,env(safe-area-inset-bottom));z-index:100;font-family:inherit;color:#173957;width:440px;max-width:calc(100vw - 24px);pointer-events:none}
+#portalQuickTools [hidden]{display:none!important}
+#portalQuickTools button,#portalQuickTools select,#portalQuickTools textarea{font:inherit}
+#portalQuickTools button{cursor:pointer}
+#portalQuickTools button:disabled{cursor:default;opacity:.55}
+#portalQuickTools :is(button,select,textarea):focus-visible{outline:3px solid #64b5f6;outline-offset:2px}
+#portalQuickTools svg{width:20px;height:20px;flex-shrink:0}
+.qt-launcher{pointer-events:auto;display:flex;align-items:center;gap:10px;margin-left:auto;min-height:48px;padding:11px 17px;border:1px solid #2e5d89;border-radius:25px;background:#10365c;color:#fff;box-shadow:0 5px 22px #10365c30;font-size:14px!important;font-weight:650!important}
+.qt-launcher>svg:last-child{width:15px;transition:transform .15s}.qt-launcher[aria-expanded=true]>svg:last-child{transform:rotate(180deg)}
+.qt-panel{pointer-events:auto;display:flex;flex-direction:column;overflow:hidden;width:100%;height:min(640px,calc(100dvh - 160px));margin-bottom:12px;background:#fff;border:1px solid #dce6f0;border-radius:18px;box-shadow:0 16px 50px #1235552b}
+.qt-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:17px 18px;background:#0b2d50;color:#fff;flex-shrink:0}
+.qt-brand{display:flex;align-items:center;gap:11px}.qt-brand>svg{color:#80d0e7}.qt-brand strong{display:block;font-size:15px}.qt-brand span{display:block;margin-top:4px;font-size:11px;color:#c4d8e9}
+#qtMinimize{border:0;border-radius:7px;background:transparent;color:#d9e9f5;display:grid;place-items:center;width:36px;height:36px}#qtMinimize:hover{background:#ffffff18}
+.qt-tabs{display:grid;grid-template-columns:1fr 1fr 1.45fr;gap:3px;padding:9px 9px 0;border-bottom:1px solid #e2e9f1;flex-shrink:0}
+.qt-tabs button{border:0;border-bottom:3px solid transparent;background:transparent;color:#6d8095;padding:9px 4px 11px;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-start;font-size:11px!important;line-height:1.35;border-radius:7px 7px 0 0}
+.qt-tabs button[aria-selected=true]{border-color:#2484da;color:#0b5ca5;background:#f0f7fd}.qt-tabs button:hover{background:#f3f7fb}
+.qt-scope{padding:10px 18px;border-bottom:1px solid #e5edf5;display:flex;align-items:center;gap:12px;font-size:12px}.qt-scope select{min-width:0;flex:1;border:1px solid #ccd9e7;border-radius:7px;background:white;padding:7px;color:#173957}
+.qt-pane{padding:18px;overflow:auto;min-height:0;flex:1;overscroll-behavior:contain;scrollbar-gutter:stable}
+.qt-resource-tools{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:center}.qt-resource-tools label{font-size:12px;font-weight:650}.qt-resource-tools select{grid-column:1/-1;width:100%;min-height:42px;border:1px solid #ccd9e7;border-radius:8px;background:#fff;padding:9px;font-size:14px;color:#173957}
+#portalQuickTools .qt-link{background:transparent;border:0;padding:4px 0;color:#1476c8;font-size:12px;font-weight:650;line-height:1.45}
+.qt-reader h2,.qt-sheet-head h2{font-size:17px;line-height:1.4;margin:15px 0 13px;font-weight:700}.qt-copy{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.75;color:#294764}
+.qt-hint{font-size:12px;line-height:1.65;color:#708499;margin:12px 0}.qt-hint:empty{display:none}.qt-pages{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:11px}.qt-pages button{border:1px solid #cddbeb;background:#f8fafc;color:#294764;border-radius:6px;padding:6px 9px;font-size:11px!important}
+.qt-sheet-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.qt-sheet-head h2{font-size:16px;margin:0;max-width:245px}.qt-sheet-head button{flex-shrink:0}.qt-sheet-head+.qt-hint{margin-top:15px}
+#qtSheetForm{margin-top:15px}#qtSheetForm label{font-size:12px;display:block;font-weight:650;margin-bottom:8px}#qtSheetDraft{width:100%;min-height:240px;resize:vertical;padding:11px;border:1px solid #c6d6e6;border-radius:8px;font-size:15px;line-height:1.6;color:#173957}.qt-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.qt-primary,.qt-secondary{border-radius:8px;padding:9px 13px;font-size:13px!important}.qt-primary{background:#1979d5;border:1px solid #1979d5;color:white}.qt-secondary{background:#f6f9fc;border:1px solid #cddbeb;color:#294764}#qtSheetError{font-size:12px;color:#b42318}.qt-activity{font-size:10px;background:#277557;border-radius:12px;padding:4px 7px}.qt-calling{border-color:#50c597}
+.qt-dialer-pane{padding:14px 12px}.qt-dialer-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:0 4px}.qt-dialer-top p{margin:0;max-width:200px}.qt-dialer-top button{white-space:nowrap}
+#portalQuickTools #portalDialer{width:100%;max-width:100%;height:auto;min-height:0;display:block;background:white;border:0;box-shadow:none;margin:12px 0 0;font-size:13px}
+#portalQuickTools #portalDialer .workspace-toolbar,#portalQuickTools #portalDialer .workspace-message{display:none}
+#portalQuickTools #portalDialer .secondary-view{padding:0;max-width:100%;margin:0}
+#portalQuickTools #portalDialer .manual-body{max-width:100%!important;margin:0!important}
+#portalQuickTools #portalDialer .manual-body>h2,#portalQuickTools #portalDialer .manual-body>p{display:none}
+#portalQuickTools #portalDialer .manual-body>.card{border:0;box-shadow:none;padding:12px 4px;margin:0}
+#portalQuickTools #portalDialer .details{display:grid;grid-template-columns:1fr;gap:12px}
+#portalQuickTools #portalDialer .details select{width:100%;max-width:100%;min-height:38px}
+#portalQuickTools #portalDialer #manual-destination{font-size:20px!important;padding:9px!important}
+#portalQuickTools #portalDialer .test-keypad{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;max-width:100%;margin:12px 0}
+#portalQuickTools #portalDialer .test-keypad button{min-height:44px;padding:5px;font-size:19px;line-height:1.1}
+#portalQuickTools #portalDialer .test-keypad small{display:block;font-size:9px;margin-top:3px}
+#portalQuickTools #portalDialer .permission{display:flex;gap:8px;align-items:center;font-size:11px;line-height:1.45;margin:10px 0}
+#portalQuickTools #portalDialer .permission input{width:16px;height:16px;flex-shrink:0}
+#portalQuickTools #portalDialer .call-clock{text-align:center;font-size:22px;margin:9px 0}
+#portalQuickTools #portalDialer .status,#portalQuickTools #portalDialer .note{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+#portalQuickTools #portalDialer .buttons{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+#portalQuickTools #portalDialer .buttons button{padding:9px 10px;min-height:38px;flex:1 1 42%;font-size:12px}
+#portalQuickTools #portalDialer .agent-status-bar{padding:8px;gap:6px;font-size:11px;flex-wrap:wrap}#portalQuickTools #portalDialer .agent-status-bar button{padding:6px;font-size:11px}
+#portalQuickTools #portalDialer .calling-desk{display:block;height:auto;min-height:0}#portalQuickTools #portalDialer .calling-desk>.lead-panel,#portalQuickTools #portalDialer .calling-desk>.script-panel{display:none}#portalQuickTools #portalDialer .client-panel{min-width:0}#portalQuickTools #portalDialer .client-content{padding:12px}#portalQuickTools #portalDialer .incoming-call{padding:12px;flex-wrap:wrap;gap:8px}
+body.has-quick-tools .pn-toast-stack{bottom:max(84px,calc(env(safe-area-inset-bottom) + 70px))}
+@media(max-width:600px){#portalQuickTools{right:12px;bottom:max(12px,env(safe-area-inset-bottom))}.qt-panel{height:min(620px,calc(100dvh - 150px));border-radius:15px}.qt-header{padding:12px 15px}.qt-pane{padding:15px}.qt-launcher{min-height:44px;padding:10px 14px}.qt-tabs{padding-top:6px}.qt-tabs button{padding-top:7px;padding-bottom:8px}}
+@media(prefers-reduced-motion:reduce){.qt-launcher>svg:last-child{transition:none}}
