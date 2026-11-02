@@ -1,0 +1,22 @@
+.auth.portal-verify{min-height:100svh;padding:32px 18px;background:linear-gradient(150deg,#061b36e8,#113957b8),url('/assets/login-mountains-poster.jpg') center/cover fixed}
+.auth.portal-verify .pv-card{width:min(470px,100%);padding:36px 32px;border:1px solid #54718d65;border-radius:24px;background:linear-gradient(155deg,#16324e,#091d33);box-shadow:0 22px 80px #020f2866;color:#eff6ff;gap:20px}
+.pv-brand{display:flex;align-items:center;gap:12px;margin-bottom:5px}.pv-brand img{width:42px;height:42px}.pv-brand strong{font-size:17px;letter-spacing:.2px}.pv-brand span{display:block;font-size:9px;letter-spacing:3.5px;margin-top:4px;color:#a7c5df}
+.pv-card .pv-title{font-size:25px;line-height:1.3;letter-spacing:-.5px;margin:0 0 8px;color:#fff}.pv-card .pv-subtitle{font-size:14px;line-height:1.65;color:#b0c5da;margin:0}
+.pv-card .pv-heading{text-align:center;margin:8px 0}.pv-card .muted,.pv-card .small{color:#b0c5da}.pv-card .notice{background:#203f5c;border-color:#365b7c;color:#d8e6f5;font-size:13px;line-height:1.6}.pv-card .field label{color:#c5d7e8}
+.pv-code-form{margin:0}.pv-code-form fieldset{margin:0;padding:0;border:0;min-width:0}.pv-code-form legend{font-size:12px;color:#b0c5da;margin-bottom:12px;width:100%;text-align:center}
+.pv-digits{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;direction:ltr}
+.auth.portal-verify .pv-digits input{display:block;min-width:0;width:100%;height:61px;border:1.5px solid #4c6580;border-radius:11px;background:#091b2c;color:white;text-align:center;padding:0;box-shadow:inset 0 1px 5px #020b1b44;font:650 26px/1 system-ui;caret-color:#8ecbff;transition:border-color .16s,box-shadow .16s,transform .16s}
+.auth.portal-verify .pv-digits input:focus{outline:0;border-color:#75baff;box-shadow:0 0 0 3px #4899ed26,0 0 22px #328fdd22;transform:translateY(-2px)}
+.auth.portal-verify .pv-digits input.pv-filled{border-color:#7ba6cc;background:#153750}.pv-digits input:disabled{opacity:1;-webkit-text-fill-color:#fff}
+.pv-code-form .pv-submit{width:100%;margin-top:22px;min-height:46px;border:0;border-radius:9px;background:#2185e5;color:#fff;font-size:14px;font-weight:650}.pv-submit:disabled{cursor:wait;opacity:.72}
+.pv-status{font-size:13px;line-height:1.6;text-align:center;color:#bed1e4;margin:14px 0 0;min-height:21px}.pv-status:empty{margin-top:8px}
+.pv-code-form[data-state=error] .pv-digits{animation:pv-shake .28s ease}.auth.portal-verify .pv-code-form[data-state=error] input{border-color:#ff7c8a;box-shadow:0 0 0 2px #ff526319}.pv-code-form[data-state=error] .pv-status{color:#ffb4bc}
+.pv-success{display:grid;place-items:center;min-height:156px;padding:20px}.pv-success svg{width:74px;height:74px;padding:17px;border:1px solid #4fd49c;border-radius:19px;color:#81efbb;background:#143b32;box-shadow:0 0 55px #2dc58638;animation:pv-arrive .35s ease-out}.pv-success path{stroke-dasharray:30;stroke-dashoffset:0;animation:pv-check .45s ease-out}
+.pv-code-form[data-state=success] .pv-status{color:#9de6c3}.pv-code-form[data-state=load-error] .pv-status{color:#dce9f7}.pv-retry{width:100%;margin-top:16px}
+.pv-card #out{background:transparent;color:#adc6dc;border-color:#415e79;box-shadow:none}.pv-card #usePortalPasskey{min-height:46px}.pv-card :is(button,a):focus-visible{outline:3px solid #8ecbff;outline-offset:3px}
+.pv-code-form [hidden]{display:none!important}
+@keyframes pv-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes pv-arrive{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+@keyframes pv-check{from{stroke-dashoffset:30}to{stroke-dashoffset:0}}
+@media(max-width:480px){.auth.portal-verify{padding:24px 16px}.auth.portal-verify .pv-card{padding:28px 20px;border-radius:20px}.pv-digits{gap:6px}.auth.portal-verify .pv-digits input{height:53px;font-size:23px;border-radius:9px}.pv-card .pv-title{font-size:23px}}
+@media(prefers-reduced-motion:reduce){.auth.portal-verify .pv-digits input,.pv-success svg,.pv-success path,.pv-code-form[data-state=error] .pv-digits{animation:none;transition:none;transform:none}}
