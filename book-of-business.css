@@ -107,3 +107,29 @@
  .bob-page.bob-compact,.bob-page .bob-workspace{overflow:clip}
  .bob-page .bob-workspace.has-detail>.bob-detail{position:sticky;align-self:start;top:var(--bob-detail-top,92px);max-height:calc(100vh - var(--bob-detail-top,92px) - 16px);max-height:calc(100dvh - var(--bob-detail-top,92px) - 16px);overflow-y:auto;scrollbar-gutter:stable}
 }
+
+/* Book of Business overview: readable metrics and compact, grouped navigation. */
+.bob-compact>.head{padding:18px 24px;gap:24px;background:linear-gradient(110deg,#fff 55%,#f5f9ff);border-top:3px solid #1765e8}
+.bob-compact .bob-brand{flex:0 0 210px}.bob-compact .bob-brand img{width:210px;height:62px}
+.bob-compact>.head .bob-tabs{align-self:center;gap:4px;padding:5px;background:#edf2f9;border:1px solid #e2e9f3;border-radius:12px}
+.bob-compact>.head .bob-tabs button{padding:10px 15px;border:0;border-radius:8px;font-size:13px;font-weight:550;color:#526884}
+.bob-compact>.head .bob-tabs button.active{background:#fff;color:#135ec6;box-shadow:0 2px 6px #183d6912}
+.bob-compact>.head .bob-tabs button:hover{color:#135ec6;background:#ffffffa6}
+.bob-compact>.head .rowactions{gap:10px}.bob-compact>.head .btn{min-height:42px;border-radius:9px;font-size:13px;padding:10px 15px}
+.bob-compact>.head .btn.primary{box-shadow:0 3px 8px #1765e81f}.bob-compact .bob-settings summary{font-size:12px;color:#526884;min-height:42px}
+.bob-compact .bob-overview-strip{display:flex;flex-direction:column;align-items:stretch;gap:16px;padding:20px 24px;background:#f7f9fd}
+.bob-compact .bob-stage-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;flex:auto;overflow:visible;padding:0}
+.bob-compact .bob-stage-summary button,.bob-compact .bob-stage-summary button:first-child,.bob-compact .bob-stage-summary button:last-child{min-width:0;padding:13px 16px;background:#fff;border:1px solid #e0e7f1;border-radius:10px;box-shadow:0 2px 4px #18345403;text-align:left;position:relative}
+.bob-compact .bob-stage-summary button>span{font-size:11px;white-space:normal;gap:7px;color:#546981;line-height:1.4}
+.bob-compact .bob-stage-summary strong{font-size:25px;font-weight:700;letter-spacing:-.6px;line-height:1.2;margin:9px 0 0;color:#183858;font-variant-numeric:tabular-nums}
+.bob-compact .bob-stage-summary i{width:7px;height:7px;box-shadow:0 0 0 3px var(--stage-bg)}
+.bob-compact .bob-stage-summary button:hover{border-color:#9bbce9;background:#fbfdff}
+.bob-compact .bob-stage-summary button.selected{border-color:#1765e8;background:#eff5ff;box-shadow:0 0 0 1px #1765e8}
+.bob-compact .bob-totals{display:flex;max-width:none;justify-content:flex-start;align-items:center;gap:0;padding:0;font-size:11px;color:#62768f}
+.bob-compact .bob-totals>span{display:flex;flex-direction:column;gap:3px;padding:0 24px;border-right:1px solid #dfe7f2;white-space:normal}
+.bob-compact .bob-totals>span:first-child{padding-left:0}.bob-compact .bob-totals b{font-size:17px;font-weight:650;line-height:1.4;color:#193d67;font-variant-numeric:tabular-nums;letter-spacing:-.25px}
+.bob-compact .bob-totals .bob-link{margin-left:auto;padding:10px 14px;border:1px solid #d9e6fa;border-radius:9px;background:#edf4ff;color:#1760bd;font-size:12px;font-weight:600;text-align:center}
+.bob-compact .bob-totals .bob-link:hover{background:#e2edff}
+@media(max-width:1200px){.bob-compact>.head{gap:16px}.bob-compact>.head .bob-tabs{order:3;flex-basis:100%;width:fit-content;flex-grow:0}.bob-compact>.head .bob-tabs button{flex:1}.bob-compact .bob-stage-summary button,.bob-compact .bob-stage-summary button:first-child,.bob-compact .bob-stage-summary button:last-child{padding:12px}.bob-compact .bob-totals>span{padding:0 16px}}
+@media(max-width:800px){.bob-compact .bob-stage-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.bob-compact .bob-totals{gap:14px 0;flex-wrap:wrap}.bob-compact .bob-totals>span{flex:1 1 25%;padding:0 12px}.bob-compact .bob-totals .bob-link{margin:0;flex-basis:100%}.bob-compact .bob-totals b{font-size:15px}}
+@media(max-width:600px){.bob-compact>.head{padding:15px;gap:14px}.bob-compact .bob-brand{flex-basis:100%}.bob-compact .bob-brand img{width:185px;height:55px}.bob-compact>.head .rowactions{gap:7px}.bob-compact>.head .btn{padding:9px 11px;font-size:12px}.bob-compact>.head .bob-tabs{gap:2px;padding:4px}.bob-compact>.head .bob-tabs button{font-size:12px;padding:10px 8px}.bob-compact .bob-overview-strip{padding:15px;gap:16px}.bob-compact .bob-stage-summary{gap:8px}.bob-compact .bob-stage-summary button>span{font-size:10px;min-height:28px;align-items:flex-start}.bob-compact .bob-stage-summary i{margin-top:4px}.bob-compact .bob-stage-summary strong{font-size:23px;margin-top:6px}.bob-compact .bob-totals>span{flex-basis:50%;padding:0 12px}.bob-compact .bob-totals>span:nth-child(odd){padding-left:0}.bob-compact .bob-totals>span:nth-child(even){border-right:0}}
