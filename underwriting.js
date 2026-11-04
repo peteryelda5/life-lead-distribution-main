@@ -217,6 +217,7 @@ if(typeof window!=='undefined'){
   uwBindOpenGuides();
   const f=q('#uwCaseForm');if(!f)return;
   f.querySelectorAll('input,textarea,select').forEach(el=>el.disabled=UW.loading);
+  q('#uwFollowup').disabled=UW.loading;
   const changed=()=>{uwSaveForm(f);if(UW.result){UW.result=null;const results=q('.uw-results');if(results)results.innerHTML='<div class="uw-panel"><h2>Case details changed</h2><p>Click Compare guides to review the updated case.</p></div>';}};f.oninput=changed;f.onchange=changed;
   const updateFollowups=()=>{uwSaveForm(f);q('#uwFollowups').innerHTML=uwFollowupHTML();};
   q('#uwFollowup').onclick=updateFollowups;
