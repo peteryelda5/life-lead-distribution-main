@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),E=require('../underwriting-application.js');
+const config={schema:1,sourceHash:'fixture-hash',edition:'Fixture edition',version:'test-1',exactApplication:false,products:[{id:'level',name:'Fixture product',age:[50,80],page:1,excludedStates:['NY'],amount:[{age:[50,80],min:5000,max:25000}],buildClasses:['Level']}],questions:[{id:'a',label:'Condition A',timeframe:'Last 24 months',outcome:'Graded',page:2},{id:'b',label:'Condition B',timeframe:'Ever',outcome:'Carrier review',page:2}],build:{page:3,excess:'flag',rows:[{height:70,bands:[{min:100,max:200,label:'Level'},{min:201,max:220,label:'Graded'}]}]},medications:[{names:['FixtureDrug'],currentOnly:true,unconditional:true,page:4,rule:'Fixture rule'}],combinations:[{when:[{field:'a',value:'yes',label:'A'},{field:'b',value:'yes',label:'B'}],outcome:'Decline',page:5,rule:'Combined fixture rule'}],combinationPage:5,combinationNote:'Fixture combinations need review.'};
+const g={id:'fixture',active:true,file_sha256:'fixture-hash',version_label:'Fixture edition',rules:{applicationCheck:config}};
+const form={age:'65',state:'MI',amount:'20000',height:'70',weight:'200',tobacco:'never',medicationHistory:'none',answers:{a:'no',b:'no'},medications:[]};
+const check=f=>E.evaluate(g,'level',{...form,...f});
+assert(E.configured(g));assert(!E.configured({...g,active:false}));assert(!E.configured({...g,file_sha256:'changed'}));assert(!E.configured({...g,version_label:'new'}));
+assert.equal(check({}).status,'review');assert(check({}).missing.some(x=>x.includes('complete')||x.includes('Complete')));
+assert.equal(check({age:'49'}).status,'flag');assert.equal(check({age:'80'}).findings.find(x=>x.title==='Issue age').status,'checked');assert.equal(check({age:'81'}).status,'flag');assert(check({age:'65.5'}).missing.includes('Valid age in completed years'));
+assert.equal(check({state:'NY'}).status,'flag');assert.equal(check({amount:'25001'}).status,'flag');assert.equal(check({amount:'5000'}).findings.find(x=>x.title==='Coverage amount').status,'checked');
+assert.equal(check({weight:'201'}).status,'graded');assert.equal(check({weight:'221'}).status,'flag');assert.equal(check({weight:'200.5'}).findings.find(x=>x.title==='Build chart').status,'review');assert(check({height:'70.5'}).missing.some(x=>x.includes('exact height')));
+assert.equal(check({answers:{a:'yes',b:'yes'}}).status,'flag');assert.equal(check({answers:{a:'yes'}}).status,'graded');assert(check({answers:{}}).missing.some(x=>x.includes('Condition A')));
+const med={name:'FixtureDrug',dose:'5 mg daily',indication:'Fixture only',status:'current',history:'Started last year'};
+assert.equal(check({medicationHistory:'listed',medications:[med]}).status,'flag');assert.notEqual(check({medicationHistory:'listed',medications:[{...med,status:'former'}]}).status,'flag');assert.notEqual(check({medicationHistory:'listed',medications:[{...med,name:'NotFixtureDrug'}]}).status,'flag');
+assert(check({medicationHistory:'listed',medications:[]}).missing.some(x=>x.includes('at least one')));
+assert.equal(E.evaluate({...g,file_sha256:'changed'},'level',form).findings.length,0);
+assert.equal(E.evaluate(g,'missing',form).findings.length,0);
+for(const f of [{},{answers:{}},{age:'NaN'},{weight:'-1'},{otherHistory:'unmapped illness'}])assert(!['approved','denied','eligible'].includes(check(f).status));
+console.log('PASS: source invalidation, product isolation, exact age/amount/build boundaries, incomplete cases, conditional medication matching, combinations and no automated eligibility decisions.');
