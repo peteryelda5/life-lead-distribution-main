@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),E=require('../underwriting.js');
+const form={question:'COPD and high blood pressure',coverage:'final-expense',generalReview:'yes',age:'65',state:'MI'};
+assert.deepEqual(E.followups(form).map(x=>x.id),['lungs','pressure']);
+assert(!E.followups(form).some(x=>x.id==='diabetes'));
+for(const condition of ['cancer','kidney failure','stroke','depression','liver cirrhosis','rheumatoid arthritis','epilepsy','sleep apnea'])assert(E.followups({question:condition}).length,condition);
+assert.equal(E.followups({question:'rare unlisted condition'}).length,0);
+assert(E.terms('rare unlisted condition').includes('rare'));
+assert(!E.caseText({...form,followup_diabetes:'old insulin answer'}).includes('insulin'));
+assert(E.caseText({...form,followup_lungs:'oxygen nightly'}).includes('oxygen'));
+assert(E.missing(form,false).some(x=>x.startsWith('Lungs')));
+const guide={id:'a',carrier:'Test',active:true,kind:'underwriting',coverage_types:['final-expense'],page_count:10,rules:{type:'corebridge-siwl-diabetes'}};
+const hits=[{guide_id:'a',page_number:2,body:'COPD: see application questions and oxygen history.',score:1}];
+let r=E.compare([guide],hits,form);assert(r.primary);assert(!r.primary.fit.supported);assert.equal(r.primary.label,'Relevant guide sections');assert(!r.primary.notes.join(' ').includes('A1C'));
+r=E.compare([guide],[],{...form,question:'rare unlisted condition'});assert.equal(r.primary,null);
+r=E.compare([guide],hits,{...form,question:'diabetes',caseDetails:'COPD with oxygen'});assert(r.complex);assert(!r.primary.fit.supported);
+const second={...guide,id:'b',title:'Other product'};r=E.compare([guide,second],[...hits,{...hits[0],guide_id:'b'}],form);assert.equal(r.ranked.length,2);
+console.log('PASS: general health follow-ups, uncommon conditions, stale-answer isolation, multi-condition caution, source-only results and multiple products.');
