@@ -41,7 +41,7 @@ function bindOrganization(){
  if(q('#orgRefresh'))q('#orgRefresh').onclick=async()=>{await loadOrganization();render();};
  qa('[data-org-view]').forEach(b=>b.onclick=()=>{ORG.view=b.dataset.orgView;render();});
  qa('[data-org-open]').forEach(b=>b.onclick=()=>{const id=b.dataset.orgOpen;const open=!ORG.expanded.has(id);ORG.expanded.clear();if(open)ORG.expanded.add(id);render();if(open)document.getElementById('org-team-panel-'+id)?.scrollIntoView?.({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});});
- qa('[data-org-edit]').forEach(b=>b.onclick=()=>{const a=S.agents.find(a=>a.id===b.dataset.orgEdit);if(a&&canManageTeam(a))editAgentModal(a.id,a.full_name,a.email);});
+ qa('[data-org-edit]').forEach(b=>b.onclick=()=>{const a=S.agents.find(a=>a.id===b.dataset.orgEdit);if(a&&canManageTeam(a))openAgentProfile(a.id);});
  qa('[data-org-team]').forEach(b=>b.onclick=()=>teamSettingsModal(b.dataset.orgTeam));
  qa('[data-org-recall]').forEach(b=>b.onclick=()=>openAgencyRecall(b.dataset.orgRecall,organizationDivisions().find(d=>d.id===b.dataset.orgRecall)));
  qa('[data-org-promote]').forEach(b=>b.onclick=()=>promoteTeamModal(b.dataset.orgPromote));
