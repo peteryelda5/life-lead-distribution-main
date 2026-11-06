@@ -1,6 +1,6 @@
 # Profiles tab
 
-Admins, Master and Super Master accounts have a Profiles navigation tab. Team leaders have it for direct non-leader agents in the same agency. Ordinary agents do not have management access.
+Admins, Master and Super Master accounts open Profiles inside the floating Agent Tools panel. Team leaders have the same section for direct non-leader agents in the same agency. The separate main-navigation Profiles button is removed; existing bookmarked routes remain compatible. The compact directory supports name, email and state search plus agency filtering. Ordinary agents do not have management access.
 
 The directory uses the existing profile dialog. The Management selector now uses the portal's blue bordered styling. Licensing is read from onboarding, labeled self-reported, and includes status, NPN and states. Missing answers do not mean unlicensed.
 

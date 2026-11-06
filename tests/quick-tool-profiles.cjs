@@ -1,0 +1,13 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<main></main>',{url:'https://example.test',runScripts:'outside-only'}),w=dom.window,q=s=>w.document.querySelector(s),flush=()=>new Promise(setImmediate);
+w.S={session:{},profile:{id:'manager',role:'admin',active:true,division:'vivid'},tab:'dashboard',managedAgents:[]};w.ONBOARDING={userId:'manager',complete:true};w.portalVerified=()=>true;w.adminDivisionList=()=>['vivid','onyx'];w.divisionLabel=x=>x;w.portalDialerInstance=null;w.esc=x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');w.organizationInitials=()=> 'TA';w.canViewManagedAgent=()=>true;w.loadManagedAgentProfiles=async()=>{w.S.managedAgents=[{id:'a',full_name:'Test <Agent>',division:'vivid',active:true,licensing:{isLicensed:true,states:['MI','FL']}},{id:'b',full_name:'Other',division:'onyx',active:false,licensing:{states:[]}}]};let opened=null;w.openAgentProfile=(...args)=>opened=args;
+w.apiPage=async()=>({data:[],count:0});w.api=async()=>[];
+w.eval(fs.readFileSync('portal-quick-tools.js','utf8'));
+(async()=>{try{
+ assert.ok(w.PortalQuickTools.open('profiles'));await flush();assert.equal(q('#qtPane-profiles').hidden,false);assert.equal(w.document.querySelectorAll('[data-qt-profile]').length,2);assert.equal(q('#qtProfileList agent'),null);
+ q('#qtProfileSearch').value='MI';q('#qtProfileSearch').oninput();assert.equal(w.document.querySelectorAll('[data-qt-profile]').length,1);q('[data-qt-profile]').click();assert.deepEqual(opened,['a',true]);assert.equal(q('#qtPanel').hidden,true);
+ w.PortalQuickTools.open('profiles');await flush();q('#qtTab-profiles').dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));assert.equal(w.document.activeElement.id,'qtTab-process');q('#qtTab-process').dispatchEvent(new w.KeyboardEvent('keydown',{key:'End',bubbles:true}));assert.equal(w.document.activeElement.id,'qtTab-profiles');
+ w.PortalQuickTools.reset();w.S.profile={id:'leader',role:'agent',active:true,is_team_leader:true,division:'vivid'};w.ONBOARDING.userId='leader';assert.ok(w.PortalQuickTools.open('profiles'));await flush();assert.ok(q('#qtTab-profiles'));
+ w.PortalQuickTools.reset();w.S.profile={id:'ordinary',role:'agent',active:true,division:'vivid'};w.ONBOARDING.userId='ordinary';w.PortalQuickTools.sync();assert.equal(q('#qtTab-profiles'),null);assert.equal(w.PortalQuickTools.open('profiles'),false);
+ console.log('PASS: Profiles inside Agent Tools, manager/leader visibility, regular-agent exclusion, state search, escaped names, profile opening and keyboard navigation');
+}finally{w.PortalQuickTools.reset();dom.window.close()}})().catch(e=>{console.error(e);process.exitCode=1});
