@@ -38,3 +38,10 @@ html[data-theme=dark] .my-leads-workspace{--ml-surface:#142238;--ml-raised:#1d30
 html[data-theme=dark] .my-leads-workspace .my-lead-folder[aria-pressed=true]{background:#24436c;color:#e1eeff;border-color:#7aaaff}
 @media(max-width:850px){.ml-filter-row{grid-template-columns:1fr}.my-leads-workspace .my-lead-states details{margin-top:0}.my-leads-workspace .ml-heading{align-items:flex-start}.ml-count{min-width:145px;padding-left:18px}}
 @media(max-width:600px){.my-leads-workspace .ml-heading{padding:20px;flex-direction:column;gap:15px}.my-leads-workspace .ml-heading h1{font-size:26px}.ml-count{padding:12px 0 0;border-left:0;border-top:1px solid var(--ml-border);width:100%}.ml-count strong{font-size:28px}.my-leads-workspace .ml-primary-actions{padding:0 20px 20px}.ml-filter-panel{padding:18px 16px}.ml-results-heading{padding:18px 16px 12px}.ml-status-key{padding:0 16px 16px}.my-leads-workspace .pager{padding:12px 16px}.my-leads-workspace #myLeadSearch{font-size:16px}.my-leads-workspace .my-lead-folder{min-width:150px;flex-wrap:nowrap}.my-leads-workspace .csvtable{max-height:65vh}}
+/* Prioritize the actual lead data over dense spreadsheet styling. */
+.my-leads-workspace #leadTableScroll td{font-size:17px!important;font-weight:550;line-height:1.65!important;color:#122d49!important;padding:18px 20px!important;font-variant-numeric:tabular-nums}
+.my-leads-workspace #leadTableScroll th{font-size:14px!important;padding:16px 20px!important;letter-spacing:0;font-weight:750}
+.my-leads-workspace #leadTableScroll :is(.leadstatusbadge,.typepill){font-size:14px!important;font-weight:650;line-height:1.5}
+.my-leads-workspace #leadTableScroll textarea.callnotes{font-size:16px!important;font-weight:450;line-height:1.6;color:#122d49!important}
+.my-leads-workspace #leadTableScroll .btn{font-size:14px}
+html[data-theme=dark] .my-leads-workspace #leadTableScroll :is(td,textarea.callnotes){color:#f0f5fc!important}
