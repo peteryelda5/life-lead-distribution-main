@@ -17,3 +17,16 @@ html[data-theme=dark] :is(.dashboard,.agent-dashboard) .dashboard-request-featur
 html[data-theme=dark] :is(.dashboard,.agent-dashboard) .dashboard-request-feature h2{color:#e6eefb!important}html[data-theme=dark] .dashboard-request-intro p{color:#b9cce3!important}html[data-theme=dark] :is(.dashboard-eyebrow,.dashboard-request-total span){color:#b9cce3}html[data-theme=dark] .dashboard-request-total strong{color:#9bc4ff}html[data-theme=dark] .dashboard-request-total{border-color:#4b77ad}html[data-theme=dark] .agent-dashboard .ad-ring:before{background:#142238}html[data-theme=dark] .agent-dashboard .ad-ring strong{color:#e6eefb}
 @media(max-width:1000px){.dashboard-request-total{padding:0 16px}.dashboard .dash-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.agent-dashboard .ad-goal-body{flex-wrap:wrap}.agent-dashboard .ad-goal-numbers{flex:1 1 170px}}
 @media(max-width:600px){:is(.dashboard,.agent-dashboard) :is(.dash-metric,.ad-metric){padding:18px!important;min-height:145px}.dashboard .dashboard-request-feature,.agent-dashboard .dashboard-request-feature{padding:20px!important;gap:18px}.dashboard-request-intro{min-width:0;flex-basis:100%;align-items:flex-start}.dashboard-request-total{padding:0;border:0}.dashboard-request-feature>.btn{margin-left:auto}.dashboard-request-buttons{width:100%}.dashboard .pc-goal{padding:20px}.dashboard .db-goal-values strong{font-size:34px}.dashboard .db-goal-values>div:last-child strong{font-size:30px}.dashboard .db-goal-values{gap:20px}.agent-dashboard .ad-goal{padding:20px}.dashboard .dash-metric .dash-icon{display:none}.dashboard .dash-metric strong{font-size:27px!important}.dashboard .pc-goal-progress{grid-template-columns:1fr}}
+/* The mountain hero and goal form one continuous panel. */
+.dashboard.dash-b .dash-head{border-radius:14px 14px 0 0;margin-bottom:0;border-bottom:0}
+.dashboard.dash-b .dash-head+.db-goal{border-radius:0 0 14px 14px;margin-top:0;border-top:0}
+/* Pending requests remain visible through count refreshes, in either theme. */
+.dashboard .dashboard-request-feature.db-pending{background:linear-gradient(110deg,#fff0f1,#fff8f8)!important;border-color:#eda0aa;border-left-color:#cf263d}
+.dashboard .dashboard-request-feature.db-pending :is(h2,.dashboard-request-total strong){color:#a51e31!important}
+.dashboard .dashboard-request-feature.db-pending :is(.dashboard-eyebrow,.dashboard-request-total span,.dashboard-request-intro p){color:#8a3340!important}
+.dashboard .dashboard-request-feature.db-pending .dash-icon{background:#ffdde2;color:#b62038}
+.dashboard .dashboard-request-feature.db-pending .dashboard-request-total{border-color:#edb4bc}
+.dashboard .dashboard-request-feature.db-pending .btn.primary{background:#bd2439!important;border-color:#bd2439!important;color:#fff!important}
+html[data-theme=dark] .dashboard .dashboard-request-feature.db-pending{background:linear-gradient(110deg,#49252f,#30232d)!important;border-color:#a85262;border-left-color:#ff6c83}
+html[data-theme=dark] .dashboard .dashboard-request-feature.db-pending :is(h2,.dashboard-request-total strong){color:#ffd5dc!important}
+html[data-theme=dark] .dashboard .dashboard-request-feature.db-pending :is(.dashboard-eyebrow,.dashboard-request-total span,.dashboard-request-intro p){color:#f1b8c2!important}
