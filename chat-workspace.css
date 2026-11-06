@@ -38,3 +38,58 @@ html[data-theme=dark] .chat-workspace .ui-pinned-bar button{color:var(--theme-ac
 html[data-theme=dark] :is(.ui-deal-card,.ui-deal-summary){--deal-readable-muted:#c0cde0}
 :is(.ui-deal-card,.ui-deal-summary) :is(.ui-deal-label,.ui-deal-fields dt,.ui-deal-error,.ui-muted){color:var(--deal-readable-muted)!important;line-height:1.5}
 .ui-deal-card footer{flex-wrap:wrap}.ui-view-deal{min-height:42px}
+/* Give submitted deals a clearer presence without changing the card layout. */
+.chat-workspace .ui-deal-card:not(.ui-deal-removed){border:1px solid #8eb8ef;border-top:3px solid #2975e6;box-shadow:0 7px 22px #1c5db51c;background:linear-gradient(145deg,#fff 45%,#edf5ff)}
+.chat-workspace .ui-deal-banner{background:linear-gradient(110deg,#112e53,#1b4c89);padding:15px 18px}
+.chat-workspace .ui-deal-banner>span{box-shadow:0 0 0 4px #36c49320}
+.chat-workspace .ui-deal-card .ui-deal-ap{color:#155ac6;text-shadow:0 2px 12px #2a70d412}
+.chat-workspace .ui-deal-card .ui-deal-monthly{display:inline-block;background:#e5efff;color:#234e85;padding:6px 10px;border-radius:7px}
+.chat-workspace .ui-deal-card .ui-view-deal{background:#1c60d8;color:#fff;border-color:#1c60d8;box-shadow:0 3px 8px #1c60d824;padding:10px 18px}
+.chat-workspace .ui-deal-card .ui-view-deal:hover{background:#154eB4;border-color:#154eB4}
+html[data-theme=dark] .chat-workspace .ui-deal-card:not(.ui-deal-removed){background:linear-gradient(145deg,#172942 45%,#1b3557)!important;border-color:#487bb7!important;border-top-color:#72a9ff!important;box-shadow:0 7px 24px #0004}
+html[data-theme=dark] .chat-workspace .ui-deal-card .ui-deal-ap{color:#9dc5ff!important}
+html[data-theme=dark] .chat-workspace .ui-deal-card .ui-deal-monthly{background:#284771;color:#e4efff}
+html[data-theme=dark] .chat-workspace .ui-deal-card .ui-view-deal{background:#2563d9!important;color:#fff!important;border-color:#729fe9!important}
+html[data-theme=dark] .chat-workspace .ui-deal-card .ui-view-deal:hover{background:#1e54bd!important}
+/* Consistent reading hierarchy throughout Live Chat, including mobile. */
+.chat-app.chat-workspace{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5;--chat-secondary:#526780}
+html[data-theme=dark] .chat-app.chat-workspace{--chat-secondary:#b8c8dd}
+.chat-workspace :is(button,input,textarea,select){font-family:inherit}
+.chat-workspace :is(#pcChatSearch,#chatDivision,.chat-room,.ui-chat-filters button,.ui-outline,.ui-resource,#chatSend){font-size:14px;line-height:1.5}
+.chat-workspace :is(#pcChatSearch,#chatDivision){min-height:44px}
+.chat-workspace .chat-sidebar h3{font-size:12px;letter-spacing:.65px;font-weight:750;margin-top:24px}
+.chat-workspace .chat-sidebar>label{font-size:13px;font-weight:600}
+.chat-workspace .ui-conversation-line{flex-wrap:wrap;gap:2px 8px}
+.chat-workspace .ui-conversation-line strong{font-size:15px;font-weight:650;flex-basis:100%;white-space:normal;line-height:1.4;overflow-wrap:anywhere}
+.chat-workspace .ui-conversation-line time{font-size:12px;line-height:1.4}
+.chat-workspace .ui-conversation-copy small{font-size:14px;line-height:1.5;margin-top:6px}
+.chat-workspace .pc-room.ui-conversation{padding:14px 10px;align-items:flex-start}
+.chat-workspace :is(.ui-conversation-avatar,.chat-avatar){font-size:13px}
+.chat-workspace :is(.pc-unread,.chat-unread){font-size:12px;min-width:20px;height:20px;line-height:20px}
+.chat-workspace .chat-head strong{font-size:20px;line-height:1.35;font-weight:700}
+.chat-workspace .chat-head small{font-size:13px;line-height:1.5}
+.chat-workspace :is(.chat-head button,#chatConnection){font-size:12px;line-height:1.5}
+.chat-workspace .ui-pinned-bar button{font-size:14px;line-height:1.5;white-space:normal;overflow-wrap:anywhere;padding:12px 14px}
+.chat-workspace .ui-chat-date{font-size:12px;font-weight:600;letter-spacing:.15px}
+.chat-workspace .chat-message header strong{font-size:15px;font-weight:700;line-height:1.4}
+.chat-workspace .chat-message time{font-size:12px;line-height:1.5}
+.chat-workspace .chat-message header{gap:6px 12px;margin-bottom:8px}
+.chat-workspace .chat-message-text{font-size:16px;line-height:1.65;padding:12px 16px;box-shadow:none}
+.chat-workspace .chat-message{margin-bottom:26px}
+.chat-workspace .chat-message-actions{gap:6px;flex-wrap:wrap}
+.chat-workspace .chat-message-actions button{font-size:12px;line-height:1.5;padding:5px 9px;min-height:30px}
+.chat-workspace .chat-reply-quote{font-size:14px;line-height:1.55}
+.chat-workspace .chat-compose textarea{font-size:16px;line-height:1.5;min-height:44px}
+.chat-workspace .chat-compose :is(#chatGifButton,#chatSlash){font-size:14px;min-height:40px}
+.chat-workspace .chat-compose-hint{font-size:12px;line-height:1.5;margin-top:8px}
+.chat-workspace .ui-details-title h2{font-size:19px;line-height:1.4}
+.chat-workspace .ui-chat-details h3{font-size:16px;line-height:1.4}
+.chat-workspace :is(.ui-member-count,.ui-muted){font-size:14px;line-height:1.6}
+.chat-workspace .ui-resource{padding:13px 12px;gap:10px}
+.chat-workspace .ui-message-search{flex-wrap:wrap}
+.chat-workspace .ui-message-search label{font-size:13px;line-height:1.5;flex-wrap:wrap}
+.chat-workspace .ui-message-search input{font-size:16px;min-width:120px}
+.chat-workspace .ui-message-search span{font-size:13px}
+.chat-workspace :is(.chat-head small,.chat-message time,.ui-conversation-copy small,.ui-conversation-line time,.ui-muted,.ui-member-count,.ui-chat-date,.chat-compose-hint,.chat-sidebar h3,.chat-sidebar>label,#chatConnection){color:var(--chat-secondary)!important}
+.chat-workspace :is(input,textarea)::placeholder{color:var(--chat-secondary);opacity:1}
+@media(max-width:700px){.chat-workspace .chat-head strong{font-size:18px}.chat-workspace .chat-head{gap:8px}.chat-workspace .chat-messages{padding:14px 12px}.chat-workspace .chat-message-main{max-width:calc(100% - 42px)}.chat-workspace .chat-compose{flex-wrap:wrap}.chat-workspace .chat-compose textarea{flex:1 1 160px;min-width:0}.chat-workspace .chat-compose-hint{font-size:12px}.chat-workspace .ui-deal-fields{gap:14px 12px}.chat-workspace .ui-deal-body{padding:18px 15px}}
