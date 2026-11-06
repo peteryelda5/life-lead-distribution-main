@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
-const root=__dirname+'/../',source=['chat-media.js','live-chat.js','chat-social.js','portal-collaboration.js'].map(f=>fs.readFileSync(root+f,'utf8')).join('\n');
+const root=__dirname+'/../',source=['chat-media.js','live-chat.js','chat-social.js','portal-collaboration.js','chat-workspace.js'].map(f=>fs.readFileSync(root+f,'utf8')).join('\n');
 const css=fs.readFileSync(root+'portal-collaboration.css','utf8');
 const people=[{id:'one',name:'Matthew B.',division:'united_life'},{id:'two',name:'Maxsim Kassab',division:'vivid_life'},{id:'three',name:'Mía',division:'united_life'}];
 const tick=async()=>{for(let i=0;i<8;i++)await new Promise(r=>setImmediate(r));};
