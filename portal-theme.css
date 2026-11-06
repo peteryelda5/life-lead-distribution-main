@@ -36,8 +36,13 @@ html[data-theme=dark] .bob-pipeline-column{background:var(--theme-bg);border-col
 html[data-theme=dark] .agent-dashboard{--ad-ink:var(--theme-text);--ad-muted:var(--theme-muted);--ad-line:var(--theme-border)}
 html[data-theme=dark] :is(.dash-b .dash-head,.agent-dashboard .ad-head){background:linear-gradient(0deg,#112d51,transparent 65%),linear-gradient(90deg,#0b1423e8,#0b142355),url('/assets/agent-mountains.png') center 52%/cover!important}
 html[data-theme=dark] :is(.dash-b .dash-head p,.agent-dashboard .ad-head p,.ad-quote-label){color:#c4d6ee!important;background:transparent}
-html[data-theme=dark] .carrier-brand-logo{background:#fff;border-radius:6px}
-html[data-theme=dark] .carrier-brand-logo img[alt="Ethos logo"]{filter:brightness(0) invert(1)}
+/* Keep carrier artwork readable without recoloring the supplied assets. */
+html[data-theme=dark] :is(.carrier-brand-logo,.bob-policy-logo:has(img:not([hidden]))){background:#fff!important;border-radius:6px;color:#233d60;padding:4px 8px!important}
+html[data-theme=dark] :is(.carrier-brand-dark,.bob-policy-logo-dark:has(img:not([hidden]))){background:#16394a!important}
+html[data-theme=dark] :is(.carrier-brand-logo,.bob-policy-logo) img{filter:none!important;object-fit:contain!important}
+html[data-theme=dark] .carrier-brand-logo img[alt="Ethos logo"]{filter:brightness(0) saturate(100%)!important}
+html[data-theme=dark] .agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo{padding:2px 4px!important;height:25px;max-width:80px;width:80px;flex-basis:80px}
+html[data-theme=dark] .agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img[alt="Transamerica logo"]{width:auto;height:auto;max-width:72px;max-height:17px;object-fit:contain!important}
 html[data-theme=dark] :is(.topscroll,.topscroll::-webkit-scrollbar-track){background:var(--theme-raised)}
 /* Chat and leaderboard start dark; provide real light surfaces too. */
 html[data-theme=light] :is(.chat-app,.chat-main,.chat-head,.chat-messages,.chat-compose-wrap,.chat-commands){background:#fff;color:#152c48;border-color:#d7e2ef}
