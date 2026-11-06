@@ -9,7 +9,7 @@ This is a security baseline, not a claim that the portal is vulnerability-free.
 | Anonymous | Login, recovery and public training assets; no lead/client records | Auth provider, PostgREST pre-request guard, grants and RLS |
 | Password-only session | Own account bootstrap and verification flow | MFA guard; no business data before verification |
 | Verified agent | Own assigned leads, own business, permitted agency resources and member conversations | Live session, active profile, onboarding, ownership and agency predicates |
-| Verified team leader | Agent access plus explicitly scoped team/upload capabilities | Dedicated database scope checks; no global admin powers |
+| Verified team leader | Agent access plus scoped team/upload capabilities; direct-agent name edits and disable-only account access | Dedicated database scope checks; no global admin powers |
 | Verified agency admin | Authorized agency management plus own assigned work | Database-managed agency grants and action-specific checks |
 | Verified super admin | Owner administration and explicitly permitted cross-agency operations | Server-side role/profile checks, never browser flags |
 | Leaderboard API consumer | Allowlisted aggregate ranking fields | Hashed, revocable scoped key; per-key rate limit; field-by-field response |
