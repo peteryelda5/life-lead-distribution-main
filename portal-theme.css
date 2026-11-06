@@ -44,7 +44,7 @@ html[data-theme=dark] .carrier-brand-logo img[alt="Ethos logo"]{filter:brightnes
 html[data-theme=dark] .agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo{padding:2px 4px!important;height:25px;max-width:80px;width:80px;flex-basis:80px}
 html[data-theme=dark] .agent-dashboard .ad-recent .ad-carrier .carrier-brand-logo img[alt="Transamerica logo"]{width:auto;height:auto;max-width:72px;max-height:17px;object-fit:contain!important}
 html[data-theme=dark] :is(.topscroll,.topscroll::-webkit-scrollbar-track){background:var(--theme-raised)}
-/* Chat and leaderboard start dark; provide real light surfaces too. */
+/* Chat light-mode surfaces. The leaderboard retains its original dark palette. */
 html[data-theme=light] :is(.chat-app,.chat-main,.chat-head,.chat-messages,.chat-compose-wrap,.chat-commands){background:#fff;color:#152c48;border-color:#d7e2ef}
 html[data-theme=light] :is(.chat-sidebar,.chat-compose,.chat-sidebar select){background:#eef4fc;color:#152c48;border-color:#d7e2ef}
 html[data-theme=light] :is(.chat-message-text,.chat-message header strong,.chat-welcome h2,.chat-head strong,.chat-compose textarea,.chat-commands strong,.chat-commands button){color:#152c48}
@@ -55,13 +55,4 @@ html[data-theme=light] :is(html,body,.wrap){scrollbar-color:#86a4c9 #edf3fa}
 html[data-theme=dark] :is(.organization,.org-root,.org-agency,.org-expanded,.org-team,.org-summary-tile,.org-list-controls,.agent-profile-body,.agent-profile-metrics>div,.agent-profile-licensing,.pc-toast){background:var(--theme-surface)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important}
 html[data-theme=dark] :is(.org-metric strong,.agent-name,.agent-profile-metrics strong,.agent-license-npn strong){color:var(--theme-text)!important}
 html[data-theme=dark] :is(.org-metric span,.org-brand p,.org-team-head small,.agent-identity small,.agent-profile-section p,.agent-license-source,.agent-license-npn,.agent-profile-reporting){color:var(--theme-muted)!important}
-html[data-theme=light] .sales-board{--sb-border:#d7e2ef;--sb-muted:#586d85;background:#f4f7fc;color:#152c48;border-color:#d7e2ef}
-html[data-theme=light] :is(.sales-panel,.sales-metric){background:#fff;border-color:#d7e2ef}
-html[data-theme=light] :is(.sales-board h1,.sales-panel-title h2,.sales-rank-row strong,.sales-metric strong,.sales-empty){color:#152c48}
-html[data-theme=light] :is(.sales-eyebrow,.sales-today-total,.sales-agent small){color:#2457a8}
-html[data-theme=light] :is(.sales-metric>span,.sales-metric small,.sales-place,.sales-board-footer){color:#586d85}
-html[data-theme=light] :is(.sales-board-tools button,.sales-board-tools select){background:#fff;color:#152c48;border-color:#b8cbe1}
-html[data-theme=light] :is(.sales-rank-row,.sales-deal){border-color:#d7e2ef}
-html[data-theme=light] :is(.sales-rank-row.rank-1 strong,.sales-rank-row.rank-1 .sales-agent,.rank-1 .sales-place){color:#795000}
-html[data-theme=light] :is(.sales-live.connected,.sales-deal-value strong){color:#087144}
-html[data-theme=light] .sales-live{color:#795000}
+.sales-board{color-scheme:dark}
