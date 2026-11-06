@@ -73,11 +73,15 @@ function onboardingSteps(){
  const r=checklistRecord,receipt=checklistReceipt,licensed=r.is_licensed===true;
  return onboardSigning.progress?.steps||[!!(r.welcome_read_at||receipt),!!(r.compliance_acknowledged_at||receipt)&&onboardSigning.environment==='live'&&onboardSigning.agreement?.status==='completed',licensed||!!onboardSigning.resources?.xcel,licensed||!!onboardSigning.resources?.study,licensed||!!onboardSigning.resources?.exam,r.is_licensed===false||(licensed&&!!r.npn&&!!r.licensed_states?.length)];
 }
+function onboardingJourneySummary(done){
+ const completed=done.filter(Boolean).length,next=ONBOARD_ORDER.find(step=>!done[step-1]),all=completed===6;
+ return '<section class="onboard-journey"><div><span class="onboard-journey-eyebrow">YOUR START AT VIVID LIFE</span><h2>'+(all?'Your checklist is complete':'Let’s get you ready')+'</h2><p>'+(all?'Revisit your documents, licensing details, and study resources anytime.':'Work through your checklist. Your saved progress stays with you.')+'</p></div><div class="onboard-journey-progress"><strong>'+completed+'<span> / 6</span></strong><span>Steps complete or not required</span><progress max="6" value="'+completed+'" aria-label="Your onboarding checklist progress"></progress></div><button type="button" class="btn primary" data-onboard-step="'+(next||4)+'">'+(all?'Open study hub':'Continue: '+esc(ONBOARD_PAGE_INFO[next][0]))+' →</button></section>';
+}
 function onboardingChecklistPage(){
  const done=onboardingSteps(),position=ONBOARD_ORDER.indexOf(onboardStep),info=ONBOARD_PAGE_INFO[onboardStep];
- return onboardingOverviewPanel()+'<div class="onboard-wizard"><nav class="onboard-progress" aria-label="Onboarding steps">'+ONBOARD_ORDER.map((step,i)=>{
+ return onboardingOverviewPanel()+'<div class="onboard-wizard">'+onboardingJourneySummary(done)+'<nav class="onboard-progress" aria-label="Onboarding steps">'+ONBOARD_ORDER.map((step,i)=>{
   const complete=done[step-1],current=onboardStep===step,notRequired=checklistRecord.is_licensed===true&&[3,4,5].includes(step);
-  return '<button type="button" data-onboard-step="'+step+'" class="onboard-step '+(current?'selected ':'')+(complete?'complete':'')+'" '+(current?'aria-current="step"':'')+' aria-label="'+esc(ONBOARD_PAGE_INFO[step][0]+(notRequired?' — not required':complete?' — complete':' — pending'))+'"><span class="onboard-tick" aria-hidden="true">'+(complete?'✓':i+1)+'</span><span>'+ONBOARD_PAGE_INFO[step][0]+'</span></button>';
+  return '<button type="button" data-onboard-step="'+step+'" class="onboard-step '+(current?'selected ':'')+(complete?'complete':'')+'" '+(current?'aria-current="step"':'')+' aria-label="'+esc(ONBOARD_PAGE_INFO[step][0]+(notRequired?' — not required':complete?' — complete':' — pending'))+'"><span class="onboard-tick" aria-hidden="true">'+(complete?'✓':i+1)+'</span><span class="onboard-step-copy"><strong>'+ONBOARD_PAGE_INFO[step][0]+'</strong><small>'+(notRequired?'Not required':complete?'Complete':current?'Current step':'To do')+'</small></span></button>';
  }).join('')+'</nav><header class="onboard-page-heading"><p>STEP '+(position+1)+' OF 6</p><h1 id="onboardPageTitle" tabindex="-1">'+info[1]+'</h1><span>'+info[2]+'</span></header><section class="onboard-task" aria-labelledby="onboardPageTitle">'+onboardTask()+'<p id="onboardingSaveStatus" role="status" aria-live="polite">'+esc(onboardSigning.error||'')+'</p></section></div>';
 }
 function bindOnboardStatePicker(form){
