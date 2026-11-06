@@ -1,0 +1,62 @@
+/* Explicit palettes: preserve photographs, logos, and semantic status colors. */
+:root{color-scheme:light;--theme-bg:#f4f7fc;--theme-surface:#fff;--theme-raised:#eef4fc;--theme-text:#152c48;--theme-muted:#586d85;--theme-border:#d7e2ef;--theme-accent:#2457e6}
+:root[data-theme=dark]{color-scheme:dark;--theme-bg:#0b1423;--theme-surface:#142238;--theme-raised:#1d304b;--theme-text:#e6eefb;--theme-muted:#a8bad2;--theme-border:#344963;--theme-accent:#87b9ff;--ink:var(--theme-text);--line:var(--theme-border);--canvas:var(--theme-bg)}
+.portal-account-menu .portal-theme-control{padding:10px 8px 14px;margin-bottom:6px;border-bottom:1px solid var(--theme-border);color:var(--theme-text)}
+.portal-theme-control>span{display:block;font-size:12px;font-weight:650;margin-bottom:8px}
+.portal-theme-options{display:flex;gap:6px}
+.portal-account-menu .portal-theme-options button{justify-content:center;width:50%;padding:9px;border:1px solid var(--theme-border);background:var(--theme-surface);color:var(--theme-text);min-height:38px}
+.portal-account-menu .portal-theme-options button[aria-pressed=true]{background:#2457e6;color:#fff;border-color:#2457e6;font-weight:700}
+html[data-theme=dark] body{background:var(--theme-bg);color:var(--theme-text)}
+html[data-theme=dark] :is(.wrap,.agent-dashboard){background:var(--theme-bg);color:var(--theme-text)}
+html[data-theme=dark] :is(.card,.metric,.table,.modalbox,.heading-panel,.heading-panel-footer,.portal-account-menu,.lead-status-menu,.lead-status-choice,.my-lead-folder,.my-lead-states details,.script-card,.script-reader,.dash-panel,.dash-metric,.db-agency-card,.ad-card,.ad-metric,.ad-next,.bob-page,.bob-content,.bob-detail,.bob-settings>div,.bob-pipeline-card,.bob-task,.qt-panel,.qt-reader,.qt-pane,.qt-scope,.qt-resource-tools){background:var(--theme-surface)!important;border-color:var(--theme-border)!important;color:var(--theme-text)!important}
+html[data-theme=dark] :is(h1,h2,h3,h4,.head h1,.metric .n,.dash-metric strong,.db-agency-ap,.db-agency-title h3,.db-agency-stats b,.db-requests,.ad-metric strong,.ad-card h2,.ad-client strong,.script-body,.callnotes-view,.field label,.bob-totals b,.bob-detail-item,.qt-copy,.qt-reader h2){color:var(--theme-text)!important}
+html[data-theme=dark] :is(.muted,.sub,.small,.head p,.empty,.metric .l,.dash-label,.dash-metric small,.db-agency-card>small,.db-agency-stats span,.db-requests small,.db-announcement-body,.ad-hint,.ad-metric small,.ad-date,.bob-eyebrow,.bob-select-client small,.qt-hint,.loadingline,.onboarding-progress,.onboarding-letter){color:var(--theme-muted)!important}
+html[data-theme=dark] :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),select,textarea,.search,.callnotes){background:var(--theme-bg)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important;color-scheme:dark}
+html[data-theme=dark] :is(input,textarea)::placeholder{color:var(--theme-muted);opacity:1}
+html[data-theme=dark] :is(.btn.secondary,.lead-status-edit,.lead-table-zoom button,.ad-periods,.ad-periods button,.bob-tabs button,.bob-stage-summary button,.qt-secondary,.qt-tabs,.my-state-options label){background:var(--theme-raised)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important}
+html[data-theme=dark] :is(.ad-periods button[aria-pressed=true],.bob-tabs button.active,.qt-tabs button[aria-selected=true]){background:#2457e6!important;color:#fff!important}
+html[data-theme=dark] :is(th,.dash-b .dash-leader-table th,.dash-b .db-comparison th,.agent-dashboard .ad-recent th){background:var(--theme-raised)!important;color:var(--theme-muted)!important;border-color:var(--theme-border)!important}
+html[data-theme=dark] :is(td,.dash-b .db-comparison td,.agent-dashboard .ad-recent td){color:var(--theme-text)!important;border-color:var(--theme-border)!important}
+html[data-theme=dark] :is(tbody tr,.dash-b .dash-leader-table tbody tr:first-child){background:transparent}
+html[data-theme=dark] :is(tbody tr:hover,.bob-selected td,.bob-client-table tr:hover td,.my-lead-folder:hover,.script-card.selected,.lead-status-choice:hover,.portal-account-menu button:hover){background:var(--theme-raised)!important}
+html[data-theme=dark] :is(.notice,.typepill,.badge:not(.red):not(.green),.my-lead-folder strong,.ad-initials,.bob-avatar){background:#1d3658;color:#b9d6ff;border-color:#365b89}
+html[data-theme=dark] :is(.notice strong,.dash-link,.ad-link,.bob-link,.bob-select-client,.db-agency-open,.db-comparison-agency,.lead-section-tab,.lead-table-zoom){color:var(--theme-accent)!important}
+html[data-theme=dark] .leadrow.appointment_follow_up>td{background:#142f51!important}
+html[data-theme=dark] :is(.leadrow.not_interested,.leadrow.dead_number)>td{background:#40232e!important}
+html[data-theme=dark] .leadrow.call_back>td{background:#3a301d!important}
+html[data-theme=dark] :is(.leadrow.closed,.leadrow.sold)>td{background:#153c32!important}
+html[data-theme=dark] :is(.leadstatusbadge.appointment_follow_up){background:#193e67;color:#b6d8ff;border-color:#365b89}
+html[data-theme=dark] :is(.leadstatusbadge.not_interested,.leadstatusbadge.dead_number,.badge.red,.error){background:#47252d;color:#ffbec4;border-color:#80424d}
+html[data-theme=dark] .leadstatusbadge.call_back{background:#44371c;color:#ffda91;border-color:#806c3c}
+html[data-theme=dark] :is(.badge.green,.success){background:#173e33;color:#a2ebc8}
+html[data-theme=dark] .dash-b .db-request-panel.db-pending{background:#40232e!important;border-color:#80424d!important}
+html[data-theme=dark] .dash-b .db-request-panel.db-pending :is(h2,.db-requests,.db-requests small,.dash-link){color:#ffbec4!important}
+html[data-theme=dark] .bob-page{--bob-ink:var(--theme-text);--bob-muted:var(--theme-muted);--bob-line:var(--theme-border);--bob-blue:var(--theme-accent)}
+html[data-theme=dark] .bob-pipeline-column{background:var(--theme-bg);border-color:var(--theme-border)}
+html[data-theme=dark] .agent-dashboard{--ad-ink:var(--theme-text);--ad-muted:var(--theme-muted);--ad-line:var(--theme-border)}
+html[data-theme=dark] :is(.dash-b .dash-head,.agent-dashboard .ad-head){background:linear-gradient(0deg,#112d51,transparent 65%),linear-gradient(90deg,#0b1423e8,#0b142355),url('/assets/agent-mountains.png') center 52%/cover!important}
+html[data-theme=dark] :is(.dash-b .dash-head p,.agent-dashboard .ad-head p,.ad-quote-label){color:#c4d6ee!important;background:transparent}
+html[data-theme=dark] .carrier-brand-logo{background:#fff;border-radius:6px}
+html[data-theme=dark] .carrier-brand-logo img[alt="Ethos logo"]{filter:brightness(0) invert(1)}
+html[data-theme=dark] :is(.topscroll,.topscroll::-webkit-scrollbar-track){background:var(--theme-raised)}
+/* Chat and leaderboard start dark; provide real light surfaces too. */
+html[data-theme=light] :is(.chat-app,.chat-main,.chat-head,.chat-messages,.chat-compose-wrap,.chat-commands){background:#fff;color:#152c48;border-color:#d7e2ef}
+html[data-theme=light] :is(.chat-sidebar,.chat-compose,.chat-sidebar select){background:#eef4fc;color:#152c48;border-color:#d7e2ef}
+html[data-theme=light] :is(.chat-message-text,.chat-message header strong,.chat-welcome h2,.chat-head strong,.chat-compose textarea,.chat-commands strong,.chat-commands button){color:#152c48}
+html[data-theme=light] :is(.chat-message time,.chat-head small,.chat-sidebar label,.chat-sidebar h3,.chat-sidebar-note,.chat-compose-hint,.chat-welcome,.chat-room,.chat-commands small){color:#586d85}
+html[data-theme=light] :is(.chat-room.selected,.chat-room:hover,.chat-command.chosen){background:#dceaff;color:#174a93}
+html[data-theme=light] .chat-compose textarea::placeholder{color:#586d85}
+html[data-theme=light] :is(html,body,.wrap){scrollbar-color:#86a4c9 #edf3fa}
+html[data-theme=dark] :is(.organization,.org-root,.org-agency,.org-expanded,.org-team,.org-summary-tile,.org-list-controls,.agent-profile-body,.agent-profile-metrics>div,.agent-profile-licensing,.pc-toast){background:var(--theme-surface)!important;color:var(--theme-text)!important;border-color:var(--theme-border)!important}
+html[data-theme=dark] :is(.org-metric strong,.agent-name,.agent-profile-metrics strong,.agent-license-npn strong){color:var(--theme-text)!important}
+html[data-theme=dark] :is(.org-metric span,.org-brand p,.org-team-head small,.agent-identity small,.agent-profile-section p,.agent-license-source,.agent-license-npn,.agent-profile-reporting){color:var(--theme-muted)!important}
+html[data-theme=light] .sales-board{--sb-border:#d7e2ef;--sb-muted:#586d85;background:#f4f7fc;color:#152c48;border-color:#d7e2ef}
+html[data-theme=light] :is(.sales-panel,.sales-metric){background:#fff;border-color:#d7e2ef}
+html[data-theme=light] :is(.sales-board h1,.sales-panel-title h2,.sales-rank-row strong,.sales-metric strong,.sales-empty){color:#152c48}
+html[data-theme=light] :is(.sales-eyebrow,.sales-today-total,.sales-agent small){color:#2457a8}
+html[data-theme=light] :is(.sales-metric>span,.sales-metric small,.sales-place,.sales-board-footer){color:#586d85}
+html[data-theme=light] :is(.sales-board-tools button,.sales-board-tools select){background:#fff;color:#152c48;border-color:#b8cbe1}
+html[data-theme=light] :is(.sales-rank-row,.sales-deal){border-color:#d7e2ef}
+html[data-theme=light] :is(.sales-rank-row.rank-1 strong,.sales-rank-row.rank-1 .sales-agent,.rank-1 .sales-place){color:#795000}
+html[data-theme=light] :is(.sales-live.connected,.sales-deal-value strong){color:#087144}
+html[data-theme=light] .sales-live{color:#795000}
