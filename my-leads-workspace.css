@@ -45,3 +45,32 @@ html[data-theme=dark] .my-leads-workspace .my-lead-folder[aria-pressed=true]{bac
 .my-leads-workspace #leadTableScroll textarea.callnotes{font-size:16px!important;font-weight:450;line-height:1.6;color:#122d49!important}
 .my-leads-workspace #leadTableScroll .btn{font-size:14px}
 html[data-theme=dark] .my-leads-workspace #leadTableScroll :is(td,textarea.callnotes){color:#f0f5fc!important}
+
+.ml-table-controls{display:flex;flex-wrap:wrap;align-items:center;gap:9px;color:var(--ml-muted)}
+.ml-table-controls>label{display:flex;align-items:center;gap:7px}
+.ml-table-controls :is(select,summary){min-height:40px;padding:8px 12px;border:1px solid var(--ml-border);border-radius:8px;background:var(--ml-surface);color:var(--ml-text);font:inherit;cursor:pointer;box-sizing:border-box}
+.ml-table-controls details{position:relative}
+.ml-column-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:35;width:min(350px,calc(100vw - 48px));background:var(--ml-surface);border:1px solid var(--ml-border);border-radius:10px;padding:12px;box-shadow:0 8px 22px #071a3433;box-sizing:border-box}
+.ml-results-heading .ml-column-panel p{margin:0 0 10px}
+.ml-column-list{max-height:340px;overflow:auto}
+.ml-column-option{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:4px;padding:6px 0;border-top:1px solid var(--ml-border)}
+.ml-column-option label{display:flex;gap:6px;align-items:center;overflow-wrap:anywhere;color:var(--ml-text)}
+.ml-column-option input{flex:none;accent-color:var(--ml-blue)}
+.ml-column-option button{min-height:32px;padding:3px 6px;border:1px solid var(--ml-border);border-radius:5px;background:var(--ml-raised);color:var(--ml-text);font:inherit;cursor:pointer}
+.ml-column-option button[aria-pressed=true]{color:var(--ml-blue);font-weight:700}
+.ml-column-option button:disabled{opacity:.45;cursor:default}
+.my-leads-workspace #leadTableScroll .ml-custom-table{table-layout:fixed;border-collapse:separate;border-spacing:0}
+.ml-custom-table :is(th,td)[hidden]{display:none!important}
+.ml-custom-table th{cursor:grab;white-space:normal;overflow-wrap:anywhere}
+.ml-custom-table .ml-column-dragging{opacity:.55}
+.ml-column-resize{position:absolute;top:0;right:0;height:100%;width:12px;border:0;background:transparent;cursor:col-resize;touch-action:none;padding:0}
+.ml-column-resize::after{content:'';position:absolute;top:22%;bottom:22%;right:3px;width:2px;background:var(--ml-border)}
+.ml-column-resize:is(:hover,:focus-visible)::after{background:var(--ml-blue)}
+.my-leads-workspace #leadTableScroll .ml-custom-table .ml-pinned-column{position:sticky;left:0;box-shadow:2px 0 var(--ml-border)}
+.ml-custom-table td.ml-pinned-column{background:var(--ml-surface);z-index:1}
+.my-leads-workspace #leadTableScroll .ml-custom-table th.ml-pinned-column{z-index:3}
+.my-leads-workspace #leadTableScroll .ml-custom-table[data-density=compact] :is(th,td){padding:7px 12px!important}
+.my-leads-workspace #leadTableScroll .ml-custom-table[data-density=standard] :is(th,td){padding:12px 16px!important}
+.my-leads-workspace #leadTableScroll .ml-custom-table[data-density=compact] textarea.callnotes{min-height:40px}
+.my-leads-workspace #leadTableScroll .ml-custom-table[data-density=standard] textarea.callnotes{min-height:55px}
+@media(max-width:600px){.ml-table-controls details{position:static}.ml-table-controls{position:relative}.ml-column-panel{left:0;right:auto}}

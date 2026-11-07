@@ -492,20 +492,147 @@ function editBatchHeadings(){
 
 function bindLeadColumnLayout(onSize){
  if(S.tab!=='my-leads')return;
- const table=q('#leadTableScroll table');if(!table)return;
- const headers=[...table.querySelectorAll('thead th')],counts={};
- const columns=headers.map((th,i)=>{const label=th.textContent.trim()||'Actions';counts[label]=(counts[label]||0)+1;return {key:th.dataset.columnKey||label+'::'+counts[label],legacyKey:label+'::'+counts[label],label,index:i}});
- const originals=[...table.rows].map(row=>({row,cells:[...row.cells]}));
- const apply=order=>{const sorted=[...columns].sort((a,b)=>{const ai=order.indexOf(a.key),bi=order.indexOf(b.key);return (ai<0?order.length+a.index:ai)-(bi<0?order.length+b.index:bi)});for(const {row,cells} of originals){if(cells.length!==columns.length)continue;for(const col of sorted)row.appendChild(cells[col.index])}onSize();return sorted};
- const saved=readLeadLayout(),migrated=saved.map(key=>columns.find(c=>c.key===key||c.legacyKey===key)?.key||key);let current=apply(migrated);
- let dragged=null;
- headers.forEach((th,i)=>{th.draggable=true;th.style.cursor='grab';th.title='Drag to move this column';th.ondragstart=e=>{dragged=columns[i].key;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragged);th.style.opacity='.5'};th.ondragend=()=>{dragged=null;th.style.opacity=''};th.ondragover=e=>{if(dragged){e.preventDefault();e.dataTransfer.dropEffect='move'}};th.ondrop=e=>{e.preventDefault();const target=columns[i].key;if(!dragged||target===dragged)return;const order=current.map(c=>c.key),from=order.indexOf(dragged),to=order.indexOf(target);order.splice(from,1);order.splice(to,0,dragged);try{const visible=new Set(order),retained=readLeadLayout().filter(k=>!visible.has(k));localStorage.setItem(leadLayoutKey(),JSON.stringify([...order,...retained]));current=apply(order)}catch{alert('Could not save your layout. Please allow browser storage.')}};
+ const table=q('#leadTableScroll table'),heading=q('.ml-results-heading');
+ if(!table||!heading||table.classList.contains('ml-custom-table'))return;
+ const settingsKey=leadLayoutKey()+':settings';
+ let settings={};
+ try{settings=JSON.parse(localStorage.getItem(settingsKey)||'{}')||{};}catch{}
+ const widths=new Map(Array.isArray(settings.widths)?settings.widths.filter(entry=>Array.isArray(entry)&&typeof entry[0]==='string'&&Number.isFinite(entry[1])):[]);
+ const hidden=new Set(Array.isArray(settings.hidden)?settings.hidden:[]);
+ const densities=['compact','standard','comfortable'];
+ let density=densities.includes(settings.density)?settings.density:'comfortable';
+ let pinned=typeof settings.pinned==='string'?settings.pinned:null;
+ const counts=new Map(),group=document.createElement('colgroup');
+ const columns=[...table.tHead.rows[0].cells].map((th,index)=>{
+  const label=th.textContent.trim()||'Actions',count=(counts.get(label)||0)+1;
+  counts.set(label,count);
+  const legacyKey=label+'::'+count;
+  const min=th.dataset.columnKey?96:label==='Call Notes'?300:label==='Lead Status'?245:160;
+  return {th,index,label,legacyKey,key:th.dataset.columnKey||legacyKey,min,initial:Math.max(min,Math.min(440,th.offsetWidth)),col:document.createElement('col')};
  });
- const tools=q('.tools');if(!tools)return;
- const controls=document.createElement('div');controls.className='row lead-layout-controls';controls.innerHTML='<button type="button" class="btn secondary" id="resetLeadLayout">Reset Layout</button>';tools.appendChild(controls);
- const reset=()=>{try{localStorage.removeItem(leadLayoutKey())}catch{}current=apply([])};
- q('#resetLeadLayout').onclick=reset;
-
+ const action=columns.at(-1);
+ hidden.delete(action.key);
+ const originals=[...table.rows].map(row=>[...row.cells]).filter(cells=>cells.length===columns.length);
+ let savedOrder=readLeadLayout().map(key=>columns.find(c=>c.key===key||c.legacyKey===key)?.key||key);
+ let order=[...columns].sort((a,b)=>{
+  const position=col=>savedOrder.includes(col.key)?savedOrder.indexOf(col.key):savedOrder.length+col.index;
+  return position(a)-position(b);
+ });
+ const width=col=>Math.max(col.min,Math.min(640,widths.get(col.key)??col.initial));
+ const persist=()=>{
+  try{
+   localStorage.setItem(leadLayoutKey(),JSON.stringify(savedOrder));
+   localStorage.setItem(settingsKey,JSON.stringify({widths:[...widths],hidden:[...hidden],pinned,density}));
+  }catch{}
+ };
+ const controls=document.createElement('div');
+ controls.className='ml-table-controls';
+ controls.innerHTML='<label>Row density <select aria-label="Row density"><option value="compact">Compact</option><option value="standard">Standard</option><option value="comfortable">Comfortable</option></select></label><details><summary>Columns</summary><div class="ml-column-panel"><p>Show columns, change their order, or pin one to the left.</p><div class="ml-column-list"></div></div></details><button type="button" class="btn secondary" id="resetLeadLayout">Reset layout</button>';
+ heading.appendChild(controls);
+ const list=controls.querySelector('.ml-column-list'),select=controls.querySelector('select');
+ const visible=()=>{const cols=order.filter(c=>!hidden.has(c.key)),pin=cols.find(c=>c.key===pinned);return pin?[pin,...cols.filter(c=>c!==pin)]:cols;};
+ const size=()=>{
+  const cols=visible();
+  for(const col of cols)col.col.style.width=width(col)+'px';
+  table.style.width=cols.reduce((sum,col)=>sum+width(col),0)+'px';
+  onSize();
+ };
+ const apply=()=>{
+  const cols=visible();
+  group.replaceChildren(...cols.map(c=>c.col));
+  const emptyCell=table.querySelector('tbody td.empty');
+  if(emptyCell)emptyCell.colSpan=cols.length;
+  for(const cells of originals){
+   const row=cells[0].parentNode;
+   for(const col of order){
+    const cell=cells[col.index];
+    cell.hidden=hidden.has(col.key);
+    cell.classList.toggle('ml-pinned-column',!cell.hidden&&col.key===pinned);
+   }
+   for(const col of [...cols,...order.filter(c=>hidden.has(c.key))])row.appendChild(cells[col.index]);
+  }
+  table.dataset.density=density;
+  select.value=density;
+  size();
+ };
+ const draw=()=>{
+  list.innerHTML=order.map((col,i)=>'<div class="ml-column-option"><label><input type="checkbox" data-column-action="show" data-index="'+col.index+'" '+(hidden.has(col.key)?'':'checked')+' '+(col===action?'disabled':'')+'>'+esc(col.label)+'</label><button type="button" data-column-action="pin" data-index="'+col.index+'" aria-pressed="'+(pinned===col.key)+'" aria-label="Pin '+esc(col.label)+'" '+(hidden.has(col.key)?'disabled':'')+'>'+(pinned===col.key?'Pinned':'Pin')+'</button><button type="button" data-column-action="up" data-index="'+col.index+'" aria-label="Move '+esc(col.label)+' earlier" '+(!i?'disabled':'')+'>↑</button><button type="button" data-column-action="down" data-index="'+col.index+'" aria-label="Move '+esc(col.label)+' later" '+(i===order.length-1?'disabled':'')+'>↓</button></div>').join('');
+ };
+ const saveOrder=()=>{
+  const present=new Set(columns.map(c=>c.key));
+  savedOrder=[...order.map(c=>c.key),...savedOrder.filter(k=>!present.has(k))];
+ };
+ const move=(col,target)=>{
+  order.splice(order.indexOf(col),1);
+  order.splice(target,0,col);
+  saveOrder();
+ };
+ const commit=()=>{apply();draw();persist();};
+ list.onchange=e=>{
+  const col=columns[Number(e.target.dataset.index)];
+  if(!col||col===action)return;
+  if(e.target.checked)hidden.delete(col.key);
+  else{hidden.add(col.key);if(pinned===col.key)pinned=null;}
+  commit();
+  list.querySelector('input[data-index="'+col.index+'"]')?.focus();
+ };
+ list.onclick=e=>{
+  const button=e.target.closest('button[data-column-action]');
+  if(!button)return;
+  const col=columns[Number(button.dataset.index)],cmd=button.dataset.columnAction;
+  if(cmd==='pin')pinned=pinned===col.key?null:col.key;
+  else move(col,order.indexOf(col)+(cmd==='up'?-1:1));
+  commit();
+  const same=list.querySelector('button[data-column-action="'+cmd+'"][data-index="'+col.index+'"]');
+  (same?.disabled?list.querySelector('input[data-index="'+col.index+'"]'):same)?.focus();
+ };
+ select.onchange=()=>{density=select.value;table.dataset.density=density;persist();onSize();};
+ controls.querySelector('#resetLeadLayout').onclick=()=>{
+  order=[...columns];savedOrder=[];hidden.clear();widths.clear();pinned=null;density='comfortable';
+  commit();
+ };
+ let dragged=null;
+ for(const col of columns){
+  const th=col.th;
+  th.draggable=true;
+  th.title='Drag to move this column';
+  th.ondragstart=e=>{dragged=col;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',col.key);th.classList.add('ml-column-dragging');};
+  th.ondragend=()=>{dragged=null;th.classList.remove('ml-column-dragging');};
+  th.ondragover=e=>{if(dragged&&dragged!==col)e.preventDefault();};
+  th.ondrop=e=>{
+   if(!dragged||dragged===col)return;
+   e.preventDefault();
+   move(dragged,order.indexOf(col));
+   dragged.th.classList.remove('ml-column-dragging');
+   dragged=null;
+   commit();
+  };
+  const handle=document.createElement('button');
+  handle.type='button';
+  handle.className='ml-column-resize';
+  handle.setAttribute('aria-label','Resize '+col.label+' column. Use left and right arrow keys.');
+  const changeWidth=value=>{widths.set(col.key,Math.max(col.min,Math.min(640,value)));size();};
+  handle.onkeydown=e=>{
+   if(!['ArrowLeft','ArrowRight'].includes(e.key))return;
+   e.preventDefault();e.stopPropagation();
+   changeWidth(col.th.offsetWidth+(e.key==='ArrowRight'?16:-16));persist();
+  };
+  handle.ondragstart=e=>{e.preventDefault();e.stopPropagation();};
+  handle.onpointerdown=e=>{
+   if(e.button!==0)return;
+   e.preventDefault();e.stopPropagation();
+   handle.focus({preventScroll:true});
+   const start=e.clientX,initial=col.th.offsetWidth,scale=col.th.getBoundingClientRect().width/initial||1;
+   handle.setPointerCapture(e.pointerId);
+   th.draggable=false;
+   handle.onpointermove=event=>changeWidth(initial+(event.clientX-start)/scale);
+   handle.onlostpointercapture=()=>{handle.onpointermove=null;th.draggable=true;persist();};
+  };
+  th.appendChild(handle);
+ }
+ table.classList.add('ml-custom-table');
+ table.prepend(group);
+ apply();draw();
 }
 
 function bindLeadTopScroll(){
@@ -594,7 +721,7 @@ function bindMyLeadSearch(){const form=q('#myLeadSearchForm');if(!form)return;co
 function adminPersonalLeads(){return myLeads().replace('<button class="btn primary requestLeads">Request leads</button>','<button id="personalLeadPool" class="btn primary">Get leads from Lead Pool</button>').replace('Choose a folder, then select the states you want to call.','Leads assigned to you personally. Choose a folder, then select the states you want to call.');}
 function bindAdminPersonalLeads(){bindLeadTopScroll();bindMyFolders();bindLeadStatusControls();qa('.closeLead').forEach(b=>b.onclick=()=>closeLeadModal(b.dataset.id));window.PortalCallNotes?.bindMyLeads();const pool=q('#personalLeadPool');if(pool)pool.onclick=async()=>{S.tab='leads';S.poolPage=1;S.selected.clear();try{await loadTabData();render()}catch(e){flash(e.message,true)}};}
 async function assignAdminSelection(id){if(!S.selected.size)return flash('Select at least one lead.',true);const buttons=[q('#assignSelf'),q('#assign')].filter(Boolean);buttons.forEach(b=>b.disabled=true);try{const n=await api('/rest/v1/rpc/assign_admin_leads',{method:'POST',body:{p_lead_ids:[...S.selected],p_admin_id:id}});S.selected.clear();await reload(Number(n)+' leads assigned'+(id===S.profile.id?' to your My Leads.':' to the admin.'));}catch(e){flash(e.message,true)}finally{buttons.forEach(b=>{if(b.isConnected)b.disabled=false})}}
-function myLeads(){let openLeads=(S.leads||[]).filter(l=>l.status!=='closed'),cols=csvColumns(openLeads);return '<section class="my-leads-workspace"><div class="head ml-heading"><div><span class="ml-eyebrow">YOUR DAILY WORKSPACE</span><h1>My Leads</h1><p>Choose a folder, then select the states you want to call.</p>'+ (S.teamInfo?.leader_name?'<p>Team leader: '+esc(S.teamInfo.leader_name)+(S.teamInfo.leader_active?'':' (inactive)')+'</p>':'')+'</div><div class="ml-count"><span>Matching open leads</span><strong>'+Number(S.myCount||0).toLocaleString()+'</strong><small>Current folder, states &amp; search</small></div></div><div class="tools ml-primary-actions"><button class="btn primary requestLeads">Request leads</button>'+(window.PortalLeadReturn?.button()||'')+'</div>'+'<section class="ml-filter-panel" aria-label="Filter your leads"><div class="ml-section-heading"><h2>Lead folders</h2><span>Select where to start</span></div>'+myLeadFolders()+'<div class="ml-filter-row">'+myLeadSearchBar()+myLeadStates()+'</div></section><section class="ml-results" aria-label="Assigned leads"><div class="ml-results-heading"><div><h2>Your leads</h2><p>Update a status, add call notes, or submit a closed deal.</p></div><span class="ml-column-hint">Drag column headings to reorder</span></div><div class="ml-status-key" aria-label="Lead status colors"><span><i class="ml-dot-neutral"></i>No status</span><span><i class="ml-dot-blue"></i>Appointment / follow-up</span><span><i class="ml-dot-amber"></i>Call back / voicemail</span><span><i class="ml-dot-red"></i>Not interested / dead number</span></div>'+pager('my',S.myPage,S.myCount)+'<div id="leadTopScroll" class="topscroll" title="Drag to scroll your leads left and right"><div id="leadTopScrollInner" class="topscroll-inner"></div></div><div id="leadTableScroll" class="table csvtable"><table><thead><tr><th>Lead Type</th><th>Lead Status</th>'+cols.map(c=>'<th data-column-key="'+esc(c.layoutKey)+'">'+esc(c.label)+'</th>').join('')+'<th>Call Notes</th><th>Action</th></tr></thead><tbody>'+(openLeads.length?openLeads.map(l=>'<tr class="leadrow '+esc(l.agent_status||'none')+'"><td><span class="badge typepill">'+esc(l.lead_type||'Unlabeled')+'</span></td><td>'+leadStatusBar(l)+'</td>'+cols.map(c=>'<td>'+esc(csvValue(l,c)||'—')+'</td>').join('')+'<td><div class="callnotes-wrap"><textarea aria-label="Call notes" class="callnotes" id="callnotes-'+l.id+'" placeholder="Notes about the call…">'+esc(l.call_notes||'')+'</textarea><button class="btn secondary saveCallNotes" data-id="'+l.id+'">Save</button></div></td><td><button class="btn primary closeLead" data-id="'+l.id+'">Mark closed</button></td></tr>').join(''):'<tr><td colspan="'+(cols.length+4)+'" class="empty">No assigned leads match this folder, states, or search.</td></tr>')+'</tbody></table></div>'+pager('my',S.myPage,S.myCount)+'</section></section>'}
+function myLeads(){let openLeads=(S.leads||[]).filter(l=>l.status!=='closed'),cols=csvColumns(openLeads);return '<section class="my-leads-workspace"><div class="head ml-heading"><div><span class="ml-eyebrow">YOUR DAILY WORKSPACE</span><h1>My Leads</h1><p>Choose a folder, then select the states you want to call.</p>'+ (S.teamInfo?.leader_name?'<p>Team leader: '+esc(S.teamInfo.leader_name)+(S.teamInfo.leader_active?'':' (inactive)')+'</p>':'')+'</div><div class="ml-count"><span>Matching open leads</span><strong>'+Number(S.myCount||0).toLocaleString()+'</strong><small>Current folder, states &amp; search</small></div></div><div class="tools ml-primary-actions"><button class="btn primary requestLeads">Request leads</button>'+(window.PortalLeadReturn?.button()||'')+'</div>'+'<section class="ml-filter-panel" aria-label="Filter your leads"><div class="ml-section-heading"><h2>Lead folders</h2><span>Select where to start</span></div>'+myLeadFolders()+'<div class="ml-filter-row">'+myLeadSearchBar()+myLeadStates()+'</div></section><section class="ml-results" aria-label="Assigned leads"><div class="ml-results-heading"><div><h2>Your leads</h2><p>Update a status, add call notes, or submit a closed deal.</p></div><span class="ml-column-hint">Drag to reorder · drag a header edge to resize</span></div><div class="ml-status-key" aria-label="Lead status colors"><span><i class="ml-dot-neutral"></i>No status</span><span><i class="ml-dot-blue"></i>Appointment / follow-up</span><span><i class="ml-dot-amber"></i>Call back / voicemail</span><span><i class="ml-dot-red"></i>Not interested / dead number</span></div>'+pager('my',S.myPage,S.myCount)+'<div id="leadTopScroll" class="topscroll" title="Drag to scroll your leads left and right"><div id="leadTopScrollInner" class="topscroll-inner"></div></div><div id="leadTableScroll" class="table csvtable"><table><thead><tr><th>Lead Type</th><th>Lead Status</th>'+cols.map(c=>'<th data-column-key="'+esc(c.layoutKey)+'">'+esc(c.label)+'</th>').join('')+'<th>Call Notes</th><th>Action</th></tr></thead><tbody>'+(openLeads.length?openLeads.map(l=>'<tr class="leadrow '+esc(l.agent_status||'none')+'"><td><span class="badge typepill">'+esc(l.lead_type||'Unlabeled')+'</span></td><td>'+leadStatusBar(l)+'</td>'+cols.map(c=>'<td>'+esc(csvValue(l,c)||'—')+'</td>').join('')+'<td><div class="callnotes-wrap"><textarea aria-label="Call notes" class="callnotes" id="callnotes-'+l.id+'" placeholder="Notes about the call…">'+esc(l.call_notes||'')+'</textarea><button class="btn secondary saveCallNotes" data-id="'+l.id+'">Save</button></div></td><td><button class="btn primary closeLead" data-id="'+l.id+'">Mark closed</button></td></tr>').join(''):'<tr><td colspan="'+(cols.length+4)+'" class="empty">No assigned leads match this folder, states, or search.</td></tr>')+'</tbody></table></div>'+pager('my',S.myPage,S.myCount)+'</section></section>'}
 function myClosed(){let ap=Number(CLOSED_PERIODS.totals?.[CLOSED_PERIODS.period]?.annual_premium||0);return '<div class="head"><div><h1>Closed leads</h1><p>Your submitted production history.</p></div><div class="notice">Annual premium: '+money(ap)+'</div></div>'+closedPeriodControls()+pager('myClosed',S.myClosedPage,S.myClosedCount)+'<div class="table lead-readable"><table><thead><tr><th>Client</th><th>Lead Type</th><th>Carrier</th><th>Type</th><th>Monthly</th><th>Annual</th><th>Date</th></tr></thead><tbody>'+(S.closed.length?S.closed.map(r=>'<tr class="closed-deal-row" data-closed-id="'+esc(r.id)+'"><td>'+'<button type="button" class="btn secondary closed-deal-open" data-closed-id="'+esc(r.id)+'">'+esc(closedClientName(r.leads))+'</button>'+'</td><td>'+esc(r.leads?.lead_type||'—')+'</td><td>'+esc(r.carrier)+'</td><td>'+esc(r.policy_type)+'</td><td>'+money(r.monthly_premium)+'</td><td>'+money(r.annual_premium)+'</td><td>'+esc(r.application_date||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">No closed leads yet.</td></tr>')+'</tbody></table></div>'+pager('myClosed',S.myClosedPage,S.myClosedCount)}
 
 function applyLeadStatusInPlace(id,next){
