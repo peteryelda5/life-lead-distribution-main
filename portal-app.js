@@ -591,22 +591,105 @@ function bindLeadColumnLayout(onSize){
   order=[...columns];savedOrder=[];hidden.clear();widths.clear();pinned=null;density='comfortable';
   commit();
  };
- let dragged=null;
- for(const col of columns){
-  const th=col.th;
-  th.draggable=true;
-  th.title='Drag to move this column';
-  th.ondragstart=e=>{dragged=col;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',col.key);th.classList.add('ml-column-dragging');};
-  th.ondragend=()=>{dragged=null;th.classList.remove('ml-column-dragging');};
-  th.ondragover=e=>{if(dragged&&dragged!==col)e.preventDefault();};
-  th.ondrop=e=>{
-   if(!dragged||dragged===col)return;
-   e.preventDefault();
-   move(dragged,order.indexOf(col));
-   dragged.th.classList.remove('ml-column-dragging');
-   dragged=null;
+ const viewport=table.closest('#leadTableScroll');
+ let activeDrag=null;
+ const startDrag=(event,col)=>{
+  if(activeDrag||event.button!==0||col.key===pinned||event.target.closest('.ml-column-resize'))return;
+  if(event.pointerType==='touch'&&!event.target.closest('.ml-column-grip'))return;
+  const header=col.th,origin=header.getBoundingClientRect(),startX=event.clientX;
+  const drag={x:startX,ghost:null,marker:null,frame:0,target:null,before:false};
+  activeDrag=drag;
+  header.setPointerCapture(event.pointerId);
+  const update=()=>{
+   if(!header.isConnected){finish(false);return;}
+   const view=viewport.getBoundingClientRect();
+   const pin=visible().find(c=>c.key===pinned);
+   const left=Math.max(view.left,pin?.th.getBoundingClientRect().right??view.left);
+   const x=Math.max(left,Math.min(view.right,drag.x));
+   if(drag.x<left+32)viewport.scrollLeft-=12;
+   else if(drag.x>view.right-32)viewport.scrollLeft+=12;
+   const candidates=visible().filter(c=>c!==col&&c!==pin).map(c=>({col:c,rect:c.th.getBoundingClientRect()})).filter(({rect})=>rect.right>left&&rect.left<view.right);
+   const next=candidates.find(({rect})=>x<(Math.max(left,rect.left)+Math.min(view.right,rect.right))/2);
+   const target=next||candidates.at(-1);
+   drag.target=target?.col||null;
+   drag.before=!!next;
+   drag.marker.hidden=!target;
+   if(target)drag.marker.style.left=Math.max(left,Math.min(view.right-2,next?target.rect.left:target.rect.right))+'px';
+   drag.marker.style.top=Math.max(view.top,header.getBoundingClientRect().top)+'px';
+   drag.marker.style.height=Math.max(0,view.bottom-Math.max(view.top,header.getBoundingClientRect().top))+'px';
+   drag.ghost.style.transform='translateX('+(drag.x-startX)+'px)';
+   drag.frame=requestAnimationFrame(update);
+  };
+  const movePointer=e=>{
+   if(e.pointerId!==event.pointerId)return;
+   drag.x=e.clientX;
+   if(drag.ghost||Math.abs(drag.x-startX)<5)return;
+   const view=viewport.getBoundingClientRect();
+   drag.ghost=document.createElement('div');
+   drag.ghost.className='ml-column-preview';
+   drag.ghost.setAttribute('aria-hidden','true');
+   Object.assign(drag.ghost.style,{left:origin.left+'px',top:origin.top+'px',width:origin.width+'px',maxHeight:Math.max(origin.height,view.bottom-origin.top)+'px'});
+   for(const cells of originals){
+    const cell=cells[col.index],rect=cell.getBoundingClientRect();
+    if(cell!==header&&(rect.bottom<=origin.bottom||rect.top>=view.bottom))continue;
+    const copy=document.createElement('div');
+    copy.textContent=cell===header?col.label:(cell.querySelector('textarea')?'Call notes':cell.textContent.trim());
+    copy.style.height=rect.height+'px';
+    drag.ghost.appendChild(copy);
+   }
+   drag.marker=document.createElement('div');
+   drag.marker.className='ml-column-drop-marker';
+   drag.marker.setAttribute('aria-hidden','true');
+   document.body.append(drag.ghost,drag.marker);
+   table.classList.add('ml-is-dragging');
+   header.classList.add('ml-column-dragging');
+   update();
+  };
+  const finish=save=>{
+   if(activeDrag!==drag)return;
+   activeDrag=null;
+   cancelAnimationFrame(drag.frame);
+   drag.ghost?.remove();
+   drag.marker?.remove();
+   table.classList.remove('ml-is-dragging');
+   header.classList.remove('ml-column-dragging');
+   header.removeEventListener('pointermove',movePointer);
+   header.removeEventListener('pointerup',drop);
+   header.removeEventListener('lostpointercapture',cancel);
+   document.removeEventListener('keydown',escape);
+   if(header.hasPointerCapture(event.pointerId))header.releasePointerCapture(event.pointerId);
+   if(!save||!drag.target)return;
+   order.splice(order.indexOf(col),1);
+   order.splice(order.indexOf(drag.target)+(drag.before?0:1),0,col);
+   saveOrder();
    commit();
   };
+  const drop=e=>{
+   if(e.pointerId!==event.pointerId)return;
+   const view=viewport.getBoundingClientRect();
+   const inside=e.clientX>=view.left&&e.clientX<=view.right&&e.clientY>=view.top&&e.clientY<=view.bottom;
+   if(inside&&drag.ghost){
+    drag.x=e.clientX;
+    cancelAnimationFrame(drag.frame);
+    update();
+   }
+   finish(inside);
+  };
+  const cancel=()=>finish(false);
+  const escape=e=>{if(e.key==='Escape')finish(false);};
+  header.addEventListener('pointermove',movePointer);
+  header.addEventListener('pointerup',drop);
+  header.addEventListener('lostpointercapture',cancel);
+  document.addEventListener('keydown',escape);
+ };
+ for(const col of columns){
+  const th=col.th;
+  th.title='Drag to move this column. Unpin pinned columns before moving.';
+  const grip=document.createElement('span');
+  grip.className='ml-column-grip';
+  grip.setAttribute('aria-hidden','true');
+  th.prepend(grip);
+  th.onpointerdown=e=>startDrag(e,col);
   const handle=document.createElement('button');
   handle.type='button';
   handle.className='ml-column-resize';
@@ -617,16 +700,14 @@ function bindLeadColumnLayout(onSize){
    e.preventDefault();e.stopPropagation();
    changeWidth(col.th.offsetWidth+(e.key==='ArrowRight'?16:-16));persist();
   };
-  handle.ondragstart=e=>{e.preventDefault();e.stopPropagation();};
   handle.onpointerdown=e=>{
    if(e.button!==0)return;
    e.preventDefault();e.stopPropagation();
    handle.focus({preventScroll:true});
    const start=e.clientX,initial=col.th.offsetWidth,scale=col.th.getBoundingClientRect().width/initial||1;
    handle.setPointerCapture(e.pointerId);
-   th.draggable=false;
    handle.onpointermove=event=>changeWidth(initial+(event.clientX-start)/scale);
-   handle.onlostpointercapture=()=>{handle.onpointermove=null;th.draggable=true;persist();};
+   handle.onlostpointercapture=()=>{handle.onpointermove=null;persist();};
   };
   th.appendChild(handle);
  }
