@@ -37,8 +37,8 @@ async function rawPage(path){const epoch=portalSessionEpoch;let h={'apikey':KEY,
 async function apiPage(path){if(!S.session)throw Object.assign(new Error('Session expired. Please sign in again.'),{status:401});if(sessionExpiresWithin(120)){const ok=await refreshToken();if(!ok&&!S.session)throw Object.assign(new Error('Session expired. Please sign in again.'),{status:401})}try{return await rawPage(path)}catch(e){if(isAuthError(e)){const ok=await refreshToken();if(ok)return rawPage(path);if(!S.session)throw Object.assign(new Error('Session expired. Please sign in again.'),{status:401})}throw e}}
 function cleanSearch(v){return String(v||'').trim().replace(/[,*()%]/g,' ').replace(/\s+/g,' ').slice(0,120)}
 function buildLeadParams({status,page=1,assignedTo=null,leadType='',state='',division='',search='',select='*',order='created_at.desc',limit=S.pageSize}){const p=new URLSearchParams();p.set('select',select);if(status)p.set('status','eq.'+status);if(assignedTo)p.set('assigned_to','eq.'+assignedTo);if(division)p.set('division','eq.'+division);if(leadType){if(leadType==='__unlabeled__')p.set('lead_type','is.null');else p.set('lead_type','eq.'+leadType)}if(state){if(state==='__nostate__')p.set('state','is.null');else p.set('state','ilike.'+state)}const z=cleanSearch(search);if(z){p.set('or','(first_name.ilike.*'+z+'*,last_name.ilike.*'+z+'*,phone.ilike.*'+z+'*,email.ilike.*'+z+'*,state.ilike.*'+z+'*,source.ilike.*'+z+'*,lead_type.ilike.*'+z+'*,agent_status.ilike.*'+z+'*,call_notes.ilike.*'+z+'*)')}p.set('order',order);p.set('limit',String(limit));p.set('offset',String(Math.max(0,(page-1)*limit)));return p.toString()}
-function pageCount(count){return Math.max(1,Math.ceil(Number(count||0)/S.pageSize))}
-function pager(kind,page,count){const pages=pageCount(count),from=count?((page-1)*S.pageSize+1):0,to=Math.min(page*S.pageSize,count);return '<div class="pager"><div class="muted small">Showing '+from+'–'+to+' of '+Number(count||0).toLocaleString()+'</div><div class="pages"><button class="btn secondary pageBtn" data-kind="'+kind+'" data-page="'+Math.max(1,page-1)+'" '+(page<=1?'disabled':'')+'>Previous</button><span class="muted small">Page '+page+' of '+pages+'</span><button class="btn secondary pageBtn" data-kind="'+kind+'" data-page="'+Math.min(pages,page+1)+'" '+(page>=pages?'disabled':'')+'>Next</button></div></div>'}
+function pageCount(count,size=S.pageSize){return Math.max(1,Math.ceil(Number(count||0)/size))}
+function pager(kind,page,count){const size=kind==='my'?Math.min(100,S.pageSize):S.pageSize,pages=pageCount(count,size),from=count?((page-1)*size+1):0,to=Math.min(page*size,count);return '<div class="pager"><div class="muted small">Showing '+from+'–'+to+' of '+Number(count||0).toLocaleString()+'</div><div class="pages"><button class="btn secondary pageBtn" data-kind="'+kind+'" data-page="'+Math.max(1,page-1)+'" '+(page<=1?'disabled':'')+'>Previous</button><span class="muted small">Page '+page+' of '+pages+'</span><button class="btn secondary pageBtn" data-kind="'+kind+'" data-page="'+Math.min(pages,page+1)+'" '+(page>=pages?'disabled':'')+'>Next</button></div></div>'}
 
 async function signIn(email,password){let d=await raw('/auth/v1/token?grant_type=password',{method:'POST',auth:false,body:{email,password}});saveSession(d);S.tab='dashboard';await load();}
 async function setupOwner(p){return raw('/functions/v1/setup-owner',{method:'POST',auth:false,body:p})}
@@ -75,7 +75,7 @@ async function loadPoolPage(){let r=await apiPage('/rest/v1/leads?'+buildLeadPar
 async function loadAssignedPage(){let r=await apiPage('/rest/v1/leads?'+buildLeadParams({status:'assigned',page:S.assignedPage,division:(operatingDivision()),search:S.filter,order:'assigned_at.desc,id.desc'}));S.assignedLeads=r.data||[];S.assignedCount=Number(r.count||0);const max=pageCount(S.assignedCount);if(S.assignedPage>max){S.assignedPage=max;return loadAssignedPage()}}
 async function loadClosedPage(){await loadClosedPeriods();const p=new URLSearchParams();p.set('select','*,leads(first_name,last_name,lead_type,csv_headers,csv_values,division),profiles!inner(full_name,division)');if(S.profile?.role==='admin')p.set('profiles.division','eq.'+S.divisionFilter);p.set('order','created_at.desc');p.set('limit',String(S.pageSize));p.set('offset',String((S.closedPage-1)*S.pageSize));applyClosedPeriodFilter(p);const r=await apiPage('/rest/v1/closed_business?'+p.toString());S.closed=r.data||[];S.closedCount=Number(r.count||0);const max=pageCount(S.closedCount);if(S.closedPage>max){S.closedPage=max;return loadClosedPage()}}
 async function loadMyFolders(){const owner=S.profile,request=S.myFoldersRequest=(S.myFoldersRequest||0)+1;const rows=await api('/rest/v1/rpc/my_lead_folders',{method:'POST',body:{}});if(owner!==S.profile||request!==S.myFoldersRequest)return;S.myFolders=rows||[]}
-async function loadMyLeadsPage(){const owner=S.profile,request=S.myLeadsRequest=(S.myLeadsRequest||0)+1;const r=await api('/rest/v1/rpc/my_assigned_leads_filtered',{method:'POST',body:{p_search:S.mySearch.trim(),p_lead_type:S.myFolder?.type??null,p_folder:S.myFolder!==null,p_page:S.myPage,p_limit:S.pageSize,p_states:S.myStates}});if(owner!==S.profile||request!==S.myLeadsRequest)return;S.leads=(r.data||[]).filter(l=>l.status!=='closed');S.myCount=Number(r.count||0);S.myStateOptions=r.states||[];const max=pageCount(S.myCount);if(S.myPage>max){S.myPage=max;return loadMyLeadsPage()}}
+async function loadMyLeadsPage(){const size=Math.min(100,S.pageSize),owner=S.profile,request=S.myLeadsRequest=(S.myLeadsRequest||0)+1;const r=await api('/rest/v1/rpc/my_assigned_leads_filtered',{method:'POST',body:{p_search:S.mySearch.trim(),p_lead_type:S.myFolder?.type??null,p_folder:S.myFolder!==null,p_page:S.myPage,p_limit:size,p_states:S.myStates}});if(owner!==S.profile||request!==S.myLeadsRequest)return;S.leads=(r.data||[]).filter(l=>l.status!=='closed');S.myCount=Number(r.count||0);S.myStateOptions=r.states||[];const max=pageCount(S.myCount,size);if(S.myPage>max){S.myPage=max;return loadMyLeadsPage()}}
 async function loadMyClosedPage(){await loadClosedPeriods();const p=new URLSearchParams();p.set('select','*,leads(first_name,last_name,lead_type,csv_headers,csv_values)');p.set('agent_id','eq.'+S.profile.id);p.set('order','created_at.desc');p.set('limit',String(S.pageSize));p.set('offset',String((S.myClosedPage-1)*S.pageSize));applyClosedPeriodFilter(p);const r=await apiPage('/rest/v1/closed_business?'+p.toString());S.closed=r.data||[];S.myClosedCount=Number(r.count||0);const max=pageCount(S.myClosedCount);if(S.myClosedPage>max){S.myClosedPage=max;return loadMyClosedPage()}}
 async function loadTabData(){if(!S.profile)return;if(S.tab==='profiles'){await loadManagedAgentProfiles();return;}if(S.profile.role==='admin'&&['organization','agents','admins','divisions'].includes(S.tab)){if(S.tab!=='organization'){ORG.list=S.tab;ORG.view='list';}S.tab='organization';await loadOrganization();return;}if(S.tab==='power-dialer')return;if(S.tab==='onboarding'){await loadOnboardingChecklist();return;}if(S.tab==='dashboard'&&S.profile.role==='agent'){await loadAgentDashboard();return;}if(S.tab==='book-business'){await bobLoad();return}if(S.tab==='announcements'){await loadPortalAnnouncements();return}if(S.tab==='carrier-resources'){await loadPortalResources();return}if(S.tab==='my-leads'&&S.profile.role==='admin'){await Promise.all([loadMyFolders(),loadMyLeadsPage()]);return;}if(S.tab==='activity'){await loadLeadHistory();return;}if(S.tab==='support-agent'){await loadAgentSupport();return;}if(S.tab==='divisions'){await loadDivisionDirectory();return;}if(S.tab==='live-chat'){await loadChat();return;}if(S.tab==='leaderboard'){await loadLeaderboard();return;}if(S.tab==='master-view'){await loadMasterLeadView();return}if(S.tab==='lead-requests'){await loadLeadRequests();return;}if(S.profile.role==='admin'){if(S.tab==='dashboard')await loadDashboard();else if(S.tab==='leads')await Promise.all([refreshLeadFilterCounts(),loadPoolPage()]);else if(S.tab==='agents')await loadAgentStats();else if(S.tab==='assigned-leads')await loadAssignedPage();else if(S.tab==='closed')await loadClosedPage()}else{if(!['dashboard','onboarding','book-business','announcements','carrier-resources','my-leads','my-closed','lead-requests','leaderboard','live-chat',...(S.profile.is_team_leader?['my-uploads','profiles']:[])].includes(S.tab))S.tab='dashboard';if(S.tab==='my-leads'){await Promise.all([loadMyFolders(),loadMyLeadsPage()]);}else if(S.tab==='my-uploads')await loadMyUploads();else await loadMyClosedPage()}}
 async function fetchPoolIds(n){n=Math.max(1,Math.min(1000,Number(n||0)));const params=new URLSearchParams(buildLeadParams({status:'unassigned',page:1,leadType:S.leadTypeFilter,state:S.stateFilter,division:operatingDivision(),search:S.filter,select:'id',order:'created_at.desc,id.desc',limit:n}));params.set('offset',String((S.poolPage-1)*S.pageSize));const rows=await api('/rest/v1/leads?'+params);return (rows||[]).map(x=>x.id)}
@@ -533,8 +533,12 @@ function bindLeadColumnLayout(onSize){
  const visible=()=>{const cols=order.filter(c=>!hidden.has(c.key)),pin=cols.find(c=>c.key===pinned);return pin?[pin,...cols.filter(c=>c!==pin)]:cols;};
  const size=()=>{
   const cols=visible();
-  for(const col of cols)col.col.style.width=width(col)+'px';
-  table.style.width=cols.reduce((sum,col)=>sum+width(col),0)+'px';
+  for(const col of cols){
+   const value=width(col)+'px';
+   if(col.col.style.width!==value)col.col.style.width=value;
+  }
+  const total=cols.reduce((sum,col)=>sum+width(col),0)+'px';
+  if(table.style.width!==total)table.style.width=total;
   onSize();
  };
  const apply=()=>{
@@ -542,14 +546,21 @@ function bindLeadColumnLayout(onSize){
   group.replaceChildren(...cols.map(c=>c.col));
   const emptyCell=table.querySelector('tbody td.empty');
   if(emptyCell)emptyCell.colSpan=cols.length;
+  const layout=[...cols,...order.filter(c=>hidden.has(c.key))];
   for(const cells of originals){
    const row=cells[0].parentNode;
    for(const col of order){
     const cell=cells[col.index];
-    cell.hidden=hidden.has(col.key);
-    cell.classList.toggle('ml-pinned-column',!cell.hidden&&col.key===pinned);
+    const hide=hidden.has(col.key),pin=!hide&&col.key===pinned;
+    if(cell.hidden!==hide)cell.hidden=hide;
+    if(cell.classList.contains('ml-pinned-column')!==pin)cell.classList.toggle('ml-pinned-column',pin);
    }
-   for(const col of [...cols,...order.filter(c=>hidden.has(c.key))])row.appendChild(cells[col.index]);
+   let next=row.firstElementChild;
+   for(const col of layout){
+    const cell=cells[col.index];
+    if(cell===next)next=next.nextElementSibling;
+    else row.insertBefore(cell,next);
+   }
   }
   table.dataset.density=density;
   select.value=density;
@@ -597,33 +608,43 @@ function bindLeadColumnLayout(onSize){
   if(activeDrag||event.button!==0||col.key===pinned||event.target.closest('.ml-column-resize'))return;
   if(event.pointerType==='touch'&&!event.target.closest('.ml-column-grip'))return;
   const header=col.th,origin=header.getBoundingClientRect(),startX=event.clientX;
+  const shown=visible(),pin=shown.find(c=>c.key===pinned),targets=shown.filter(c=>c!==col&&c!==pin);
   const drag={x:startX,ghost:null,marker:null,frame:0,target:null,before:false};
   activeDrag=drag;
   header.setPointerCapture(event.pointerId);
-  const update=()=>{
+  const update=(autoScroll=true)=>{
+   drag.frame=0;
    if(!header.isConnected){finish(false);return;}
    const view=viewport.getBoundingClientRect();
-   const pin=visible().find(c=>c.key===pinned);
    const left=Math.max(view.left,pin?.th.getBoundingClientRect().right??view.left);
    const x=Math.max(left,Math.min(view.right,drag.x));
-   if(drag.x<left+32)viewport.scrollLeft-=12;
-   else if(drag.x>view.right-32)viewport.scrollLeft+=12;
-   const candidates=visible().filter(c=>c!==col&&c!==pin).map(c=>({col:c,rect:c.th.getBoundingClientRect()})).filter(({rect})=>rect.right>left&&rect.left<view.right);
+   const scrollStep=drag.x<left+32?-12:drag.x>view.right-32?12:0;
+   const scroll=viewport.scrollLeft;
+   const canScroll=autoScroll&&((scrollStep<0&&scroll>0)||(scrollStep>0&&scroll+viewport.clientWidth<viewport.scrollWidth-1));
+   const top=Math.max(view.top,header.getBoundingClientRect().top);
+   const candidates=targets.map(c=>({col:c,rect:c.th.getBoundingClientRect()})).filter(({rect})=>rect.right>left&&rect.left<view.right);
    const next=candidates.find(({rect})=>x<(Math.max(left,rect.left)+Math.min(view.right,rect.right))/2);
    const target=next||candidates.at(-1);
    drag.target=target?.col||null;
    drag.before=!!next;
    drag.marker.hidden=!target;
    if(target)drag.marker.style.left=Math.max(left,Math.min(view.right-2,next?target.rect.left:target.rect.right))+'px';
-   drag.marker.style.top=Math.max(view.top,header.getBoundingClientRect().top)+'px';
-   drag.marker.style.height=Math.max(0,view.bottom-Math.max(view.top,header.getBoundingClientRect().top))+'px';
-   drag.ghost.style.transform='translateX('+(drag.x-startX)+'px)';
-   drag.frame=requestAnimationFrame(update);
+   drag.marker.style.top=top+'px';
+   drag.marker.style.height=Math.max(0,view.bottom-top)+'px';
+   drag.ghost.style.transform='translate3d('+(drag.x-startX)+'px,0,0)';
+   if(canScroll){
+    viewport.scrollLeft=scroll+scrollStep;
+    if(viewport.scrollLeft!==scroll)drag.frame=requestAnimationFrame(()=>update());
+   }
   };
   const movePointer=e=>{
    if(e.pointerId!==event.pointerId)return;
    drag.x=e.clientX;
-   if(drag.ghost||Math.abs(drag.x-startX)<5)return;
+   if(drag.ghost){
+    if(!drag.frame)drag.frame=requestAnimationFrame(()=>update());
+    return;
+   }
+   if(Math.abs(drag.x-startX)<5)return;
    const view=viewport.getBoundingClientRect();
    drag.ghost=document.createElement('div');
    drag.ghost.className='ml-column-preview';
@@ -631,7 +652,8 @@ function bindLeadColumnLayout(onSize){
    Object.assign(drag.ghost.style,{left:origin.left+'px',top:origin.top+'px',width:origin.width+'px',maxHeight:Math.max(origin.height,view.bottom-origin.top)+'px'});
    for(const cells of originals){
     const cell=cells[col.index],rect=cell.getBoundingClientRect();
-    if(cell!==header&&(rect.bottom<=origin.bottom||rect.top>=view.bottom))continue;
+    if(cell!==header&&rect.top>=view.bottom)break;
+    if(cell!==header&&rect.bottom<=origin.bottom)continue;
     const copy=document.createElement('div');
     copy.textContent=cell===header?col.label:(cell.querySelector('textarea')?'Call notes':cell.textContent.trim());
     copy.style.height=rect.height+'px';
@@ -659,10 +681,20 @@ function bindLeadColumnLayout(onSize){
    document.removeEventListener('keydown',escape);
    if(header.hasPointerCapture(event.pointerId))header.releasePointerCapture(event.pointerId);
    if(!save||!drag.target)return;
-   order.splice(order.indexOf(col),1);
-   order.splice(order.indexOf(drag.target)+(drag.before?0:1),0,col);
+   const oldIndex=order.indexOf(col);
+   order.splice(oldIndex,1);
+   const newIndex=order.indexOf(drag.target)+(drag.before?0:1);
+   order.splice(newIndex,0,col);
+   if(oldIndex===newIndex)return;
+   const cols=visible(),next=cols[cols.indexOf(col)+1];
+   const firstHidden=order.find(c=>hidden.has(c.key));
+   const nextCell=next||firstHidden;
+   group.insertBefore(col.col,next?.col||null);
+   for(const cells of originals)cells[col.index].parentNode.insertBefore(cells[col.index],nextCell?cells[nextCell.index]:null);
    saveOrder();
-   commit();
+   persist();
+   draw();
+   onSize();
   };
   const drop=e=>{
    if(e.pointerId!==event.pointerId)return;
@@ -671,7 +703,7 @@ function bindLeadColumnLayout(onSize){
    if(inside&&drag.ghost){
     drag.x=e.clientX;
     cancelAnimationFrame(drag.frame);
-    update();
+    update(false);
    }
    finish(inside);
   };
